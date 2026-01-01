@@ -1,0 +1,91 @@
+# 🧭 Baseline Intent Detection
+
+`ce_intent_classifier` provides **fast, deterministic intent detection**
+*before* any LLM involvement.
+
+This ensures ConvEngine always has a **baseline understanding**
+of what the user is trying to do.
+
+---
+
+## 🧠 Why This Exists
+
+> LLMs are powerful but expensive and probabilistic.  
+> Intent classification should be **cheap, fast, and predictable**.
+
+This table acts as the **first filter** in the pipeline.
+
+---
+
+## 📦 Table Definition
+
+```sql
+CREATE TABLE ce_intent_classifier (
+  classifier_id BIGSERIAL PRIMARY KEY,
+
+  intent_code   TEXT NOT NULL,
+  rule_type     TEXT NOT NULL,   -- REGEX | CONTAINS | STARTS_WITH
+  pattern       TEXT NOT NULL,
+
+  priority      INT NOT NULL,
+  enabled       BOOLEAN DEFAULT true,
+  description   TEXT
+);
+```
+
+---
+
+## 🔍 How It Works
+
+- Evaluated **only if intent is not already set**
+- Checked **before rules**
+- First matching classifier (by priority) wins
+
+---
+
+## ✍️ Example Classifiers
+
+```sql
+INSERT INTO ce_intent_classifier
+(intent_code, rule_type, pattern, priority)
+VALUES
+('GREETING', 'REGEX', '^(hi|hello|hey).*', 1),
+('ACTION',   'CONTAINS', 'move', 10),
+('ACTION',   'CONTAINS', 'transfer', 11),
+('ACTION',   'CONTAINS', 'from', 12);
+```
+
+---
+
+## 🔁 Interaction with Rules
+
+- Classifier sets **initial intent**
+- Rules may later:
+  - Override intent
+  - Set state
+  - Short-circuit flow
+
+Classifier = **hint**, Rules = **authority**
+
+---
+
+## 🚫 What Classifiers Should NOT Do
+
+- ❌ Set state
+- ❌ Modify context
+- ❌ Perform extraction
+
+They answer only one question:
+
+> *“What kind of thing is the user trying to do?”*
+
+---
+
+## ✅ Why This Design Scales
+
+- Zero LLM cost
+- Easy to tune via SQL
+- Auditable decisions
+- Safe defaults
+
+This keeps ConvEngine **boringly reliable** at the start of every conversation.

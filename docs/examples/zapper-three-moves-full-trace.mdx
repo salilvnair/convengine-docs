@@ -1,0 +1,876 @@
+---
+title: "⚡ Zapper End-to-End Tutorial"
+sidebar_position: 30
+---
+
+import { Conversation, User, Assistant } from "../../src/components/convengine";
+
+# ⚡ Zapper End-to-End Tutorial (Deep Dive)
+
+This is the **full, detailed** walkthrough of how ConvEngine powers the Zapper “move” experience across **three move types**:
+
+- ✅ **Move Connection IDs** (Connection(s) move from one Sub Account → another Sub Account)
+- ✅ **Move Sub Account** (Sub Account moves from one Business Account → another Business Account)
+- ✅ **Move Business Account** (Business Account moves from one Contract → another Contract)
+
+You’ll see **exactly** what happens inside the engine for each user message:
+- which `ce_*` tables are read
+- what is persisted to `ce_conversation.context_json`
+- how rules and schema completeness guide the state machine
+- how the response is selected (EXACT vs DERIVED)
+- where to add the deterministic “READY → EXECUTING” handoff for “yes”
+
+> 🧠 Core philosophy:  
+> **DB decides intent + state** (deterministic).  
+> **LLM only generates text/JSON** (no control plane).
+
+---
+
+## 🧱 The Data Model We’re Using (USPS sample)
+
+You described a hierarchy like this (conceptually):
+
+- **Contract 1**: `USPSC100`
+  - **BA**: `USPSBA100`
+    - **SA**: `USPSSA100` (Dallas) → connections: `USPSCON100, USPSCON200, USPSCON300`
+    - **SA**: `USPSSA200` (Plano)  → connections: `USPSCON500, USPSCON510, USPSCON520`
+    - **SA**: `USPSSA300` (Broken Bow) → connections: `USPSCON600`
+
+- **Contract 2**: `USPSC200`
+  - **BA**: `USPSBA200`
+    - **SA**: `USPSSA444` (Bronx) → `USPSCON444100, USPSCON444200, USPSCON444300`
+    - **SA**: `USPSSA555` (Manhattan) → `USPSCON555500, USPSCON555510, USPSCON555520`
+    - **SA**: `USPSSA666` (Queens) → `USPSCON666600`
+
+This doc focuses on **conversation/decision orchestration**; the actual hierarchy tiles come from your UI layer + whatever API you decide to call for rendering.
+
+---
+
+# 🧠 Engine Refresher: What the Engine Reads Per Message
+
+Every incoming message goes through the same deterministic pipeline (roughly):
+
+1. Load/Create `ce_conversation` row
+2. Policies (`ce_policy`) — hard stops
+3. Intent classification (`ce_intent_classifier`) — **only if state = IDLE**
+4. Rules (`ce_rule`) — overrides intent/state; can short-circuit
+5. Extraction schema (`ce_output_schema`) — if schema exists for `(intent,state)`, call LLM extractor and merge into `context_json`
+6. Schema completeness check — if complete, **auto-advance** (your design)
+7. Response selection (`ce_response`) — (intent,state) → (state,null) → (ANY)
+8. Persist conversation + return `EngineResult`
+
+Below, we’ll show this pipeline **in motion** for each move type.
+
+---
+
+# ✅ Move Type 1: Move Connection IDs (Sub Account → Sub Account)
+
+## 🎯 Goal
+
+Move selected connections (one or many) from:
+
+- `fromSubAccount = USPSSA100`
+- `toSubAccount   = USPSSA200`
+- `connectionIds  = [USPSCON100, USPSCON200, USPSCON300]`
+
+### 🧩 Required data (schema idea)
+
+For `MOVE_CONNECTIONS`, we **recommend**:
+
+- `fromSubAccount` (required)
+- `toSubAccount` (required)
+- `connectionIds` (required, `minItems: 1`)
+
+Because without connection IDs, it’s not a connection move—it’s ambiguous (could be SA move).
+
+---
+
+## 🧾 The 3-message happy path
+
+We’ll walk message-by-message and show:
+
+- what the engine **reads**
+- what the engine **writes**
+- what response is produced
+
+---
+
+## Message 1 — User starts the request
+
+### 🗣️ User says
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">incoming message</div>
+      <div className="ce-engine-item success">state = IDLE (fresh conversation)</div>
+      <div className="ce-engine-item success">intent classified → MOVE_CONNECTIONS</div>
+      <div className="ce-engine-item warn">rules applied (none overriding)</div>
+      <div className="ce-engine-item warn">extraction schema found for (MOVE_CONNECTIONS, IDLE)</div>
+      <div className="ce-engine-item success">context_json merged (fromSubAccount,toSubAccount)</div>
+      <div className="ce-engine-item warn">schema incomplete (missing connectionIds[minItems=1])</div>
+      <div className="ce-engine-item success">state → NEED_MORE_INFO</div>
+      <div className="ce-engine-item ok">response selected: (MOVE_CONNECTIONS, NEED_MORE_INFO)</div>
+    </>
+  }
+>
+  <User>Move my connections from USPSSA100 to USPSSA200</User>
+  <Assistant>Got it ✅ Which connection IDs do you want to move?</Assistant>
+</Conversation>
+
+---
+
+### 🔍 What the engine **read** (tables)
+
+- `ce_conversation` (load-or-create)
+- `ce_policy` (does this message match a policy?)
+- `ce_intent_classifier` (because state is IDLE)
+- `ce_rule` (deterministic overrides)
+- `ce_output_schema` for `(intent=MOVE_CONNECTIONS, state=IDLE)` (or `(MOVE_CONNECTIONS, NEED_MORE_INFO)` depending on your design)
+- `ce_response` for `(intent=MOVE_CONNECTIONS, state=NEED_MORE_INFO)` fallback chain
+
+---
+
+### 🧠 What the engine **deduced**
+
+- **Intent** should become `MOVE_CONNECTIONS`
+- **Extraction** should parse and store:
+  - `fromSubAccount = USPSSA100`
+  - `toSubAccount   = USPSSA200`
+- Schema is **incomplete** because:
+  - `connectionIds` not present yet OR `minItems` unmet
+
+---
+
+### 💾 What the engine **wrote** (tables)
+
+- `ce_conversation.context_json` now contains:
+  - `fromSubAccount`
+  - `toSubAccount`
+- `ce_conversation.state_code = NEED_MORE_INFO`
+- `ce_conversation.last_user_text` updated
+- `ce_conversation.last_assistant_json` updated
+- (Optional) `ce_llm_call_log` if extraction uses LLM
+- (Optional) `ce_audit` stage records (we’ll recommend below)
+
+---
+
+## Message 2 — User provides connection IDs
+
+### 🗣️ User says
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">incoming message</div>
+      <div className="ce-engine-item success">loaded ce_conversation by conversation_id</div>
+      <div className="ce-engine-item ok">state ≠ IDLE → intent is locked (MOVE_CONNECTIONS)</div>
+      <div className="ce-engine-item warn">rules evaluated</div>
+      <div className="ce-engine-item warn">extraction schema found for (MOVE_CONNECTIONS, NEED_MORE_INFO)</div>
+      <div className="ce-engine-item success">context_json merged (connectionIds array)</div>
+      <div className="ce-engine-item success">schema complete ✅</div>
+      <div className="ce-engine-item success strong">auto-advance → READY</div>
+      <div className="ce-engine-item ok">response selected: (MOVE_CONNECTIONS, READY)</div>
+    </>
+  }
+>
+  <User>USPSCON100, USPSCON200, USPSCON300</User>
+  <Assistant>Perfect ✅ I have everything. Please confirm to proceed.</Assistant>
+</Conversation>
+
+---
+
+### 🔍 What the engine **read** (tables)
+
+- `ce_conversation` (existing row)
+- `ce_policy` (still checked)
+- ❌ `ce_intent_classifier` skipped (state is not IDLE)
+- `ce_rule`
+- `ce_output_schema` (for extraction)
+- `ce_response` for `(MOVE_CONNECTIONS, READY)`
+
+---
+
+### 🧠 What the engine **deduced**
+
+- Since we’re in `NEED_MORE_INFO`, the message should be treated as filling missing fields.
+- Extraction merges `connectionIds`.
+- Schema completeness becomes **true**.
+- Engine sets state to `READY` (auto-advance).
+
+---
+
+### 💾 What the engine **wrote**
+
+- `ce_conversation.context_json` now contains:
+  - `fromSubAccount`
+  - `toSubAccount`
+  - `connectionIds` (array)
+- `ce_conversation.state_code = READY`
+
+---
+
+## Message 3 — User says “yes”
+
+### 🗣️ User says
+
+At this moment, your engine does **one of two things**:
+
+### ✅ Option A (current behavior you saw)
+“yes” in READY results in a **confirmation UI payload**, not execution.
+
+That’s valid because READY means: **await confirm/execute**.
+
+### ✅ Option B (the behavior you want)
+“yes” in READY triggers a deterministic rule: READY + YES → EXECUTING → DONE.
+
+We’ll show the desired deterministic plan next.
+
+---
+
+## ✅ Desired behavior: READY + yes → EXECUTING → DONE
+
+### 🗣️ User says
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">intent = MOVE_CONNECTIONS (locked)</div>
+      <div className="ce-engine-item success">state = READY</div>
+      <div className="ce-engine-item warn">rules evaluated</div>
+      <div className="ce-engine-item success">rule matched: READY + yes → SET_STATE EXECUTING</div>
+      <div className="ce-engine-item warn">fake API invoked (execute move)</div>
+      <div className="ce-engine-item success strong">state → DONE</div>
+      <div className="ce-engine-item ok">response selected: (MOVE_CONNECTIONS, DONE)</div>
+    </>
+  }
+>
+  <User>yes</User>
+  <Assistant>✅ Migration completed successfully. 3 connections moved from <strong>USPSSA100</strong> to <strong>USPSSA200</strong>.</Assistant>
+</Conversation>
+
+---
+
+## 🔧 Where in Java this happens (the “rule + transition” hotspot)
+
+In your `DefaultConversationalEngine`, these two sections are the important ones:
+
+### 1) Rule processing (deterministic state changes)
+
+```java
+for (CeRule rule : ruleRepo.findByEnabledTrueOrderByPriorityAsc()) {
+  if (!matches(rule.getRuleType(), rule.getMatchPattern(), userText)) {
+    continue;
+  }
+  RuleAction action = RuleAction.valueOf(rule.getAction().trim().toUpperCase());
+  switch (action) {
+    case SET_STATE -> {
+      state = rule.getActionValue();
+      convo.setStateCode(state);
+    }
+    // ...
+  }
+}
+```
+
+### 2) Response resolution (what do we return for that new state?)
+
+```java
+CeResponse resp = responseRepo
+  .findFirstByEnabledTrueAndStateCodeAndIntentCodeOrderByPriorityAsc(state, intent)
+  .or(() -> responseRepo.findFirstByEnabledTrueAndStateCodeAndIntentCodeIsNullOrderByPriorityAsc(state))
+  .or(() -> responseRepo.findFirstByEnabledTrueAndStateCodeOrderByPriorityAsc("ANY"))
+  .orElseThrow(...);
+```
+
+That’s the contract:  
+**Rule changes state → response lookup uses that state → payload comes out.**
+
+---
+
+# ✅ Move Type 2: Move Sub Account (SA → another Business Account)
+
+## 🎯 Goal
+
+Move an entire Sub Account (`USPSSA200`) from one BA to another BA.
+
+Example: move **Sub Account** `USPSSA200` from:
+
+- `fromBusinessAccount = USPSBA100`
+- `toBusinessAccount   = USPSBA200`
+- `subAccount          = USPSSA200`
+
+### 🧩 Required data (schema idea)
+
+For `MOVE_SUBACCOUNT`:
+
+- `subAccount` (required)
+- `fromBusinessAccount` (required)
+- `toBusinessAccount` (required)
+
+Optional:
+- `fromContract`, `toContract` (only if BA identity isn’t globally unique)
+
+---
+
+## Message 1 — User asks to move a sub account
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">state = IDLE</div>
+      <div className="ce-engine-item success">intent classified → MOVE_SUBACCOUNT</div>
+      <div className="ce-engine-item warn">schema extract ran</div>
+      <div className="ce-engine-item warn">context_json has subAccount = USPSSA200</div>
+      <div className="ce-engine-item warn">missing: fromBusinessAccount, toBusinessAccount</div>
+      <div className="ce-engine-item success">state → NEED_MORE_INFO</div>
+    </>
+  }
+>
+  <User>Move sub account USPSSA200 to another business account</User>
+  <Assistant>Sure ✅ Which business account is it moving from, and which business account is it moving to?</Assistant>
+</Conversation>
+
+---
+
+## Message 2 — User provides BA from/to
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">intent locked → MOVE_SUBACCOUNT</div>
+      <div className="ce-engine-item warn">extract from/to BA</div>
+      <div className="ce-engine-item success">schema complete ✅</div>
+      <div className="ce-engine-item success strong">auto-advance → READY</div>
+      <div className="ce-engine-item ok">return confirmation UI</div>
+    </>
+  }
+>
+  <User>From USPSBA100 to USPSBA200</User>
+  <Assistant>Nice ✅ Please confirm you want to move <strong>USPSSA200</strong> from <strong>USPSBA100</strong> to <strong>USPSBA200</strong>.</Assistant>
+</Conversation>
+
+---
+
+## Message 3 — “yes” triggers execution (same pattern)
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">state = READY</div>
+      <div className="ce-engine-item success">rule matched: READY + yes → EXECUTING</div>
+      <div className="ce-engine-item warn">fake API invoked</div>
+      <div className="ce-engine-item success strong">state → DONE</div>
+    </>
+  }
+>
+  <User>yes</User>
+  <Assistant>✅ Sub account <strong>USPSSA200</strong> moved successfully to <strong>USPSBA200</strong>.</Assistant>
+</Conversation>
+
+---
+
+# ✅ Move Type 3: Move Business Account (BA → another Contract)
+
+## 🎯 Goal
+
+Move an entire Business Account from one Contract to another.
+
+Example: move BA `USPSBA100` from:
+
+- `fromContract = USPSC100`
+- `toContract   = USPSC200`
+- `businessAccount = USPSBA100`
+
+### 🧩 Required data (schema idea)
+
+For `MOVE_BUSINESS_ACCOUNT`:
+
+- `businessAccount` (required)
+- `fromContract` (required)
+- `toContract` (required)
+
+---
+
+## Message 1 — User asks BA move
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">state = IDLE</div>
+      <div className="ce-engine-item success">intent classified → MOVE_BUSINESS_ACCOUNT</div>
+      <div className="ce-engine-item warn">extraction ran</div>
+      <div className="ce-engine-item warn">captured businessAccount = USPSBA100</div>
+      <div className="ce-engine-item warn">missing fromContract/toContract</div>
+      <div className="ce-engine-item success">state → NEED_MORE_INFO</div>
+    </>
+  }
+>
+  <User>Move business account USPSBA100 to contract USPSC200</User>
+  <Assistant>Got it ✅ Which contract is <strong>USPSBA100</strong> currently under?</Assistant>
+</Conversation>
+
+---
+
+## Message 2 — User provides fromContract
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">intent locked</div>
+      <div className="ce-engine-item warn">extract fromContract = USPSC100</div>
+      <div className="ce-engine-item success">schema complete ✅ (fromContract + toContract already known)</div>
+      <div className="ce-engine-item success strong">auto-advance → READY</div>
+    </>
+  }
+>
+  <User>It is under USPSC100</User>
+  <Assistant>Please confirm you want to move <strong>USPSBA100</strong> from <strong>USPSC100</strong> to <strong>USPSC200</strong>.</Assistant>
+</Conversation>
+
+---
+
+## Message 3 — “yes” executes
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">state = READY</div>
+      <div className="ce-engine-item success">rule matched: READY + yes → EXECUTING</div>
+      <div className="ce-engine-item warn">fake API invoked</div>
+      <div className="ce-engine-item success strong">state → DONE</div>
+    </>
+  }
+>
+  <User>yes</User>
+  <Assistant>✅ Business account <strong>USPSBA100</strong> moved successfully to contract <strong>USPSC200</strong>.</Assistant>
+</Conversation>
+
+---
+
+# 🗃️ What’s Happening in `ce_*` Tables (Full, Traceable Story)
+
+This section is intentionally detailed. If you read it once, you can debug anything.
+
+---
+
+## 1) `ce_conversation` — the “truth” of the current flow
+
+On every message:
+
+- engine loads by `conversation_id`
+- updates `last_user_text`
+- updates `updated_at`
+- may update `intent_code`, `state_code`
+- merges extraction into `context_json`
+- writes `last_assistant_json`
+
+Think of it like a workflow execution record.
+
+---
+
+## 2) `ce_intent_classifier` — only used when `state = IDLE`
+
+This is crucial:
+
+- In message 1 for each flow, state is IDLE → classification runs.
+- In message 2/3, state is not IDLE → classification is skipped → intent stays locked.
+
+This prevents “yes” from accidentally reclassifying as GREETING/UNKNOWN.
+
+---
+
+## 3) `ce_rule` — the state machine controller
+
+This is where you put:
+
+- cancel / abort → SHORT_CIRCUIT
+- if user message matches “from ... to ...” → SET_INTENT
+- READY + yes → SET_STATE EXECUTING
+- EXECUTING → DONE (either via rule or via code hook)
+
+Rules are the engine’s “deterministic steering wheel”.
+
+---
+
+## 4) `ce_output_schema` — extraction boundaries
+
+Each `(intent,state)` can have a schema.
+
+This lets you do progressive extraction:
+
+- IDLE schema: maybe only captures “move type” + rough from/to
+- NEED_MORE_INFO schema: captures missing fields
+- READY schema: (optional) verify/normalize before execute
+
+The engine calls extraction only when an enabled schema exists.
+
+---
+
+## 5) `ce_response` — what the user sees
+
+Responses are **deterministic selection**, but content can be:
+
+- EXACT text (static)
+- DERIVED text (LLM)
+- DERIVED JSON (LLM for UI response shape)
+
+Your UI can render JSON payloads into tiles, radios, checkboxes, etc.
+
+---
+
+# 🧷 The “READY → EXECUTING” Missing Piece (Do it deterministically)
+
+You already discovered the correct mental model:
+
+- READY means: **you have everything**, now confirm/execute.
+- “yes” should not magically execute unless you add a deterministic rule.
+
+So you add:
+
+- a `ce_rule` row: intent=MOVE_CONNECTIONS + message matches yes + state=READY → SET_STATE=EXECUTING
+- a `ce_response` row for `(MOVE_CONNECTIONS, EXECUTING)` that triggers fake API and returns success
+- then a `ce_response` row for `(MOVE_CONNECTIONS, DONE)`
+
+> Implementation detail:  
+> You can either:
+> - call fake API inside the engine when `state == EXECUTING`, or
+> - have a separate “Action Executor” layer called by a controller/service when READY is reached.
+
+Both are valid; the key is deterministic control.
+
+---
+
+# ✅ TL;DR (one sentence)
+
+ConvEngine turns free-form text into a deterministic, schema-driven workflow:
+
+- intent is classified once (IDLE)
+- state is controlled by rules + schema completeness
+- LLM is only used to extract JSON + generate content
+- context_json accumulates structured truth until execution
+
+---
+
+## Next: we can wire preview tiles (UI schema)
+
+When you’re ready, we’ll define a **UI payload schema** that returns:
+
+- left: chat (already done)
+- right: preview tiles with:
+  - Contract (radio)
+  - BA (radio)
+  - SA (radio)
+  - Connection IDs (checkboxes, multi select)
+
+and you’ll render the payload in the preview panel.
+
+
+---
+
+## 📎 Appendix: Message-by-Message Trace Templates
+
+
+### Trace 1 — MOVE_CONNECTIONS — Turn 1
+
+**User message**: `Move my connections from USPSSA100 to USPSSA200`
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">stage = load-or-create (ce_conversation)</div>
+      <div className="ce-engine-item ok">stage = policy check (ce_policy)</div>
+      <div className="ce-engine-item ok">stage = classifier runs (state=IDLE)</div>
+      <div className="ce-engine-item ok">stage = rules (ce_rule)</div>
+      <div className="ce-engine-item ok">stage = extraction schema (ce_output_schema)</div>
+      <div className="ce-engine-item ok">stage = merge context_json</div>
+      <div className="ce-engine-item ok">stage = schema completeness</div>
+      <div className="ce-engine-item ok">stage = response resolution (ce_response)</div>
+      <div className="ce-engine-item success">intent = MOVE_CONNECTIONS</div>
+      <div className="ce-engine-item success">state = NEED_MORE_INFO</div>
+    </>
+  }
+>
+  <User>Move my connections from USPSSA100 to USPSSA200</User>
+  <Assistant>Got it ✅ Which connection IDs do you want to move?</Assistant>
+</Conversation>
+
+**Tables read**
+- ce_conversation
+- ce_policy
+- ce_intent_classifier
+- ce_rule
+- ce_output_schema
+- ce_response
+
+**Tables written**
+- ce_conversation (last_user_text, updated_at, possibly intent_code/state_code, context_json, last_assistant_json)
+- ce_llm_call_log (if an LLM call happened)
+- ce_audit (if enabled)
+
+**Context after turn**
+- (from/to/ids) updated depending on extraction.
+
+
+### Trace 2 — MOVE_CONNECTIONS — Turn 2
+
+**User message**: `USPSCON100, USPSCON200, USPSCON300`
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">stage = load-or-create (ce_conversation)</div>
+      <div className="ce-engine-item ok">stage = policy check (ce_policy)</div>
+      <div className="ce-engine-item ok">stage = classifier skipped (state≠IDLE)</div>
+      <div className="ce-engine-item ok">stage = rules (ce_rule)</div>
+      <div className="ce-engine-item ok">stage = extraction schema (ce_output_schema)</div>
+      <div className="ce-engine-item ok">stage = merge context_json</div>
+      <div className="ce-engine-item ok">stage = schema completeness</div>
+      <div className="ce-engine-item ok">stage = response resolution (ce_response)</div>
+      <div className="ce-engine-item success">intent = MOVE_CONNECTIONS</div>
+      <div className="ce-engine-item success">state = READY</div>
+    </>
+  }
+>
+  <User>USPSCON100, USPSCON200, USPSCON300</User>
+  <Assistant>Perfect ✅ Please confirm to proceed.</Assistant>
+</Conversation>
+
+**Tables read**
+- ce_conversation
+- ce_policy
+- —
+- ce_rule
+- ce_output_schema
+- ce_response
+
+**Tables written**
+- ce_conversation (last_user_text, updated_at, possibly intent_code/state_code, context_json, last_assistant_json)
+- ce_llm_call_log (if an LLM call happened)
+- ce_audit (if enabled)
+
+**Context after turn**
+- (from/to/ids) updated depending on extraction.
+
+
+### Trace 3 — MOVE_CONNECTIONS — Turn 3
+
+**User message**: `yes`
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">stage = load-or-create (ce_conversation)</div>
+      <div className="ce-engine-item ok">stage = policy check (ce_policy)</div>
+      <div className="ce-engine-item ok">stage = classifier skipped (state≠IDLE)</div>
+      <div className="ce-engine-item ok">stage = rules (ce_rule)</div>
+      <div className="ce-engine-item ok">stage = extraction schema (ce_output_schema)</div>
+      <div className="ce-engine-item ok">stage = merge context_json</div>
+      <div className="ce-engine-item ok">stage = schema completeness</div>
+      <div className="ce-engine-item ok">stage = response resolution (ce_response)</div>
+      <div className="ce-engine-item success">intent = MOVE_CONNECTIONS</div>
+      <div className="ce-engine-item success">state = DONE</div>
+    </>
+  }
+>
+  <User>yes</User>
+  <Assistant>✅ Migration completed successfully. 3 connections moved from USPSSA100 to USPSSA200.</Assistant>
+</Conversation>
+
+**Tables read**
+- ce_conversation
+- ce_policy
+- —
+- ce_rule
+- ce_output_schema
+- ce_response
+
+**Tables written**
+- ce_conversation (last_user_text, updated_at, possibly intent_code/state_code, context_json, last_assistant_json)
+- ce_llm_call_log (if an LLM call happened)
+- ce_audit (if enabled)
+
+**Context after turn**
+- (from/to/ids) updated depending on extraction.
+
+
+### Trace 4 — MOVE_SUBACCOUNT — Turn 1
+
+**User message**: `Move sub account USPSSA200 from USPSBA100 to USPSBA200`
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">stage = load-or-create (ce_conversation)</div>
+      <div className="ce-engine-item ok">stage = policy check (ce_policy)</div>
+      <div className="ce-engine-item ok">stage = classifier runs (state=IDLE)</div>
+      <div className="ce-engine-item ok">stage = rules (ce_rule)</div>
+      <div className="ce-engine-item ok">stage = extraction schema (ce_output_schema)</div>
+      <div className="ce-engine-item ok">stage = merge context_json</div>
+      <div className="ce-engine-item ok">stage = schema completeness</div>
+      <div className="ce-engine-item ok">stage = response resolution (ce_response)</div>
+      <div className="ce-engine-item success">intent = MOVE_SUBACCOUNT</div>
+      <div className="ce-engine-item success">state = READY</div>
+    </>
+  }
+>
+  <User>Move sub account USPSSA200 from USPSBA100 to USPSBA200</User>
+  <Assistant>Please confirm moving USPSSA200 from USPSBA100 to USPSBA200.</Assistant>
+</Conversation>
+
+**Tables read**
+- ce_conversation
+- ce_policy
+- ce_intent_classifier
+- ce_rule
+- ce_output_schema
+- ce_response
+
+**Tables written**
+- ce_conversation (last_user_text, updated_at, possibly intent_code/state_code, context_json, last_assistant_json)
+- ce_llm_call_log (if an LLM call happened)
+- ce_audit (if enabled)
+
+**Context after turn**
+- (from/to/ids) updated depending on extraction.
+
+
+### Trace 5 — MOVE_SUBACCOUNT — Turn 2
+
+**User message**: `yes`
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">stage = load-or-create (ce_conversation)</div>
+      <div className="ce-engine-item ok">stage = policy check (ce_policy)</div>
+      <div className="ce-engine-item ok">stage = classifier skipped (state≠IDLE)</div>
+      <div className="ce-engine-item ok">stage = rules (ce_rule)</div>
+      <div className="ce-engine-item ok">stage = extraction schema (ce_output_schema)</div>
+      <div className="ce-engine-item ok">stage = merge context_json</div>
+      <div className="ce-engine-item ok">stage = schema completeness</div>
+      <div className="ce-engine-item ok">stage = response resolution (ce_response)</div>
+      <div className="ce-engine-item success">intent = MOVE_SUBACCOUNT</div>
+      <div className="ce-engine-item success">state = DONE</div>
+    </>
+  }
+>
+  <User>yes</User>
+  <Assistant>✅ Sub account moved successfully.</Assistant>
+</Conversation>
+
+**Tables read**
+- ce_conversation
+- ce_policy
+- —
+- ce_rule
+- ce_output_schema
+- ce_response
+
+**Tables written**
+- ce_conversation (last_user_text, updated_at, possibly intent_code/state_code, context_json, last_assistant_json)
+- ce_llm_call_log (if an LLM call happened)
+- ce_audit (if enabled)
+
+**Context after turn**
+- (from/to/ids) updated depending on extraction.
+
+
+### Trace 6 — MOVE_BUSINESS_ACCOUNT — Turn 1
+
+**User message**: `Move business account USPSBA100 from USPSC100 to USPSC200`
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">stage = load-or-create (ce_conversation)</div>
+      <div className="ce-engine-item ok">stage = policy check (ce_policy)</div>
+      <div className="ce-engine-item ok">stage = classifier runs (state=IDLE)</div>
+      <div className="ce-engine-item ok">stage = rules (ce_rule)</div>
+      <div className="ce-engine-item ok">stage = extraction schema (ce_output_schema)</div>
+      <div className="ce-engine-item ok">stage = merge context_json</div>
+      <div className="ce-engine-item ok">stage = schema completeness</div>
+      <div className="ce-engine-item ok">stage = response resolution (ce_response)</div>
+      <div className="ce-engine-item success">intent = MOVE_BUSINESS_ACCOUNT</div>
+      <div className="ce-engine-item success">state = READY</div>
+    </>
+  }
+>
+  <User>Move business account USPSBA100 from USPSC100 to USPSC200</User>
+  <Assistant>Please confirm moving USPSBA100 from USPSC100 to USPSC200.</Assistant>
+</Conversation>
+
+**Tables read**
+- ce_conversation
+- ce_policy
+- ce_intent_classifier
+- ce_rule
+- ce_output_schema
+- ce_response
+
+**Tables written**
+- ce_conversation (last_user_text, updated_at, possibly intent_code/state_code, context_json, last_assistant_json)
+- ce_llm_call_log (if an LLM call happened)
+- ce_audit (if enabled)
+
+**Context after turn**
+- (from/to/ids) updated depending on extraction.
+
+
+### Trace 7 — MOVE_BUSINESS_ACCOUNT — Turn 2
+
+**User message**: `yes`
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">stage = load-or-create (ce_conversation)</div>
+      <div className="ce-engine-item ok">stage = policy check (ce_policy)</div>
+      <div className="ce-engine-item ok">stage = classifier skipped (state≠IDLE)</div>
+      <div className="ce-engine-item ok">stage = rules (ce_rule)</div>
+      <div className="ce-engine-item ok">stage = extraction schema (ce_output_schema)</div>
+      <div className="ce-engine-item ok">stage = merge context_json</div>
+      <div className="ce-engine-item ok">stage = schema completeness</div>
+      <div className="ce-engine-item ok">stage = response resolution (ce_response)</div>
+      <div className="ce-engine-item success">intent = MOVE_BUSINESS_ACCOUNT</div>
+      <div className="ce-engine-item success">state = DONE</div>
+    </>
+  }
+>
+  <User>yes</User>
+  <Assistant>✅ Business account moved successfully.</Assistant>
+</Conversation>
+
+**Tables read**
+- ce_conversation
+- ce_policy
+- —
+- ce_rule
+- ce_output_schema
+- ce_response
+
+**Tables written**
+- ce_conversation (last_user_text, updated_at, possibly intent_code/state_code, context_json, last_assistant_json)
+- ce_llm_call_log (if an LLM call happened)
+- ce_audit (if enabled)
+
+**Context after turn**
+- (from/to/ids) updated depending on extraction.
+---
+

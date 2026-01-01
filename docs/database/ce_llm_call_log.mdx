@@ -1,0 +1,132 @@
+# 🧪📜 LLM Observability & Audit
+
+`ce_llm_call_log` records **every interaction with an LLM** made by ConvEngine.
+This table is the foundation for **debugging, cost control, compliance, and trust**.
+
+---
+
+## 🧠 Why This Exists
+
+> If an LLM influences user experience, it must be observable.
+
+ConvEngine treats LLMs as **external, fallible services** — not as decision-makers.
+Every call is logged with full context.
+
+---
+
+## 📦 Table Definition
+
+```sql
+CREATE TABLE ce_llm_call_log (
+  llm_call_id     BIGSERIAL PRIMARY KEY,
+
+  conversation_id UUID        NOT NULL,
+  intent_code     TEXT,
+  state_code      TEXT,
+
+  provider        TEXT        NOT NULL,   -- openai, azure-openai, etc
+  model           TEXT        NOT NULL,
+  temperature     NUMERIC(3,2),
+
+  prompt_text     TEXT        NOT NULL,   -- full system + instruction prompt
+  user_context    TEXT        NOT NULL,   -- context_json + user input
+  response_text   TEXT,                   -- raw LLM output
+
+  success         BOOLEAN     NOT NULL,
+  error_message   TEXT,
+
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+---
+
+## 🔍 What Gets Logged
+
+Each row captures:
+
+- 🔗 **Conversation linkage**
+- 🧠 Intent + state at time of call
+- 🤖 Provider + model used
+- 🌡 Temperature (and future params)
+- 📝 Exact prompt sent
+- 📦 Full user/context payload
+- 📤 Raw response (or error)
+
+Nothing is inferred later — everything is stored **as-is**.
+
+---
+
+## 🔁 When Logging Happens
+
+LLM calls are logged when:
+
+- A `DERIVED` response is generated
+- A JSON schema extraction is attempted
+- Follow-up questions are generated
+- UI JSON is synthesized
+
+Both **success and failure** are logged.
+
+---
+
+## ❌ What Is NOT Logged
+
+- ❌ Business decisions
+- ❌ Rule evaluations
+- ❌ State transitions
+
+Those belong to `ce_audit`.
+
+---
+
+## 🧪 Example Log Entry
+
+```sql
+INSERT INTO ce_llm_call_log (
+  conversation_id,
+  intent_code,
+  state_code,
+  provider,
+  model,
+  temperature,
+  prompt_text,
+  user_context,
+  response_text,
+  success
+)
+VALUES (
+  '4a6fe675-977f-4680-b211-a227bad72178',
+  'ACTION',
+  'NEED_MORE_INFO',
+  'openai',
+  'gpt-4o-mini',
+  0.0,
+  'Politely ask the user for missing fields.',
+  '{ "lastUserText": "move from A" }',
+  'Where do you want to move the service to?',
+  true
+);
+```
+
+---
+
+## 🛡️ Compliance & Safety
+
+This table enables:
+
+- 🔎 Post-incident analysis
+- 💰 Cost attribution per conversation
+- 🧾 Audit trails for regulated environments
+- 🧠 Prompt evolution tracking
+
+---
+
+## ✅ Why This Is Critical
+
+- Debugging becomes trivial
+- LLM hallucinations are traceable
+- Reproducibility is possible
+- Trust increases across teams
+
+If something went wrong — **this table tells you exactly why**.

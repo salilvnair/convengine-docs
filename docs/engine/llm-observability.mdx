@@ -1,0 +1,127 @@
+import { Conversation, User, Assistant } from "../../src/components/convengine";
+
+# 🔍 LLM Observability
+
+ConvEngine treats **LLM calls as first-class, auditable events** — not hidden side effects.
+Every prompt, context, configuration, and response is **fully logged** for traceability, replay, and compliance.
+
+---
+
+## 🧠 Why LLM Observability Matters
+
+LLMs are:
+- Non-deterministic
+- External dependencies
+- Hard to debug after the fact
+
+ConvEngine solves this by **persisting every LLM interaction**.
+
+> If it influenced the user → it must be observable.
+
+---
+
+## 🗃️ The `ce_llm_call_log` Table
+
+Each row represents **one logical LLM invocation**.
+
+Key fields captured:
+
+- `conversation_id` – which conversation triggered the call
+- `intent_code`, `state_code` – engine context at call time
+- `provider`, `model`, `temperature` – full config snapshot
+- `prompt_text` – final system + instruction prompt
+- `user_context` – merged `context_json` + user input
+- `response_text` – raw LLM output
+- `success`, `error_message` – execution outcome
+
+This enables:
+- 🔁 Replay
+- 🐞 Debugging
+- 📊 Analytics
+- 🛡️ Compliance audits
+
+---
+
+## 🔄 When Does the Engine Call the LLM?
+
+LLMs are invoked **only** in these cases:
+
+- DERIVED text responses
+- JSON extraction using `ce_output_schema`
+- Follow-up question generation
+- UI schema generation
+
+> LLMs **never** change intent or state directly.
+
+---
+
+## 💬 Example: Observed LLM Call
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">intent = ACTION</div>
+      <div className="ce-engine-item warn">schema incomplete</div>
+      <div className="ce-engine-item warn">invoking LLM (EXTRACT)</div>
+    </>
+  }
+>
+  <User>move from A</User>
+
+  <Assistant>
+    Where do you want to move the service?
+  </Assistant>
+</Conversation>
+
+### What Gets Logged
+
+- **Prompt**  
+  “Extract structured data strictly matching the provided JSON schema…”
+
+- **User Context**  
+  `{ "from": { "subAccount": "A" } }`
+
+- **Response**  
+  Partial JSON (missing `to.subAccount`)
+
+- **Outcome**  
+  `success = true`
+
+---
+
+## 🧪 Debugging & Replay
+
+Because prompts and context are stored:
+
+- You can re-run the same prompt later
+- Compare responses across models
+- Detect prompt regressions
+- Audit production behavior
+
+This is critical for **enterprise trust**.
+
+---
+
+## 🚫 What ConvEngine Explicitly Avoids
+
+- ❌ No silent LLM calls
+- ❌ No hidden prompt mutations
+- ❌ No state mutation by LLM output
+
+Every call is:
+✔ Explicit  
+✔ Logged  
+✔ Reproducible  
+
+---
+
+## 🏁 Takeaway
+
+ConvEngine doesn’t just *use* LLMs —  
+it **observes, governs, and audits** them.
+
+This is what makes the engine:
+- Predictable
+- Debuggable
+- Production-ready

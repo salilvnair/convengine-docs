@@ -1,0 +1,151 @@
+import { Highlight, FlowStep, Decision, Conversation, User, Assistant, Engine } from "../../src/components/convengine";
+
+# 🧾 Conversation State
+
+The `ce_conversation` table is the **single source of truth** for an active or completed conversation.
+
+It stores **where the conversation is**, **what has already happened**, and **what context the engine should carry forward**.
+
+---
+
+## 🎯 What This Table Represents
+
+<Highlight type="success">
+    Every API call to ConvEngine **reads and writes exactly one row**
+    in `ce_conversation`.
+</Highlight>
+
+There is:
+- one row per conversation
+- no hidden session state
+- no server memory coupling
+
+---
+
+## 🧱 Key Columns (Conceptual)
+
+| Column | Purpose |
+|------|--------|
+| `conversation_id` | Stable conversation identifier |
+| `status` | Execution status (`RUNNING`, `BLOCKED`, `DONE`) |
+| `intent_code` | Current resolved intent |
+| `state_code` | Finite-state position |
+| `context_json` | Accumulated structured data |
+| `last_user_text` | Most recent user input |
+| `last_assistant_json` | Last assistant payload |
+
+---
+
+## 🔁 Lifecycle at Runtime
+
+<FlowStep step="1" title="Conversation Created">
+    A new row is created when a new `conversationId` is seen.
+</FlowStep>
+
+<FlowStep step="2" title="User Message Arrives">
+    `last_user_text` is updated and processing begins.
+</FlowStep>
+
+<FlowStep step="3" title="Engine Processing">
+    Intent, rules, schema, and responses update the row.
+</FlowStep>
+
+<FlowStep step="4" title="Conversation Advances">
+    `state_code`, `intent_code`, and `context_json` evolve deterministically.
+</FlowStep>
+
+---
+
+## 🧠 context_json — The Memory
+
+<Highlight type="info">
+    `context_json` is the **only long-lived memory** ConvEngine uses.
+</Highlight>
+
+It stores:
+- extracted fields
+- confirmed user selections
+- intermediate values
+
+Nothing else is persisted across turns.
+
+---
+
+## 🗣️ Multi-Turn Example
+
+<Conversation
+    engineStatus="RUNNING"
+    engineDetails={
+        <>
+            <div className="ce-engine-item success">
+                intent = ACTION
+            </div>
+            <div className="ce-engine-item warn">
+                state = NEED_MORE_INFO
+            </div>
+        </>
+    }
+>
+    <User>
+        move from A
+    </User>
+
+    <Assistant>
+        Where do you want to move the service?
+    </Assistant>
+</Conversation>
+
+
+---
+
+<Conversation
+    engineStatus="RUNNING"
+    engineDetails={
+        <>
+            <div className="ce-engine-item success">
+                context_json merged
+            </div>
+            <div className="ce-engine-item success strong">
+                state = READY
+            </div>
+        </>
+    }
+>
+    <User>
+        to B
+    </User>
+
+    <Assistant>
+        Please confirm your request.
+    </Assistant>
+</Conversation>
+
+
+---
+
+## 🧮 Why This Matters
+
+<Decision type="deterministic">
+    If `context_json` + `state_code` are identical,
+    ConvEngine will always produce the same output.
+</Decision>
+
+This guarantees:
+- replayability
+- debuggability
+- safe retries
+
+---
+
+## 🔒 Design Guarantees
+
+<Highlight type="danger">
+    LLMs never mutate `ce_conversation` directly.
+    Only deterministic engine logic writes to this table.
+</Highlight>
+
+This is what makes ConvEngine production-safe.
+
+---
+
+Next: we’ll break down **intent definitions** and how they are classified 👇

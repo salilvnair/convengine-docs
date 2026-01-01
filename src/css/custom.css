@@ -1,0 +1,562 @@
+
+@import "./convengine.css";
+@import "./convengine-chat.css";
+
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  --ifm-color-primary: #2e8555;
+  --ifm-color-primary-dark: #29784c;
+  --ifm-color-primary-darker: #277148;
+  --ifm-color-primary-darkest: #205d3b;
+  --ifm-color-primary-light: #33925d;
+  --ifm-color-primary-lighter: #359962;
+  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-color-gray-100: #f7fafc;
+  --ifm-color-emphasis-100: var(--ifm-color-gray-100)
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme='dark'] {
+  --ifm-color-primary: #25c2a0;
+  --ifm-color-primary-dark: #21af90;
+  --ifm-color-primary-darker: #1fa588;
+  --ifm-color-primary-darkest: #1a8870;
+  --ifm-color-primary-light: #29d5b0;
+  --ifm-color-primary-lighter: #32d8b4;
+  --ifm-color-primary-lightest: #4fddbf;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+
+/* =================================================
+   Bulma chat overrides (Dark)
+   ================================================= */
+
+html[data-theme="dark"] .media {
+  align-items: flex-end;
+}
+
+html[data-theme="dark"] .ce-message-bubble.box {
+  background: #1f2937;
+  border: 1px solid #2b3444;
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: none;
+  color: #d4d4d4;
+}
+
+/* User bubble */
+html[data-theme="dark"] .ce-message-user .ce-message-bubble {
+  background: #0f172a;
+  border-color: #243048;
+}
+
+/* Assistant bubble */
+html[data-theme="dark"] .ce-message-assistant .ce-message-bubble {
+  background: #1f2937;
+}
+
+/* Assistant tail */
+html[data-theme="dark"]
+.ce-message-assistant .ce-message-bubble::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  bottom: 10px;
+  width: 12px;
+  height: 12px;
+  background: #1f2937;
+  border-left: 1px solid #2b3444;
+  border-bottom: 1px solid #2b3444;
+  transform: rotate(45deg);
+}
+
+/* User tail */
+html[data-theme="dark"]
+.ce-message-user .ce-message-bubble::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  bottom: 10px;
+  width: 12px;
+  height: 12px;
+  background: #0f172a;
+  border-right: 1px solid #243048;
+  border-bottom: 1px solid #243048;
+  transform: rotate(-45deg);
+}
+
+
+/* =====================================================
+   DaisyUI-like Chat (Pure CSS, Docusaurus-safe)
+   ===================================================== */
+
+.ce-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+/* Row alignment */
+.ce-chat-row {
+  display: flex;
+}
+
+.ce-chat-start {
+  justify-content: flex-start;
+}
+
+.ce-chat-end {
+  justify-content: flex-end;
+}
+
+/* Bubble base */
+.ce-chat-bubble {
+  position: relative;
+  max-width: 70%;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  line-height: 1.5;
+  font-size: 0.875rem;
+  word-wrap: break-word;
+}
+
+/* Assistant bubble (neutral) */
+.ce-chat-bubble-assistant {
+  background-color: #2a2e37;
+  color: #e5e7eb;
+  border-bottom-left-radius: 0.25rem;
+}
+
+/* User bubble (primary) */
+.ce-chat-bubble-user {
+  background-color: #2563eb;
+  color: white;
+  border-bottom-right-radius: 0.25rem;
+}
+
+/* Bubble tails (exact daisyUI feel) */
+.ce-chat-bubble-assistant::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  background: #2a2e37;
+  transform: rotate(45deg);
+}
+
+.ce-chat-bubble-user::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  background: #2563eb;
+  transform: rotate(45deg);
+}
+
+
+html[data-theme="light"] .ce-chat-bubble-assistant {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+html[data-theme="light"] .ce-chat-bubble-user {
+  background: #3b82f6;
+}
+
+/* =====================================================
+   Conversation Container
+===================================================== */
+
+.ce-conversation {
+  border: 1px solid var(--ifm-color-gray-100);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 1rem 0;
+  background: var(--ifm-color-primary);
+}
+
+/* =====================================================
+   Engine Header
+===================================================== */
+
+.ce-engine-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--ifm-color-primary);
+}
+
+.ce-engine-toggle {
+  opacity: 0.7;
+}
+
+/* Engine badge */
+.ce-engine-badge {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Status colors */
+.ce-engine-completed {
+  background: #16a34a;
+  color: white;
+}
+
+.ce-engine-ready {
+  background: #16a34a;
+  color: white;
+}
+
+.ce-engine-running {
+  background: #2563eb;
+  color: white;
+}
+
+.ce-engine-error {
+  background: #dc2626;
+  color: white;
+}
+
+/* =====================================================
+   Engine Details
+===================================================== */
+
+.ce-engine-details {
+  padding: 0.5rem 0.75rem;
+  font-size: 12px;
+  background: var(--ifm-color-emphasis-100);
+  border-bottom: 1px solid var(--ifm-color-primary);
+}
+
+/* =====================================================
+   Chat (daisyUI-style bubbles)
+===================================================== */
+
+.ce-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+.ce-chat-row {
+  display: flex;
+}
+
+.ce-chat-start {
+  justify-content: flex-start;
+}
+
+.ce-chat-end {
+  justify-content: flex-end;
+}
+
+/* Bubble base */
+.ce-chat-bubble {
+  position: relative;
+  max-width: 70%;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  line-height: 1.5;
+  font-size: 0.875rem;
+}
+
+/* Assistant bubble (neutral) */
+.ce-chat-bubble-assistant {
+  background: #2a2e37;
+  color: #e5e7eb;
+  border-bottom-left-radius: 0.25rem;
+}
+
+/* User bubble (primary) */
+.ce-chat-bubble-user {
+  background: #2563eb;
+  color: white;
+  border-bottom-right-radius: 0.25rem;
+}
+
+/* Bubble tails */
+.ce-chat-bubble-assistant::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  background: #2a2e37;
+  transform: rotate(45deg);
+}
+
+.ce-chat-bubble-user::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  background: #2563eb;
+  transform: rotate(45deg);
+}
+
+/* =====================================================
+   Chat Layout
+===================================================== */
+
+.ce-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+}
+
+.ce-chat-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.ce-chat-start {
+  justify-content: flex-start;
+}
+
+.ce-chat-end {
+  justify-content: flex-end;
+}
+
+/* =====================================================
+   Avatars (daisyUI-style)
+===================================================== */
+
+.ce-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.ce-avatar-user {
+  background: #2563eb;
+  color: white;
+}
+
+.ce-avatar-assistant {
+  background: #374151;
+  color: #e5e7eb;
+}
+
+/* =====================================================
+   Compact Chat Bubbles (Reduced Height)
+===================================================== */
+
+.ce-chat-bubble {
+  position: relative;
+  max-width: 68%;
+  padding: 6px 10px;        /* 🔽 reduced */
+  border-radius: 14px;
+  font-size: 13px;          /* 🔽 smaller */
+  line-height: 1.4;         /* 🔽 tighter */
+}
+
+/* Assistant bubble */
+.ce-chat-bubble-assistant {
+  background: #2a2e37;
+  color: #e5e7eb;
+  border-bottom-left-radius: 4px;
+}
+
+/* User bubble */
+.ce-chat-bubble-user {
+  background: #2563eb;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+/* =====================================================
+   Bubble Tails (Adjusted for Compact Height)
+===================================================== */
+
+.ce-chat-bubble-assistant::after {
+  content: "";
+  position: absolute;
+  left: -5px;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  background: #2a2e37;
+  transform: rotate(45deg);
+}
+
+.ce-chat-bubble-user::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  background: #2563eb;
+  transform: rotate(45deg);
+}
+/* =====================================================
+   Light Theme Fix (daisyUI-like)
+===================================================== */
+
+html[data-theme="light"] .ce-chat {
+  background: #f9fafb;
+}
+
+/* Assistant bubble (neutral light) */
+html[data-theme="light"] .ce-chat-bubble-assistant {
+  background: #e5e7eb;        /* daisyUI neutral */
+  color: #111827;
+  border: 1px solid #d1d5db;
+}
+
+/* User bubble (primary light) */
+html[data-theme="light"] .ce-chat-bubble-user {
+  background: #3b82f6;        /* daisyUI primary */
+  color: white;
+}
+
+/* Assistant tail */
+html[data-theme="light"] .ce-chat-bubble-assistant::after {
+  background: #e5e7eb;
+  border-left: 1px solid #d1d5db;
+  border-bottom: 1px solid #d1d5db;
+}
+
+/* User tail */
+html[data-theme="light"] .ce-chat-bubble-user::after {
+  background: #3b82f6;
+}
+
+/* Avatars */
+html[data-theme="light"] .ce-avatar-assistant {
+  background: #d1d5db;
+  color: #111827;
+}
+
+html[data-theme="light"] .ce-avatar-user {
+  background: #3b82f6;
+  color: white;
+}
+
+
+/* =====================================================
+   Engine Details – Status Styling
+===================================================== */
+
+.ce-engine-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Base pill */
+.ce-engine-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+/* Icons */
+.ce-engine-item::before {
+  font-size: 12px;
+}
+
+/* OK / Info */
+.ce-engine-item.ok {
+  background: #dcfce7;
+  color: #111827;
+}
+.ce-engine-item.ok::before {
+  content: "✔";
+}
+
+/* Warning */
+.ce-engine-item.warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+.ce-engine-item.warn::before {
+  content: "⚠";
+}
+
+/* Error / Missing */
+.ce-engine-item.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.ce-engine-item.error::before {
+  content: "✖";
+}
+
+
+html[data-theme="dark"] .ce-engine-item.ok {
+  background: #dcfce7;
+  color: #374151;
+}
+
+html[data-theme="dark"] .ce-engine-item.warn {
+  background: #78350f;
+  color: #fde68a;
+}
+
+html[data-theme="dark"] .ce-engine-item.error {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
+.ce-engine-item.success {
+  background: #dcfce7;          /* light green */
+  color: #065f46;
+}
+
+.ce-engine-item.success::before {
+  content: "✔";
+}
+
+/* Emphasized success (READY) */
+.ce-engine-item.success.strong {
+  background: #16a34a;
+  color: white;
+}
+
+/* Dark theme */
+html[data-theme="dark"] .ce-engine-item.success {
+  background: #064e3b;
+  color: #d1fae5;
+}
+
+html[data-theme="dark"] .ce-engine-item.success.strong {
+  background: #22c55e;
+  color: #052e16;
+}

@@ -1,0 +1,120 @@
+import { Conversation, User, Assistant } from "../../src/components/convengine";
+
+# 🧠 Response Resolution
+
+ConvEngine resolves responses **deterministically** using database rules —  
+LLMs are only used **when explicitly required**.
+
+This guarantees:
+- predictable replies
+- full auditability
+- zero hallucinated behavior
+
+---
+
+## 🔍 Resolution Order
+
+ConvEngine evaluates responses in a strict priority order:
+
+1. **Policy blocks** (safety / guardrails)
+2. **Exact responses** (static, DB-driven)
+3. **Derived responses** (LLM-backed)
+4. **Global fallback**
+
+---
+
+## 🧱 Exact Response (No LLM)
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">intent = GREETING</div>
+      <div className="ce-engine-item success">state = IDLE</div>
+      <div className="ce-engine-item ok">response = EXACT</div>
+    </>
+  }
+>
+  <User>Hi</User>
+  <Assistant>
+    Hi, I am Conv Assistant. How can I help you?
+  </Assistant>
+</Conversation>
+
+✔ No prompt  
+✔ No temperature  
+✔ No OpenAI call  
+
+---
+
+## 🧠 Derived Response (LLM-backed)
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">intent = ACTION</div>
+      <div className="ce-engine-item warn">missing fields detected</div>
+      <div className="ce-engine-item ok">response = DERIVED</div>
+    </>
+  }
+>
+  <User>move from A</User>
+  <Assistant>
+    Where do you want to move the service?
+  </Assistant>
+</Conversation>
+
+Here the engine:
+- selects a **DERIVED response**
+- injects a **derivation hint**
+- calls the LLM safely
+- logs everything
+
+---
+
+## 🧬 JSON Responses
+
+When `output_format = JSON`:
+
+- schema is enforced
+- invalid output is rejected
+- retries or fallback can be triggered
+
+<Conversation
+  engineStatus="READY"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success strong">schema complete</div>
+      <div className="ce-engine-item ok">JSON response</div>
+    </>
+  }
+>
+  <User>confirm</User>
+  <Assistant>
+    (Structured JSON returned to UI)
+  </Assistant>
+</Conversation>
+
+---
+
+## 🚫 What LLMs Cannot Do
+
+- change intent
+- change state
+- decide flow
+- bypass rules
+
+They only **generate content**, nothing more.
+
+---
+
+## 🏆 Why This Matters
+
+- enterprise-safe conversations
+- reproducible behavior
+- easy debugging
+- testable flows
+
+ConvEngine does not *guess*.  
+It **resolves**.

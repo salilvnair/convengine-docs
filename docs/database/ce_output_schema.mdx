@@ -1,0 +1,114 @@
+# 📐 Schema‑Driven Extraction
+
+`ce_output_schema` defines **what structured data ConvEngine expects**
+for a given **intent + state** combination.
+
+This is the backbone of **deterministic extraction**.
+
+---
+
+## 🧠 Core Principle
+
+> ConvEngine never *guesses* structure.  
+> It **declares structure first**, then asks the LLM to comply.
+
+---
+
+## 📦 Table Definition
+
+```sql
+CREATE TABLE ce_output_schema (
+  schema_id    BIGSERIAL PRIMARY KEY,
+  intent_code  TEXT NOT NULL,
+  state_code   TEXT NOT NULL,
+
+  json_schema  JSONB NOT NULL,
+  description  TEXT,
+
+  enabled      BOOLEAN DEFAULT true,
+  priority     INT NOT NULL
+);
+```
+
+---
+
+## 🎯 When Is This Used?
+
+The engine evaluates `ce_output_schema` when:
+
+- Intent is known (`ACTION`, etc.)
+- State is `READY` or transitioning to it
+- Structured extraction is required
+
+---
+
+## 📜 Example Schema (Move Action)
+
+```json
+{
+  "type": "object",
+  "required": ["from", "to"],
+  "properties": {
+    "from": {
+      "type": "object",
+      "required": ["subAccount"],
+      "properties": {
+        "subAccount": { "type": "string" }
+      }
+    },
+    "to": {
+      "type": "object",
+      "required": ["subAccount"],
+      "properties": {
+        "subAccount": { "type": "string" }
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🔁 Resolution Order
+
+Schemas are resolved by:
+
+1. `intent_code`
+2. `state_code`
+3. `priority` (ascending)
+
+First enabled match wins.
+
+---
+
+## 🧩 Schema Completeness
+
+ConvEngine automatically checks:
+
+- Are all `required` fields present?
+- Are nested requirements satisfied?
+
+### Outcomes:
+- ❌ Incomplete → `NEED_MORE_INFO`
+- ✅ Complete → auto‑advance to `READY`
+
+---
+
+## 🚫 What Schemas Must NOT Do
+
+- ❌ Encode business rules
+- ❌ Control UI behavior directly
+- ❌ Change intent/state
+
+Schemas describe **shape**, not **behavior**.
+
+---
+
+## ✅ Why This Matters
+
+- Safe LLM usage
+- Multi‑turn extraction
+- Replayable conversations
+- Frontend‑agnostic UIs
+
+This is what turns ConvEngine into a **conversation compiler** instead of a chatbot.

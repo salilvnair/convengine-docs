@@ -1,0 +1,84 @@
+---
+title: "🔄 Multi‑Turn Conversation"
+sidebar_position: 20
+---
+
+import React from "react";
+import { Conversation, User, Assistant } from "../../src/components/convengine";
+
+# 🔄 Multi‑Turn Conversation
+
+This example shows how **ConvEngine maintains context across multiple turns**
+using `conversationId`, schema completeness, and deterministic state transitions.
+
+---
+
+## 🟢 Turn 1 — User Starts an Action
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">intent = ACTION</div>
+      <div className="ce-engine-item warn">schema incomplete</div>
+      <div className="ce-engine-item warn">missing: to.subAccount</div>
+    </>
+  }
+>
+  <User>move from A</User>
+  <Assistant>
+    Where do you want to move the service?
+  </Assistant>
+</Conversation>
+
+---
+
+## 🟡 Turn 2 — User Provides Missing Data
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">context merged</div>
+      <div className="ce-engine-item success">schema complete</div>
+      <div className="ce-engine-item success strong">state = READY</div>
+    </>
+  }
+>
+  <User>to B</User>
+  <Assistant>
+    Please confirm your request to move the service from <strong>A</strong> to <strong>B</strong>.
+  </Assistant>
+</Conversation>
+
+---
+
+## 🔵 Turn 3 — User Confirms
+
+<Conversation
+  engineStatus="COMPLETED"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success strong">state = DONE</div>
+      <div className="ce-engine-item success">action executed</div>
+    </>
+  }
+>
+  <User>Yes, confirm</User>
+  <Assistant>
+    ✅ Your request has been completed successfully.
+  </Assistant>
+</Conversation>
+
+---
+
+## ✅ What This Demonstrates
+
+- Conversation continuity via `conversationId`
+- Deterministic state transitions
+- Schema‑driven follow‑ups
+- Zero LLM control over state
+- Fully replayable execution
+
+ConvEngine behaves like a workflow engine —  
+but *feels* like a natural conversation.

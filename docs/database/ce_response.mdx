@@ -1,0 +1,132 @@
+# 🎯 Response Resolution
+
+This table defines **what the assistant says back** to the user.
+
+Responses are **state + intent driven**, not LLM driven by default.
+
+---
+
+## 🧠 Core Idea
+
+> ConvEngine does not ask the LLM *what to do*.  
+> It asks the LLM *how to say it* — only when needed.
+
+---
+
+## 📦 Table Definition
+
+```sql
+CREATE TABLE ce_response (
+  response_id    BIGSERIAL PRIMARY KEY,
+
+  intent_code    TEXT,          -- nullable (global)
+  state_code     TEXT NOT NULL, -- IDLE | NEED_MORE_INFO | READY | DONE
+
+  output_format  TEXT NOT NULL, -- TEXT | JSON
+  response_type  TEXT NOT NULL, -- EXACT | DERIVED
+
+  exact_text     TEXT,
+  derivation_hint TEXT,
+  json_schema    JSONB,
+
+  priority       INT NOT NULL DEFAULT 100,
+  enabled        BOOLEAN NOT NULL DEFAULT true,
+  description    TEXT,
+
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+---
+
+## 🔁 Resolution Order
+
+Responses are resolved in **strict priority order**:
+
+1. `(intent_code + state_code)`
+2. `(state_code only)`
+3. `(ANY fallback)`
+
+First match wins.
+
+---
+
+## ✍️ Response Types
+
+### EXACT (Deterministic)
+
+```sql
+INSERT INTO ce_response (
+  intent_code, state_code,
+  output_format, response_type,
+  exact_text, priority
+)
+VALUES (
+  'GREETING', 'IDLE',
+  'TEXT', 'EXACT',
+  'Hi, I am Conv Assistant. How can I help you?',
+  1
+);
+```
+
+No LLM involved.
+
+---
+
+### DERIVED (LLM Assisted)
+
+```sql
+INSERT INTO ce_response (
+  intent_code, state_code,
+  output_format, response_type,
+  derivation_hint, priority
+)
+VALUES (
+  'ACTION', 'NEED_MORE_INFO',
+  'TEXT', 'DERIVED',
+  'Politely ask the user to provide missing required fields.',
+  10
+);
+```
+
+---
+
+### JSON Output (UI Driven)
+
+```sql
+INSERT INTO ce_response (
+  intent_code, state_code,
+  output_format, response_type,
+  derivation_hint, json_schema, priority
+)
+VALUES (
+  'ACTION', 'READY',
+  'JSON', 'DERIVED',
+  'Generate confirmation UI options',
+  '{ "type": "object", "properties": { "uiType": { "enum": ["BUTTON"] }}}',
+  20
+);
+```
+
+---
+
+## 🚫 What Responses Must NOT Do
+
+- ❌ Change intent
+- ❌ Change state
+- ❌ Contain business logic
+
+They only **render output**.
+
+---
+
+## ✅ Why This Design Works
+
+- Predictable
+- Testable
+- LLM-safe
+- UI-agnostic
+
+ConvEngine decides *when* and *what*.  
+LLMs decide *how to phrase it*.
+

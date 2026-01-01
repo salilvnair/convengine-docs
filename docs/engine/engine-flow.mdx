@@ -1,0 +1,107 @@
+import { Highlight, Decision, FlowStep, Conversation, User, Assistant } from "../../src/components/convengine";
+
+# ⚙️ Engine Flow
+
+ConvEngine processes every user message through a **strict, deterministic pipeline**.
+This page walks through that pipeline using **real engine concepts and visuals**.
+
+<Highlight type="success">
+Think of ConvEngine as a <strong>conversation compiler</strong>, not a chatbot.
+</Highlight>
+
+---
+
+## 🔁 High-Level Pipeline
+
+<FlowStep step="1" title="Conversation Load">
+Load (or create) the conversation using <code>conversationId</code>.
+Previous <code>intent</code>, <code>state</code>, and <code>context_json</code> are reused.
+</FlowStep>
+
+<FlowStep step="2" title="Policy Enforcement">
+Hard-stop checks using <code>ce_policy</code>.
+If a policy matches, the engine immediately blocks the flow.
+</FlowStep>
+
+<Decision type="policy">
+Policies always win. Nothing runs after a policy match.
+</Decision>
+
+<FlowStep step="3" title="Intent Classification">
+Baseline intent detection using <code>ce_intent_classifier</code>.
+This step is fast, deterministic, and LLM-free.
+</FlowStep>
+
+<FlowStep step="4" title="Rule Processing">
+Rules from <code>ce_rule</code> override intent, set state, or short-circuit execution.
+Rules are the <strong>authority</strong>.
+</FlowStep>
+
+<FlowStep step="5" title="Schema Completeness">
+If an output schema exists, required fields are checked.
+Missing data keeps the engine in <code>NEED_MORE_INFO</code>.
+</FlowStep>
+
+<FlowStep step="6" title="Response Resolution">
+Responses are selected by <code>(intent + state)</code>, then <code>(state)</code>, then fallback.
+</FlowStep>
+
+<FlowStep step="7" title="LLM Invocation">
+LLMs are invoked only for <code>DERIVED</code> responses.
+They cannot change intent or state.
+</FlowStep>
+
+<FlowStep step="8" title="Persistence & Audit">
+Conversation state, context, and LLM calls are persisted.
+</FlowStep>
+
+---
+
+## 🧪 Example Walkthrough
+
+<Conversation engineStatus="RUNNING">
+  <User>move from A</User>
+  <Assistant>
+    I see you want to move a service.
+    Where do you want to move it to?
+  </Assistant>
+</Conversation>
+
+<Decision type="deterministic">
+Schema incomplete → engine stays in <code>NEED_MORE_INFO</code>
+</Decision>
+
+---
+
+<Conversation engineStatus="RUNNING">
+  <User>to B</User>
+  <Assistant>
+    Please confirm your request.
+  </Assistant>
+</Conversation>
+
+<Decision type="deterministic">
+Schema complete → auto-advance to <code>READY</code>
+</Decision>
+
+---
+
+## 🚫 What the Engine Never Does
+
+<Highlight type="danger">
+- LLMs never set state
+- LLMs never set intent
+- LLMs never decide flow
+</Highlight>
+
+---
+
+## ✅ Why This Architecture Works
+
+- Predictable execution
+- Replayable conversations
+- Clear debugging trail
+- Safe LLM usage
+
+ConvEngine executes conversations like code —
+**deterministic first, generative last**.

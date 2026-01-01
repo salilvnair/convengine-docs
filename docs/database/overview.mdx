@@ -1,0 +1,102 @@
+import { Highlight, FlowStep, Decision } from "../../src/components/convengine";
+
+# 🗄️ Database Overview
+
+ConvEngine is **database‑driven by design** 🧠  
+Every behavior you observe in a conversation is backed by **explicit rows in PostgreSQL** — not hidden code paths.
+
+> 💡 Think of the database as *the brain* and the engine as *the nervous system*.
+
+---
+
+## 🎯 Why Database‑First?
+
+<Highlight type="success">
+All conversational behavior can be:
+- inspected 🔍
+- replayed 🔁
+- versioned 🧬
+- audited 📜
+</Highlight>
+
+No prompts hard‑coded in Java.  
+No magic strings.  
+No invisible state.
+
+---
+
+## 🧱 Core Table Categories
+
+<FlowStep step="1" title="Conversation State">
+Stores **runtime conversation progress**.
+</FlowStep>
+
+<FlowStep step="2" title="Intent & Rules">
+Defines **what the user is trying to do** and **how state changes**.
+</FlowStep>
+
+<FlowStep step="3" title="Schemas & Responses">
+Controls **what data is required** and **what the assistant returns**.
+</FlowStep>
+
+<FlowStep step="4" title="LLM Observability">
+Logs **every prompt, response, and failure**.
+</FlowStep>
+
+---
+
+## 🧠 How Tables Work Together
+
+<Decision type="deterministic">
+Database rows decide:
+- intent
+- state
+- required fields
+- response type
+
+LLMs only generate content when explicitly asked.
+</Decision>
+
+---
+
+## 🔁 Typical Read Flow
+
+1. Load `ce_conversation`
+2. Classify intent (`ce_intent_classifier`)
+3. Apply rules (`ce_rule`)
+4. Validate schema (`ce_output_schema`)
+5. Generate response (`ce_response`)
+6. Log LLM call (`ce_llm_call_log`)
+
+---
+
+## 🧩 Table Responsibilities (High Level)
+
+| Table | Responsibility |
+|------|----------------|
+| `ce_conversation` | Live conversation state |
+| `ce_intent` | Allowed intents |
+| `ce_intent_classifier` | Text → intent mapping |
+| `ce_rule` | Deterministic transitions |
+| `ce_output_schema` | Required structured data |
+| `ce_response` | Assistant outputs |
+| `ce_policy` | Hard safety stops |
+| `ce_llm_call_log` | Prompt + response audit |
+
+---
+
+## 🔒 Enterprise Guarantees
+
+<Highlight type="danger">
+If a behavior is not present in the database,
+**it cannot happen** in ConvEngine.
+</Highlight>
+
+This makes ConvEngine:
+- predictable
+- auditable
+- production‑safe
+
+---
+
+Next, we’ll deep‑dive each table individually and see **real SQL examples** 👇

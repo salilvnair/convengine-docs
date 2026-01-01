@@ -1,0 +1,137 @@
+import { Conversation, User, Assistant } from "@site/src/components/convengine";
+
+# ➕ Adding a New Intent
+
+This guide shows how to add a **new intent** to ConvEngine in a clean, deterministic way — without touching Java code.
+
+We’ll add an intent called **CANCEL_REQUEST** as an example.
+
+---
+
+## 🧠 What Is an Intent?
+
+An **intent** represents *what the user wants to do*, independent of how they say it.
+
+ConvEngine determines intent using:
+- DB-driven classifiers
+- Deterministic rules
+- (Optional) LLM classification prompts
+
+---
+
+## 1️⃣ Create the Intent
+
+Add a row to `ce_intent`.
+
+```sql
+INSERT INTO ce_intent (intent_code, description, priority, enabled)
+VALUES (
+  'CANCEL_REQUEST',
+  'User wants to cancel the current request',
+  30,
+  true
+);
+```
+
+---
+
+## 2️⃣ Teach the Engine How to Detect It
+
+Add classifiers to `ce_intent_classifier`.
+
+```sql
+INSERT INTO ce_intent_classifier
+(intent_code, rule_type, pattern, priority)
+VALUES
+('CANCEL_REQUEST', 'CONTAINS', 'cancel', 1),
+('CANCEL_REQUEST', 'CONTAINS', 'abort', 2),
+('CANCEL_REQUEST', 'CONTAINS', 'stop', 3);
+```
+
+These rules are **deterministic** and evaluated before LLMs.
+
+---
+
+## 3️⃣ Add Optional Rules (State Control)
+
+You may want cancellation to immediately stop the flow.
+
+```sql
+INSERT INTO ce_rule (
+  intent_code,
+  rule_type,
+  match_pattern,
+  action,
+  action_value,
+  priority,
+  enabled,
+  description
+)
+VALUES (
+  'CANCEL_REQUEST',
+  'REGEX',
+  '.*',
+  'SET_STATE',
+  'DONE',
+  1,
+  true,
+  'Cancel ends the conversation'
+);
+```
+
+---
+
+## 4️⃣ Define the Response
+
+```sql
+INSERT INTO ce_response (
+  intent_code,
+  state_code,
+  output_format,
+  response_type,
+  exact_text,
+  priority,
+  enabled
+)
+VALUES (
+  'CANCEL_REQUEST',
+  'DONE',
+  'TEXT',
+  'EXACT',
+  'Okay 👍 I have cancelled the request.',
+  1,
+  true
+);
+```
+
+---
+
+## 💬 How It Looks in a Conversation
+
+<Conversation
+  engineStatus="COMPLETED"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">intent = CANCEL_REQUEST</div>
+      <div className="ce-engine-item success">state = DONE</div>
+      <div className="ce-engine-item warn">flow terminated</div>
+    </>
+  }
+>
+  <User>cancel this</User>
+
+  <Assistant>
+    Okay 👍 I have cancelled the request.
+  </Assistant>
+</Conversation>
+
+---
+
+## ✅ Key Takeaways
+
+- No Java changes required
+- Fully DB-driven
+- Deterministic & auditable
+- Works with or without LLMs
+
+Adding intents is **safe**, **reversible**, and **production-friendly** 🚀

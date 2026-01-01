@@ -1,0 +1,164 @@
+# 🧪 End-to-End Dataset
+
+This page provides a **minimal but complete dataset** that wires together
+all ConvEngine tables to demonstrate a real, working conversation.
+
+Use this data to:
+- Boot a fresh database
+- Run local demos
+- Understand table relationships
+- Debug engine behavior
+
+---
+
+## 🧩 Scenario Covered
+
+**User intent:** Move service from one sub-account to another.
+
+Example user messages:
+- "Hi"
+- "move from A"
+- "to B"
+- "yes"
+
+---
+
+## 🧠 Intent Setup
+
+```sql
+INSERT INTO ce_intent (intent_code, description, priority)
+VALUES
+('GREETING', 'Greeting / small talk', 10),
+('ACTION', 'Structured user action', 20),
+('UNKNOWN', 'Fallback intent', 999);
+```
+
+---
+
+## 🧭 Intent Classifiers
+
+```sql
+INSERT INTO ce_intent_classifier
+(intent_code, rule_type, pattern, priority)
+VALUES
+('GREETING', 'REGEX', '^(hi|hello|hey).*', 1),
+('ACTION', 'CONTAINS', 'move', 10),
+('ACTION', 'CONTAINS', 'from', 11);
+```
+
+---
+
+## ⚙️ Rules
+
+```sql
+-- Detect greeting
+INSERT INTO ce_rule
+(rule_type, match_pattern, action, action_value, priority)
+VALUES
+('REGEX', '^(hi|hello|hey).*', 'SET_INTENT', 'GREETING', 1);
+
+-- Move intent
+INSERT INTO ce_rule
+(rule_type, match_pattern, action, action_value, priority)
+VALUES
+('REGEX', '\bfrom\b.+\bto\b', 'SET_INTENT', 'ACTION', 5);
+
+-- Advance state when move detected
+INSERT INTO ce_rule
+(rule_type, match_pattern, action, action_value, priority)
+VALUES
+('CONTAINS', 'move', 'SET_STATE', 'READY', 10);
+```
+
+---
+
+## 📐 Output Schema
+
+```sql
+INSERT INTO ce_output_schema (
+  intent_code,
+  state_code,
+  json_schema,
+  priority
+)
+VALUES (
+  'ACTION',
+  'READY',
+  '{
+    "type": "object",
+    "required": ["from", "to"],
+    "properties": {
+      "from": { "type": "string" },
+      "to": { "type": "string" }
+    }
+  }',
+  1
+);
+```
+
+---
+
+## 💬 Responses
+
+```sql
+-- Greeting
+INSERT INTO ce_response (
+  intent_code, state_code,
+  output_format, response_type,
+  exact_text, priority
+)
+VALUES (
+  'GREETING', 'IDLE',
+  'TEXT', 'EXACT',
+  'Hi, I am Conv Assistant. How can I help you?',
+  1
+);
+
+-- Ask for missing info
+INSERT INTO ce_response (
+  intent_code, state_code,
+  output_format, response_type,
+  derivation_hint, priority
+)
+VALUES (
+  'ACTION', 'NEED_MORE_INFO',
+  'TEXT', 'DERIVED',
+  'Ask the user for the missing destination.',
+  10
+);
+
+-- Done
+INSERT INTO ce_response (
+  intent_code, state_code,
+  output_format, response_type,
+  exact_text, priority
+)
+VALUES (
+  'ACTION', 'DONE',
+  'TEXT', 'EXACT',
+  'Done. Your request has been completed.',
+  1
+);
+```
+
+---
+
+## 🔁 How This Plays Out
+
+1. User says **Hi** → `GREETING / IDLE`
+2. User says **move from A** → `ACTION / NEED_MORE_INFO`
+3. User says **to B** → schema complete → `READY`
+4. User says **yes** → `DONE`
+
+---
+
+## ✅ Result
+
+With just this data:
+- No hardcoded logic
+- No custom code per use case
+- No UI coupling
+
+ConvEngine runs a **full, multi-turn, schema-driven conversation**.
+
+This is the power of configuration-first design.

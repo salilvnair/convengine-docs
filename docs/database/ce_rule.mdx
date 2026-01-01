@@ -1,0 +1,181 @@
+import { Highlight, Decision } from "../../src/components/convengine";
+
+# 🧩 Deterministic Rule Engine
+
+Rules are the **brainstem** of ConvEngine.
+
+They deterministically interpret user input and **mutate engine state** —  
+without calling an LLM.
+
+---
+
+## 🧠 What Rules Do
+
+A rule evaluates **user text** and performs **one explicit action**:
+
+- Set intent
+- Set state
+- Short-circuit the conversation
+
+<Highlight type="success">
+Rules are evaluated **before** any LLM call and always win over probabilistic logic.
+</Highlight>
+
+---
+
+## 🧱 Rule Anatomy
+
+Each rule has four core parts:
+
+1. **Match condition**
+2. **Action**
+3. **Priority**
+4. **Enable flag**
+
+```text
+IF (rule_type + match_pattern)
+THEN (action → action_value)
+```
+
+---
+
+## 🗂 Table Definition
+
+```sql
+CREATE TABLE ce_rule (
+  rule_id        BIGSERIAL PRIMARY KEY,
+
+  intent_code    TEXT,                 -- optional scoping
+  rule_type      TEXT NOT NULL,         -- REGEX | CONTAINS | STARTS_WITH
+  match_pattern  TEXT NOT NULL,
+
+  action         TEXT NOT NULL,         -- SET_INTENT | SET_STATE | SHORT_CIRCUIT
+  action_value   TEXT,
+
+  priority       INT NOT NULL DEFAULT 100,
+  enabled        BOOLEAN NOT NULL DEFAULT true,
+  description    TEXT,
+
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+---
+
+## 🎯 Supported Actions
+
+### 1️⃣ SET_INTENT
+
+Used to override or infer intent.
+
+```sql
+action = 'SET_INTENT'
+action_value = 'ACTION'
+```
+
+### 2️⃣ SET_STATE
+
+Moves the conversation forward or backward.
+
+```sql
+action = 'SET_STATE'
+action_value = 'READY'
+```
+
+### 3️⃣ SHORT_CIRCUIT
+
+Immediately ends processing and returns a response.
+
+```sql
+action = 'SHORT_CIRCUIT'
+action_value = 'Okay, I have stopped the request.'
+```
+
+<Highlight type="danger">
+SHORT_CIRCUIT bypasses schemas, responses, and LLMs.
+</Highlight>
+
+---
+
+## 🧪 Sample Rules
+
+### Greeting Detection
+
+```sql
+INSERT INTO ce_rule (
+  rule_type, match_pattern, action, action_value, priority, description
+)
+VALUES (
+  'REGEX',
+  '^(hi|hello|hey).*',
+  'SET_INTENT',
+  'GREETING',
+  1,
+  'Detect greeting'
+);
+```
+
+### Detect Structured Action
+
+```sql
+INSERT INTO ce_rule (
+  rule_type, match_pattern, action, action_value, priority, description
+)
+VALUES (
+  'REGEX',
+  '\\bfrom\\b.+\\bto\\b',
+  'SET_INTENT',
+  'ACTION',
+  5,
+  'Detect from-to action'
+);
+```
+
+### Cancel Command
+
+```sql
+INSERT INTO ce_rule (
+  rule_type, match_pattern, action, action_value, priority, description
+)
+VALUES (
+  'REGEX',
+  '\\b(cancel|abort|stop)\\b',
+  'SHORT_CIRCUIT',
+  'Okay, I have stopped the current request.',
+  2,
+  'User cancellation'
+);
+```
+
+---
+
+## ⚖️ Priority Matters
+
+Rules are evaluated in **ascending priority order**.
+
+<Decision type="deterministic">
+The first matching rule that mutates state wins.
+</Decision>
+
+This ensures:
+- Predictable behavior
+- No accidental overrides
+- Easy debugging
+
+---
+
+## ✅ Design Guarantees
+
+- Rules are **stateless**
+- Rules are **deterministic**
+- Rules are **fully auditable**
+- Rules never call the LLM
+
+---
+
+## 🧠 Mental Model
+
+> Rules are to ConvEngine  
+> what **if/else blocks** are to a compiler.
+
+They keep the system **safe, explainable, and enterprise-grade**.

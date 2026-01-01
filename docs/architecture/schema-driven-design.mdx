@@ -1,0 +1,208 @@
+import { FlowStep, Decision, Highlight, Conversation, User, Engine, Assistant, SchemaBlock } from "../../src/components/convengine";
+
+# 📐 Schema‑Driven Design
+
+ConvEngine is built around a simple but powerful idea:
+
+> **A conversation can only move forward when its data is complete.**
+
+This completeness is defined **explicitly** using JSON Schema — not guesses, not heuristics.
+
+---
+
+## 🧠 What Is a Schema in ConvEngine?
+
+A schema defines:
+
+- ✅ Required fields
+- 🧩 Nested structures
+- 🔒 Allowed values
+- ⛔ What is *not* allowed
+
+Schemas are stored in **`ce_output_schema`** and are bound to:
+
+- an **intent**
+- a **state**
+
+---
+
+## 🔁 Where Schema Fits in the Engine Flow
+
+<FlowStep step="1" title="Intent Identified">
+  The engine determines the intent using classifiers and rules.
+</FlowStep>
+
+<FlowStep step="2" title="Schema Lookup">
+  The engine looks up an output schema matching the current
+  <b>intent + state</b>.
+</FlowStep>
+
+<FlowStep step="3" title="Context Validation">
+  The current <code>context_json</code> is validated against the schema.
+</FlowStep>
+
+<FlowStep step="4" title="Auto‑Advance or Ask">
+  If the schema is complete → advance state.  
+  If incomplete → ask only for missing fields.
+</FlowStep>
+
+---
+
+## 📦 Example Schema (Move Action)
+
+<SchemaBlock title="Move Sub‑Account Schema">
+{`
+    {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "object",
+          "required": [
+            "subAccount"
+          ],
+          "properties": {
+            "subAccount": {
+              "type": "string"
+            }
+          }
+        },
+        "to": {
+          "type": "object",
+          "required": [
+            "subAccount"
+          ],
+          "properties": {
+            "subAccount": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+`}
+</SchemaBlock>
+
+---
+
+## 🧮 Missing‑Field Detection
+
+<Decision type="deterministic">
+  Missing fields are detected by validating the current context
+  against the JSON Schema — not by calling an LLM.
+</Decision>
+
+This allows the engine to know *exactly* what is missing.
+
+---
+
+## 🧠 Conversation Example
+
+### ➤ Turn 1
+
+<Conversation
+    engineStatus="RUNNING"
+    engineDetails={
+        <>
+            <div className="ce-engine-item ok">intent = ACTION</div>
+            <div className="ce-engine-item warn">schema incomplete</div>
+            <div className="ce-engine-item error">missing: to.subAccount</div>
+        </>
+    }
+>
+    <User>
+        move from A
+    </User>
+
+    <Assistant>
+        Where do you want to move the service?
+    </Assistant>
+</Conversation>
+
+
+---
+
+### ➤ Turn 2
+
+<Conversation
+    engineStatus="READY"
+    engineDetails={
+        <>
+            <div className="ce-engine-item success">
+                schema complete
+            </div>
+            <div className="ce-engine-item success strong">
+                auto-advance → READY
+            </div>
+        </>
+    }
+>
+    <User>
+        to B
+    </User>
+
+    <Assistant>
+        Please confirm your request.
+    </Assistant>
+</Conversation>
+
+### ➤ Turn 3
+
+<Conversation
+    engineStatus="RUNNING"
+    engineDetails={
+        <>
+            <div className="ce-engine-item success">
+                intent = CONFIRMATION
+            </div>
+            <div className="ce-engine-item success">
+                user confirmed request
+            </div>
+            <div className="ce-engine-item warn">
+                executing move action
+            </div>
+        </>
+    }
+>
+    <User>
+        Yes, confirm
+    </User>
+
+    <Assistant>
+        ✅ Your request has been confirmed.
+        The service is now being moved from <strong>A</strong> to <strong>B</strong>.
+    </Assistant>
+</Conversation>
+---
+
+## 🚫 What the LLM Is NOT Used For
+
+<Highlight type="danger">
+  LLMs are never used to:
+  <ul>
+    <li>guess missing fields</li>
+    <li>decide schema completeness</li>
+    <li>override validation rules</li>
+  </ul>
+</Highlight>
+
+---
+
+## ✅ Why Schema‑Driven Design Wins
+
+- 🎯 Zero ambiguity
+- 🔁 Predictable conversations
+- 🧪 Easy testing
+- 🧩 Domain‑agnostic design
+
+---
+
+💡 **Key Takeaway**
+
+<Highlight type="golden-rule">
+  Schema completeness is the single source of truth
+  for conversation readiness.
+</Highlight>

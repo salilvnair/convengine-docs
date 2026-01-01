@@ -1,0 +1,115 @@
+import { FlowStep, Decision, Highlight } from "../../src/components/convengine";
+
+# 🧠 Overview
+
+ConvEngine is **not a chatbot**.
+
+It is a **schema-driven conversational orchestration framework** designed to
+build **predictable, auditable, enterprise-grade conversational workflows**.
+
+---
+
+## 🏗️ High-Level Architecture
+
+<FlowStep step="1" title="Client Layer">
+    User interfaces (Web, Mobile, CLI) send plain text messages
+    along with a <code>conversationId</code>.
+</FlowStep>
+
+<FlowStep step="2" title="API Layer">
+    <b>ConversationController</b> acts as a thin transport layer.
+    It forwards messages to the engine and returns structured output.
+</FlowStep>
+
+<FlowStep step="3" title="Engine Core">
+    <b>DefaultConversationalEngine</b> orchestrates the full lifecycle:
+    intent detection, state transitions, rules, schemas, and responses.
+</FlowStep>
+
+<FlowStep step="4" title="Database (Brain)">
+    PostgreSQL stores all conversation intelligence:
+    intents, rules, schemas, prompts, responses, and audit logs.
+</FlowStep>
+
+<FlowStep step="5" title="LLM Layer">
+    Large Language Models assist only when required —
+    for natural language phrasing or structured JSON extraction.
+</FlowStep>
+
+---
+
+## 🔑 Core Design Principles
+
+### 🧩 Separation of Concerns
+
+<Decision type="deterministic">
+    Each layer has a single responsibility.
+    No layer leaks logic into another.
+</Decision>
+
+- API handles transport
+- Engine handles orchestration
+- Database handles intelligence
+- LLM handles language
+
+---
+
+### 🧮 Deterministic First, Probabilistic Second
+
+ConvEngine always decides **before** invoking an LLM.
+
+<Decision type="deterministic">
+    Intent selection, state transitions, and schema checks
+    are fully deterministic and rule-driven.
+</Decision>
+
+<Decision type="llm">
+    LLMs are invoked only after decisions are made,
+    to assist with phrasing or extraction.
+</Decision>
+
+---
+
+### 📐 Schema-Driven Conversations
+
+JSON Schemas define:
+- what data is required
+- when a conversation can advance
+- how missing fields are detected
+
+<Highlight type="golden-rule">
+    Schema completeness — not user confidence —
+    determines conversation readiness.
+</Highlight>
+
+---
+
+### 🧾 Auditable by Design
+
+Every important event is persisted:
+
+- Conversation state changes
+- Context JSON evolution
+- LLM prompts and responses
+
+<Highlight type="success">
+    Any conversation can be replayed, debugged, or audited end-to-end.
+</Highlight>
+
+---
+
+## 🌟 Why This Architecture Works
+
+ConvEngine is built to be:
+
+- 🧩 Generic across domains
+- 🔒 Predictable in behavior
+- 🛠️ Extensible via database changes
+- 🧪 Testable and replayable
+- 📊 Observable at every step
+
+---
+
+🎯 **Bottom line**
+ConvEngine behaves like a **workflow engine at its core**,
+but communicates like a **human assistant at the edges**.

@@ -1,0 +1,158 @@
+import { Conversation, User, Assistant } from "../../src/components/convengine";
+
+# ➕ New UI Response
+
+ConvEngine can return **structured UI responses** instead of plain text.
+These responses allow the frontend to render **buttons, radios, checkboxes**, or any future UI control — without hardcoding UI logic in the backend.
+
+---
+
+## 🎯 When to Use UI Responses
+
+Use UI responses when:
+
+- User needs to **confirm** an action
+- User must **choose one option**
+- User should **select multiple items**
+- You want deterministic follow-ups instead of free text
+
+---
+
+## 🧱 UI Responses Are Just JSON
+
+ConvEngine does **not render UI**.  
+It **returns JSON** that the frontend understands.
+
+The UI contract is defined using **`ce_response + json_schema`**.
+
+---
+
+## 📄 Step 1: Define the UI JSON Schema
+
+```sql
+INSERT INTO ce_response (
+  intent_code,
+  state_code,
+  output_format,
+  response_type,
+  derivation_hint,
+  json_schema,
+  priority,
+  enabled,
+  description
+)
+VALUES (
+  'ACTION',
+  'READY',
+  'JSON',
+  'DERIVED',
+  'Generate a UI response allowing the user to confirm or cancel the request.',
+  '{
+    "type": "object",
+    "required": ["uiType", "options"],
+    "properties": {
+      "uiType": {
+        "type": "string",
+        "enum": ["BUTTON", "RADIO", "CHECKBOX"]
+      },
+      "options": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["label", "payload"],
+          "properties": {
+            "label": { "type": "string" },
+            "payload": { "type": "object" }
+          }
+        }
+      }
+    }
+  }',
+  1,
+  true,
+  'Confirmation UI response'
+);
+```
+
+---
+
+## 🧠 What the LLM Will Generate
+
+The LLM **must return JSON only** that conforms to the schema.
+
+Example output:
+
+```json
+{
+  "uiType": "BUTTON",
+  "options": [
+    {
+      "label": "Confirm",
+      "payload": { "action": "confirm" }
+    },
+    {
+      "label": "Cancel",
+      "payload": { "action": "cancel" }
+    }
+  ]
+}
+```
+
+---
+
+## 🧪 Example Conversation
+
+<Conversation
+  engineStatus="READY"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success strong">
+        state = READY
+      </div>
+      <div className="ce-engine-item ok">
+        output = JSON_UI
+      </div>
+    </>
+  }
+>
+  <User>
+    Move service from A to B
+  </User>
+
+  <Assistant>
+    Please confirm your request.
+    <br />
+    (UI rendered from structured JSON)
+  </Assistant>
+</Conversation>
+
+---
+
+## 🧩 Frontend Responsibility
+
+The frontend:
+
+- Reads `payload.type = JSON`
+- Inspects `uiType`
+- Renders corresponding component
+- Sends back `payload` when user clicks
+
+ConvEngine stays **UI-agnostic**.
+
+---
+
+## 🚀 Why This Is Powerful
+
+- Backend controls **flow**
+- Frontend controls **presentation**
+- No brittle text parsing
+- Future-proof UI evolution
+
+---
+
+## ✅ Golden Rule
+
+> **ConvEngine decides *what* interaction is needed.  
+> The UI decides *how* it looks.**
+
+You now have a fully extensible, schema-driven UI response system ✨

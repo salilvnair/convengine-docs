@@ -1,0 +1,68 @@
+---
+title: "🔁 Schema‑Driven Flow"
+sidebar_position: 15
+---
+
+import { Conversation, User, Assistant } from "@site/src/components/convengine";
+
+# 🔁 Schema‑Driven Flow
+
+This example shows how **ConvEngine** handles a structured action using
+**intent detection**, **schema completeness**, and **multi‑turn conversation**.
+
+---
+
+## Step 1️⃣ User starts an action
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">intent = ACTION</div>
+      <div className="ce-engine-item warn">schema incomplete (missing <code>to</code>)</div>
+      <div className="ce-engine-item warn">state = NEED_MORE_INFO</div>
+    </>
+  }
+>
+  <User>
+    move from A
+  </User>
+
+  <Assistant>
+    Where do you want to move the service?
+  </Assistant>
+</Conversation>
+
+---
+
+## Step 2️⃣ User provides missing information
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item success">context_json merged</div>
+      <div className="ce-engine-item success">schema complete</div>
+      <div className="ce-engine-item success strong">state = READY</div>
+    </>
+  }
+>
+  <User>
+    to B
+  </User>
+
+  <Assistant>
+    Please confirm your request.
+  </Assistant>
+</Conversation>
+
+---
+
+## What just happened? 🧠
+
+- The engine detected **ACTION intent**
+- It validated user input against the **JSON schema**
+- Missing fields triggered a **follow‑up question**
+- Once complete, the engine **auto‑advanced** the state
+
+<small>💡 No LLM was allowed to change intent or state — only deterministic rules did.</small>

@@ -1,0 +1,112 @@
+# 🔮 Future Integrations
+
+ConvEngine is intentionally designed as a **core decision and orchestration layer**.
+Everything beyond this layer can evolve independently.
+
+This page outlines **planned and natural extensions** that fit cleanly into the existing architecture.
+
+---
+
+## 🧠 Workflow Engines (Temporal / Durable Tasks)
+
+ConvEngine can act as the **decision brain** in front of a workflow engine.
+
+### How it fits
+- ConvEngine handles:
+  - intent detection
+  - validation
+  - schema completeness
+  - confirmations
+- Workflow engine handles:
+  - execution
+  - retries
+  - long‑running state
+  - compensation
+
+### Example
+- User confirms an ACTION intent
+- Engine reaches `state = READY`
+- ConvEngine emits an execution event
+- Temporal workflow starts with structured payload
+
+> ConvEngine decides **what should happen**  
+> Workflow decides **how it happens**
+
+---
+
+## 🖥️ UI Platforms
+
+ConvEngine is UI‑agnostic by design.
+
+### Supported / Planned
+- Web (React, Angular, Vue)
+- Mobile (React Native, Swift, Kotlin)
+- Chat platforms (Slack, Teams, WhatsApp)
+- Voice assistants
+
+UI consumes **structured UI JSON** from `ce_response`
+and renders components dynamically.
+
+---
+
+## 🤖 Multiple LLM Providers
+
+The LLM layer already supports pluggability.
+
+### Planned providers
+- OpenAI
+- Azure OpenAI
+- Anthropic
+- Local models (Ollama, LM Studio)
+
+Each provider:
+- Implements `LlmClient`
+- Logs calls via `ce_llm_call_log`
+- Uses the same prompt templates
+
+---
+
+## 🔍 Advanced Observability
+
+Beyond basic logging:
+
+- Prompt diffing
+- Schema drift detection
+- Token usage analytics
+- Latency dashboards
+- Conversation replay UI
+
+All powered from existing audit + LLM logs.
+
+---
+
+## 🧩 Plugins & Extensions
+
+Future extensions may include:
+- Custom rule evaluators
+- External policy engines
+- ML‑based intent classifiers
+- Domain‑specific schema libraries
+
+ConvEngine remains small.
+Capabilities grow through **plugins**, not core bloat.
+
+---
+
+## 🛡️ Security & Compliance
+
+Planned additions:
+- PII masking before LLM calls
+- Field‑level encryption in `context_json`
+- Role‑based conversation policies
+- Audit exports for compliance
+
+---
+
+## 🧭 Final Thought
+
+ConvEngine is not a chatbot framework.
+
+It is a **decision engine** that speaks conversationally.
+
+Everything else — workflows, UI, AI providers — can evolve around it.

@@ -1,0 +1,113 @@
+import { Highlight, Decision, FlowStep, Conversation, User, Assistant } from "../../src/components/convengine";
+
+# 📐 Schema Completeness
+
+Schema completeness is what allows ConvEngine to run **multi‑turn extraction**
+without guessing or hallucinating.
+
+<Highlight type="success">
+ConvEngine never asks the LLM <em>what is required</em>.  
+It already knows — from the schema.
+</Highlight>
+
+---
+
+## 🧠 Core Idea
+
+Schemas define **shape**, not behavior.
+
+When a schema exists for the current `(intent + state)`:
+- Required fields are enforced
+- Partial data is accumulated
+- Missing fields drive follow‑up questions
+
+---
+
+## 🔁 Where This Runs
+
+<FlowStep step="1" title="Locate Output Schema">
+ConvEngine resolves the active schema using <code>intent_code</code>,
+<code>state_code</code>, and <code>priority</code>.
+</FlowStep>
+
+<FlowStep step="2" title="Merge Context">
+Any newly extracted JSON is merged into <code>context_json</code>.
+Existing fields are preserved.
+</FlowStep>
+
+<FlowStep step="3" title="Validate Required Fields">
+All <code>required</code> fields in the JSON schema are checked recursively.
+</FlowStep>
+
+---
+
+## 🧮 Outcomes
+
+<Decision type="deterministic">
+If required fields are missing → state = <code>NEED_MORE_INFO</code>
+</Decision>
+
+<Decision type="deterministic">
+If all required fields are present → auto‑advance to <code>READY</code>
+</Decision>
+
+No LLM decisions involved.
+
+---
+
+## 🧪 Example: Incremental Extraction
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">intent = ACTION</div>
+      <div className="ce-engine-item warn">missing: to.subAccount</div>
+    </>
+  }
+>
+  <User>move from A</User>
+  <Assistant>
+    Where do you want to move the service to?
+  </Assistant>
+</Conversation>
+
+---
+
+<Conversation
+  engineStatus="RUNNING"
+  engineDetails={
+    <>
+      <div className="ce-engine-item ok">context merged</div>
+      <div className="ce-engine-item success strong">schema complete</div>
+    </>
+  }
+>
+  <User>to B</User>
+  <Assistant>
+    Please confirm your request.
+  </Assistant>
+</Conversation>
+
+---
+
+## 🚫 What Auto‑Advance Does NOT Do
+
+<Highlight type="danger">
+- Guess values
+- Skip required fields
+- Change intent arbitrarily
+- Depend on LLM confidence
+</Highlight>
+
+---
+
+## ✅ Why This Is Powerful
+
+- Deterministic multi‑turn flows
+- Replayable conversations
+- Safe structured extraction
+- Zero hallucinated fields
+
+Schema completeness turns ConvEngine into a
+<strong>conversation compiler</strong> — not a chatbot.
