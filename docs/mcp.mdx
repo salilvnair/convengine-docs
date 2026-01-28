@@ -1,0 +1,280 @@
+import { Timeline, Stack, Text, List, Paper, Divider } from "@mantine/core";
+import { IconDatabase, IconBrain, IconPlayerPlay } from "@tabler/icons-react";
+
+import {
+  CodeBlockToggle,
+  Conversation,
+  Highlight,
+  Assistant,
+    User
+} from "@site/src/components/convengine";
+
+# MCP 
+
+This document explains **how MCP works internally in ConvEngine**, based strictly on the real implementation of:
+
+`com.github.salilvnair.convengine.engine.steps.McpToolStep`
+
+MCP is used when:
+- An intent requires **external data**
+- That data must be fetched **safely**
+- The engine must reason in **multiple steps**
+- SQL or tools must be **DB-driven, not hardcoded**
+
+---
+
+## Example conversation
+
+<Conversation>
+  <User>
+    What is the status of my move for connection USPSC003BA100SA277CON1388
+  </User>
+  <br />
+  <Assistant>
+    The status of your move for connection USPSC003BA100SA277CON1388 is MOVED.
+  </Assistant>
+</Conversation>
+
+---
+
+## MCP execution timeline
+
+<Timeline active={7} bulletSize={28} lineWidth={3}>
+  <Timeline.Item
+    bullet={<IconPlayerPlay size={14} />}
+    title="MCP step starts"
+  >
+    <Text size="sm">
+      McpToolStep runs after intent resolution and before rules / response.
+    </Text>
+  </Timeline.Item>
+
+  <Timeline.Item
+    bullet={<IconBrain size={14} />}
+    title="Enabled tools loaded"
+  >
+    <Text size="sm">
+      McpToolRegistry loads enabled tools from <code>ce_mcp_tool</code>.
+      If no tools exist, MCP exits early.
+    </Text>
+  </Timeline.Item>
+
+  <Timeline.Item
+    bullet={<IconBrain size={14} />}
+    title="MCP context cleared"
+  >
+    <Text size="sm">
+      Any stale <code>context_json.mcp.finalAnswer</code> or observations are removed.
+    </Text>
+
+    <Highlight type="danger">
+      If this step is skipped, previous answers WILL leak into new requests.
+    </Highlight>
+  </Timeline.Item>
+
+  <Timeline.Item
+    bullet={<IconBrain size={14} />}
+    title="Planner loop begins (max 5 iterations)"
+  >
+    <Text size="sm">
+      Planner decides whether to CALL_TOOL or ANSWER.
+    </Text>
+  </Timeline.Item>
+
+  <Timeline.Item
+    bullet={<IconDatabase size={14} />}
+    title="Planner calls DB tool"
+  >
+    <Text size="sm">
+      Tool code + arguments are returned by the planner and audited.
+    </Text>
+  </Timeline.Item>
+
+  <Timeline.Item
+    bullet={<IconDatabase size={14} />}
+    title="DB tool executed safely"
+  >
+    <Text size="sm">
+      SQL template from <code>ce_mcp_db_tool</code> is executed via
+      <code>McpDbExecutor</code>.
+    </Text>
+  </Timeline.Item>
+
+  <Timeline.Item
+    bullet={<IconBrain size={14} />}
+    title="Observation recorded"
+  >
+    <Text size="sm">
+      Tool result is appended to <code>context_json.mcp.observations</code>.
+    </Text>
+  </Timeline.Item>
+
+  <Timeline.Item
+    bullet={<IconBrain size={14} />}
+    title="Planner returns ANSWER"
+  >
+    <Text size="sm">
+      Final answer is written to <code>context_json.mcp.finalAnswer</code>.
+    </Text>
+  </Timeline.Item>
+</Timeline>
+
+---
+
+## Core MCP loop (real code)
+
+<CodeBlockToggle language="java" title="McpToolStep.execute(...)">
+{`for (int i = 0; i < MAX_LOOPS; i++) {
+
+    McpPlan plan = planner.plan(session, tools, observations);
+
+    if ("ANSWER".equalsIgnoreCase(plan.action())) {
+        writeFinalAnswerToContext(session, plan.answer());
+        audit.audit("MCP_FINAL_ANSWER", session.getConversationId(), ...);
+        break;
+    }
+
+    if (!"CALL_TOOL".equalsIgnoreCase(plan.action())) {
+        writeFinalAnswerToContext(session, "I couldn't decide safely.");
+        break;
+    }
+
+    CeMcpDbTool dbTool = registry.requireDbTool(plan.tool_code());
+    String rowsJson = dbExecutor.execute(dbTool, plan.args());
+
+    observations.add(new McpObservation(plan.tool_code(), rowsJson));
+    writeObservationsToContext(session, observations);
+
+    audit.audit("MCP_TOOL_RESULT", session.getConversationId(), ...);
+}`}
+</CodeBlockToggle>
+
+---
+
+## MCP context structure
+
+After execution, MCP writes into `ce_conversation.context_json`:
+
+```json
+{
+  "mcp": {
+    "observations": [
+      {
+        "toolCode": "postgres.move_status",
+        "json": "[{ \"status\": \"MOVED\" }]"
+      }
+    ],
+    "finalAnswer": "The status of your move is MOVED."
+  }
+}
+```
+
+---
+
+<Highlight type="success">
+    <br /> MCP does NOT return the API response directly.  
+    <br /> It prepares data for rules and response resolution.
+</Highlight>
+
+---
+
+
+
+## How McpPlanner decides which tool to call
+
+McpPlanner is the **only component** that decides:
+- Whether MCP should continue
+- Whether to CALL_TOOL or ANSWER
+- Which tool to call
+- Which arguments to pass
+
+<Highlight type="info">
+McpToolStep never chooses a tool.  
+It blindly executes whatever McpPlanner returns.
+</Highlight>
+
+### Why <code>postgres.move_status</code> is chosen
+
+Given:
+- Intent = MOVE_CONNECTIONS
+- Question contains a connection id
+- No existing answer in context
+- Tool metadata describing move-status lookup
+
+The planner emits a CALL_TOOL plan.
+
+---
+
+## Core MCP loop (real code)
+
+<CodeBlockToggle language="java" title="McpToolStep.execute(...)">
+{`for (int i = 0; i < MAX_LOOPS; i++) {
+    McpPlan plan = planner.plan(session, tools, observations);
+    if ("ANSWER".equalsIgnoreCase(plan.action())) {
+        writeFinalAnswerToContext(session, plan.answer());
+        break;
+    }
+    CeMcpDbTool dbTool = registry.requireDbTool(plan.tool_code());
+    String rowsJson = dbExecutor.execute(dbTool, plan.args());
+    observations.add(new McpObservation(plan.tool_code(), rowsJson));
+}`}
+</CodeBlockToggle>
+
+---
+
+## What happens after MCP?
+
+<Stack spacing="xs">
+  <Text>• RulesStep may short-circuit if <code>$.mcp.finalAnswer</code> exists</Text>
+  <Text>• Or state may be updated via <code>ce_rule</code></Text>
+  <Text>• ResponseResolutionStep selects <code>ce_response</code></Text>
+  <Text>• Response may be EXACT or DERIVED</Text>
+</Stack>
+
+---
+
+## Why MCP is safe by design
+
+<Highlight type="success">
+No dynamic SQL from LLM  
+<br /> All tools are DB-configured  
+<br /> Param schema validated  
+<br /> Max rows enforced  
+<br /> Failures degrade gracefully  
+<br /> Every step is audited  
+</Highlight>
+
+---
+
+## Final takeaway
+
+<Highlight type="success">
+MCP is controlled, deterministic, DB-driven, and safe.
+</Highlight>
+
+## Debugging tip
+
+If you ever see:
+
+> Second request returns previous answer
+
+Check these **in order**:
+
+1. MCP_CONTEXT_CLEARED audit exists
+2. SQL tool params extracted correctly
+3. derivation_hint does not blindly reuse old finalAnswer
+
+---
+
+## Final takeaway
+
+<Highlight type="success">
+MCP in ConvEngine is not “agents doing magic”.
+
+It is:<br />
+• Controlled<br />
+• Deterministic<br />
+• Auditable<br />
+• DB-driven<br />
+• Safe <br />
+</Highlight>

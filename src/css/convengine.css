@@ -672,3 +672,25 @@ html[data-theme="dark"] .ce-codeblock-toggle {
 }
 
 
+.ce-db-table {
+  margin: 1.5rem 0;
+}
+
+.ce-db-table-grid {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+}
+
+.ce-db-table-grid th,
+.ce-db-table-grid td {
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ce-db-table-grid th {
+  background: #f8fafc;
+  font-weight: 600;
+}

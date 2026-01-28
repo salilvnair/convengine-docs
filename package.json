@@ -16,7 +16,10 @@
   "dependencies": {
     "@docusaurus/core": "3.9.2",
     "@docusaurus/preset-classic": "3.9.2",
+    "@mantine/core": "^8.3.13",
+    "@mantine/hooks": "^8.3.13",
     "@mdx-js/react": "^3.0.0",
+    "@tabler/icons-react": "^3.36.1",
     "bulma": "^1.0.4",
     "clsx": "^2.0.0",
     "prism-react-renderer": "^2.4.1",
