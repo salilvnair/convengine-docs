@@ -1,0 +1,106 @@
+---
+title: Extensions
+sidebar_position: 3
+---
+
+import { CodeBlockToggle, Highlight, FlowStep } from "@site/src/components/convengine";
+
+# Extension Points and Intervention Scenarios
+
+## 1) `EngineStepHook` - intervene between any steps
+
+Real scenario: For `LOG_ANALYSIS`, inject additional retrieval hint before schema extraction.
+
+<CodeBlockToggle title="EngineStepHook example" language="java" packagePath="com.acme.convengine.hooks">
+{`@Component
+public class LogAnalysisHintHook implements EngineStepHook {
+    @Override
+    public boolean supports(String stepName, EngineSession session) {
+        return "SchemaExtractionStep".equals(stepName)
+            && "LOG_ANALYSIS".equalsIgnoreCase(session.getIntent());
+    }
+
+    @Override
+    public void beforeStep(String stepName, EngineSession session) {
+        session.putInputParam("log_source_priority", "APM_FIRST");
+    }
+}`}
+</CodeBlockToggle>
+
+:::tip Where to use this
+Use hooks when you need low-friction runtime intervention without forking framework steps.
+:::
+
+## 2) `ContainerDataTransformer` - reshape container response
+
+Real scenario: CCF returns nested payload; you flatten to schema-friendly map.
+
+<CodeBlockToggle title="ContainerDataTransformer example" language="java" packagePath="com.acme.convengine.transformers">
+{`@Component
+@ContainerDataTransformer(intent = "REQUEST_TRACKER", state = "IDLE")
+public class RequestTrackerContainerTransformer implements ContainerDataTransformerHandler {
+    @Override
+    public Map<String, Object> transform(ContainerComponentResponse response,
+                                         EngineSession session,
+                                         Map<String, Object> inputParams) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ticket_id", inputParams.get("ticketId"));
+        out.put("status", "IN_REVIEW");
+        return out;
+    }
+}`}
+</CodeBlockToggle>
+
+## 3) `ResponseTransformer` - post-process final payload
+
+Real scenario: Add support-team escalation footer for high-severity disconnect failures.
+
+<CodeBlockToggle title="ResponseTransformer example" language="java" packagePath="com.acme.convengine.transformers">
+{`@Component
+@ResponseTransformer(intent = "DISCONNECT_ELECTRICITY", state = "FAILED")
+public class DisconnectFailureResponseTransformer implements ResponseTransformerHandler {
+    @Override
+    public OutputPayload transform(OutputPayload responsePayload,
+                                   EngineSession session,
+                                   Map<String, Object> inputParams) {
+        if (responsePayload instanceof TextPayload(String text)) {
+            return new TextPayload(text + "\\nIf this is urgent, call support at +1-800-000-0000.");
+        }
+        return responsePayload;
+    }
+}`}
+</CodeBlockToggle>
+
+## 4) `ContainerDataInterceptor` - intercept request/response around CCF
+
+Real scenario: add tenant metadata and redact a field before persistence.
+
+<CodeBlockToggle title="Interceptor scenario (concept)" language="text">
+{`Before Execute:
+- inject tenantId/requestId
+- attach observability headers
+
+After Execute:
+- redact sensitive node from raw container payload
+- enrich session input params for downstream rule checks`}
+</CodeBlockToggle>
+
+## 5) `SET_TASK` action - execute custom Java task from rule
+
+Real scenario: If log analysis detects threshold breach, dispatch internal incident task.
+
+<FlowStep step="1" title="Rule row">
+`ce_rule.action=SET_TASK`, `action_value=myIncidentTaskBean:raiseIncident`
+</FlowStep>
+
+<FlowStep step="2" title="Runtime">
+`SetTaskActionResolver` parses bean+method and invokes `CeRuleTaskExecutor`.
+</FlowStep>
+
+<FlowStep step="3" title="Outcome">
+Task can write to session/context/inputParams and influence downstream response.
+</FlowStep>
+
+<Highlight type="info" title="Rule safety">
+Use deterministic task methods. Avoid side effects that are not idempotent unless you include strong guards in rule conditions.
+</Highlight>

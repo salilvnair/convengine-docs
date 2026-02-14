@@ -1,146 +1,93 @@
-// @ts-check
-// `@type` JSDoc annotations allow editor autocompletion and type checking
-// (when paired with `@ts-check`).
-// There are various equivalent ways to declare your Docusaurus config.
-// See: https://docusaurus.io/docs/api/docusaurus-config
-
 import {themes as prismThemes} from 'prism-react-renderer';
-
-// This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'ConvEngine',
+  tagline: 'Deterministic conversational workflow engine',
   favicon: 'img/favicon.ico',
-
-  // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
-  future: {
-    v4: true, // Improve compatibility with the upcoming Docusaurus v4
-  },
+  future: { v4: true },
   trailingSlash: false,
-  // Set the production url of your site here
   url: 'https://salilvnair.com',
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
-
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'salilvnair', // Usually your GitHub org/user name.
-  projectName: 'convengine-docs', // Usually your repo name.
-
+  organizationName: 'salilvnair',
+  projectName: 'convengine-docs',
   onBrokenLinks: 'throw',
-
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],
   },
-
   presets: [
     [
       'classic',
-      /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
           sidebarPath: './sidebars.js',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+          routeBasePath: 'docs',
+          editUrl: 'https://github.com/salilvnair/convengine-docs/tree/main/',
         },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
-        },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
       }),
     ],
   ],
-
-  themeConfig:
-    /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
-    ({
-      // Replace with your project's social card
-      image: 'img/docusaurus-social-card.jpg',
-      colorMode: {
-        defaultMode: 'dark',
-        disableSwitch: false,
-        respectPrefersColorScheme: true,
+  themeConfig: ({
+    image: 'img/docusaurus-social-card.jpg',
+    colorMode: {
+      defaultMode: 'dark',
+      disableSwitch: false,
+      respectPrefersColorScheme: true,
+    },
+    navbar: {
+      title: 'ConvEngine Docs',
+      logo: {
+        alt: 'ConvEngine',
+        src: 'img/conv.svg',
       },
-      navbar: {
-        title: 'ConvEngine',
-        logo: {
-          alt: 'My Site Logo',
-          src: 'img/conv.svg',
+      items: [
+        { type: 'doc', docId: 'overview', position: 'left', label: 'Overview' },
+        { to: '/docs/architecture', position: 'left', label: 'Architecture' },
+        { to: '/docs/examples', position: 'left', label: 'Examples' },
+        { to: '/docs/consumer', position: 'left', label: 'Consumer' },
+        { to: '/docs/deep-dive', position: 'left', label: 'Deep Dive' },
+        { to: '/docs/api/rest-api', position: 'left', label: 'API' },
+        { href: 'https://github.com/salilvnair/convengine', label: 'GitHub', position: 'right' },
+      ],
+    },
+    footer: {
+      style: 'dark',
+      links: [
+        {
+          title: 'Docs',
+          items: [
+            { label: 'Overview', to: '/docs/overview' },
+            { label: 'Architecture', to: '/docs/architecture' },
+            { label: 'Local Development', to: '/docs/local-development' },
+          ],
         },
-        items: [
-          {
-            type: 'docSidebar',
-            sidebarId: 'docSidebar',
-            position: 'left',
-            label: 'Docs',
-          },
-          {
-            href: 'https://github.com/salilvnair/convengine-docs',
-            label: 'GitHub',
-            position: 'right',
-          },
-        ],
-      },
-      footer: {
-        style: 'dark',
-        links: [
-          {
-            title: 'Docs',
-            items: [
-              {
-                label: 'Tutorial',
-                to: '/docs/architecture',
-              },
-            ],
-          },
-          {
-            title: 'Community',
-            items: [
-              {
-                label: 'Stack Overflow',
-                href: 'https://stackoverflow.com/questions/tagged/docusaurus',
-              },
-              {
-                label: 'Discord',
-                href: 'https://discordapp.com/invite/docusaurus',
-              },
-              {
-                label: 'X',
-                href: 'https://x.com/docusaurus',
-              },
-            ],
-          }
-        ],
-        copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
-      },
-      prism: {
-        theme: prismThemes.github,
-        darkTheme: prismThemes.dracula,
-        additionalLanguages: ['json', 'java'],
-      },
-    }),
+        {
+          title: 'Reference',
+          items: [
+            { label: 'REST API', to: '/docs/api/rest-api' },
+            { label: 'Java API', to: '/docs/api/java-api' },
+            { label: 'Deep Dive', to: '/docs/deep-dive' },
+          ],
+        },
+      ],
+      copyright: `Copyright © ${new Date().getFullYear()} ConvEngine.`,
+    },
+    prism: {
+      theme: prismThemes.oneLight,
+      darkTheme: prismThemes.oneDark,
+      additionalLanguages: ['json', 'java', 'sql', 'bash', 'yaml'],
+    },
+  }),
 };
 
 export default config;

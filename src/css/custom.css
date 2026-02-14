@@ -1,562 +1,681 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Manrope:wght@400;500;600;700;800&display=swap');
 
-@import "./convengine.css";
-@import "./convengine-chat.css";
-
-/**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
- */
-
-/* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
-  --ifm-color-gray-100: #f7fafc;
-  --ifm-color-emphasis-100: var(--ifm-color-gray-100)
+  --ifm-font-family-base: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ifm-color-primary: #1d4ed8;
+  --ifm-color-primary-dark: #1a45c2;
+  --ifm-color-primary-darker: #163dab;
+  --ifm-color-primary-darkest: #133591;
+  --ifm-color-primary-light: #2257ee;
+  --ifm-color-primary-lighter: #3064f2;
+  --ifm-color-primary-lightest: #4d7df5;
+  --ifm-background-color: #f4f8ff;
+  --ifm-background-surface-color: #ffffff;
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.88);
+  --ifm-footer-background-color: #0f172a;
+  --ifm-color-content: #0f172a;
+  --ifm-color-content-secondary: #334155;
+  --ifm-card-background-color: #ffffff;
+  --ifm-toc-border-color: #dbeafe;
+  --ifm-table-border-color: #dbeafe;
+
+  --ce-surface: #ffffff;
+  --ce-surface-2: #f4f8ff;
+  --ce-border: #dbeafe;
+  --ce-text-soft: #334155;
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-color-primary: #60a5fa;
+  --ifm-color-primary-dark: #3b82f6;
+  --ifm-color-primary-darker: #2563eb;
+  --ifm-color-primary-darkest: #1d4ed8;
+  --ifm-color-primary-light: #7ab8fb;
+  --ifm-color-primary-lighter: #92c5fc;
+  --ifm-color-primary-lightest: #b5dbfd;
+  --ifm-background-color: #070d18;
+  --ifm-background-surface-color: #0b1324;
+  --ifm-navbar-background-color: rgba(9, 16, 30, 0.9);
+  --ifm-footer-background-color: #040912;
+  --ifm-color-content: #d7e4ff;
+  --ifm-color-content-secondary: #aabddd;
+  --ifm-heading-color: #e5eeff;
+  --ifm-card-background-color: #0d1a30;
+  --ifm-toc-border-color: #1f3658;
+  --ifm-table-border-color: #28456e;
+
+  --ce-surface: #0b1120;
+  --ce-surface-2: #0f1c33;
+  --ce-border: #1e3a5f;
+  --ce-text-soft: #c2d6f6;
 }
 
-
-/* =================================================
-   Bulma chat overrides (Dark)
-   ================================================= */
-
-html[data-theme="dark"] .media {
-  align-items: flex-end;
+html, body {
+  background: var(--ifm-background-color);
 }
 
-html[data-theme="dark"] .ce-message-bubble.box {
-  background: #1f2937;
-  border: 1px solid #2b3444;
+.navbar {
+  backdrop-filter: blur(8px);
+}
+
+[data-theme='dark'] .navbar,
+[data-theme='dark'] .theme-doc-sidebar-container,
+[data-theme='dark'] .menu {
+  background: #0a1324;
+  border-color: #1f3556;
+}
+
+[data-theme='dark'] .footer {
+  background: #070f1d;
+}
+
+[data-theme='dark'] .main-wrapper {
+  background: radial-gradient(1200px 600px at 80% -10%, rgba(37, 99, 235, 0.18), transparent 55%),
+              radial-gradient(900px 500px at -10% 10%, rgba(14, 116, 144, 0.14), transparent 50%),
+              var(--ifm-background-color);
+}
+
+[data-theme='dark'] .menu__link {
+  color: #c7dafb;
+}
+
+[data-theme='dark'] .menu__list-item-collapsible:hover {
+  background: rgba(37, 99, 235, 0.16);
+}
+
+[data-theme='dark'] .menu__link--active,
+[data-theme='dark'] .menu__link:hover {
+  background: rgba(37, 99, 235, 0.2);
+  color: #eaf2ff;
+}
+
+[data-theme='dark'] .table-of-contents__link {
+  color: #a9c0e5;
+}
+
+[data-theme='dark'] .table-of-contents__link--active,
+[data-theme='dark'] .table-of-contents__link:hover {
+  color: #d9e8ff;
+}
+
+[data-theme='dark'] .pagination-nav__link,
+[data-theme='dark'] .card {
+  background: #0d1a30;
+  border-color: #1f3658;
+}
+
+[data-theme='dark'] .alert {
+  background: #0e1930;
+  border-color: #2b4a78;
+}
+
+[data-theme='dark'] .theme-doc-markdown blockquote {
+  background: #0d1a30;
+  border-left-color: #3b82f6;
+  color: #d7e4ff;
+}
+
+[data-theme='dark'] .theme-doc-markdown table {
+  background: #0d1a30;
+}
+
+[data-theme='dark'] .theme-doc-markdown table thead tr {
+  background: #122340;
+}
+
+[data-theme='dark'] .theme-doc-markdown table tr:nth-child(even) {
+  background: #0b1528;
+}
+
+[data-theme='dark'] .theme-doc-markdown table tr:hover {
+  background: #16305a;
+}
+
+[data-theme='dark'] .theme-doc-markdown details {
+  background: #0d1a30;
+  border: 1px solid #1f3658;
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+}
+
+.theme-doc-markdown h1,
+.theme-doc-markdown h2,
+.theme-doc-markdown h3,
+.theme-doc-markdown h4 {
+  letter-spacing: -0.01em;
+}
+
+.markdown > h1:first-child {
+  border-bottom: 1px solid var(--ce-border);
+  padding-bottom: 0.6rem;
+}
+
+/* IntelliJ-like code styling */
+.theme-code-block,
+pre code {
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.theme-code-block {
+  border: 1px solid var(--ce-border);
   border-radius: 14px;
-  padding: 10px 12px;
-  box-shadow: none;
-  color: #d4d4d4;
+  overflow: hidden;
 }
 
-/* User bubble */
-html[data-theme="dark"] .ce-message-user .ce-message-bubble {
-  background: #0f172a;
-  border-color: #243048;
+.theme-code-block pre {
+  background: #f8fafc;
 }
 
-/* Assistant bubble */
-html[data-theme="dark"] .ce-message-assistant .ce-message-bubble {
-  background: #1f2937;
+[data-theme='dark'] .theme-code-block pre {
+  background: #111827;
 }
 
-/* Assistant tail */
-html[data-theme="dark"]
-.ce-message-assistant .ce-message-bubble::after {
-  content: "";
-  position: absolute;
-  left: -6px;
-  bottom: 10px;
-  width: 12px;
-  height: 12px;
-  background: #1f2937;
-  border-left: 1px solid #2b3444;
-  border-bottom: 1px solid #2b3444;
-  transform: rotate(45deg);
+.ce-code-panel {
+  border: 1px solid var(--ce-border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin: 1rem 0;
+  background: var(--ce-surface);
 }
 
-/* User tail */
-html[data-theme="dark"]
-.ce-message-user .ce-message-bubble::after {
-  content: "";
-  position: absolute;
-  right: -6px;
-  bottom: 10px;
-  width: 12px;
-  height: 12px;
-  background: #0f172a;
-  border-right: 1px solid #243048;
-  border-bottom: 1px solid #243048;
-  transform: rotate(-45deg);
+.ce-code-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--ce-border);
+  background: linear-gradient(90deg, rgba(29, 78, 216, 0.08), rgba(59, 130, 246, 0.03));
+  cursor: pointer;
 }
 
+.ce-code-panel-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
 
-/* =====================================================
-   DaisyUI-like Chat (Pure CSS, Docusaurus-safe)
-   ===================================================== */
-
-.ce-chat {
+.ce-code-panel-head-left {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 1rem;
+  gap: 0.35rem;
 }
 
-/* Row alignment */
+.ce-code-panel-path-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ce-code-panel-path {
+  font-size: 0.72rem;
+  font-family: var(--ifm-font-family-monospace);
+  border: 1px solid var(--ce-border);
+  padding: 0.16rem 0.45rem;
+  border-radius: 999px;
+  background: var(--ce-surface-2);
+  color: var(--ce-text-soft);
+}
+
+.ce-code-panel-head-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ce-code-lang {
+  font-size: 0.74rem;
+  font-weight: 700;
+  border: 1px solid var(--ce-border);
+  padding: 0.2rem 0.46rem;
+  border-radius: 8px;
+}
+
+.ce-code-toggle-btn {
+  border: none;
+  border-radius: 10px;
+  background: var(--ifm-color-primary);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.32rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+.ce-code-panel-body {
+  padding: 0.45rem;
+}
+
+.ce-callout {
+  border-radius: 12px;
+  border: 1px solid var(--ce-border);
+  padding: 0.85rem 0.95rem;
+  margin: 1rem 0;
+  background: var(--ce-surface);
+}
+
+.ce-callout-title {
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+}
+
+.ce-callout-info { border-left: 4px solid #2563eb; }
+.ce-callout-success { border-left: 4px solid #059669; }
+.ce-callout-warning { border-left: 4px solid #d97706; }
+.ce-callout-danger { border-left: 4px solid #dc2626; }
+
+.ce-chat-shell {
+  border: 1px solid var(--ce-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--ce-surface);
+  margin: 1.2rem 0;
+}
+
+.ce-chat-shell-title {
+  padding: 0.7rem 0.9rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--ce-border);
+  background: linear-gradient(90deg, rgba(29, 78, 216, 0.12), rgba(29, 78, 216, 0.02));
+}
+
+.ce-chat-body {
+  padding: 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
 .ce-chat-row {
   display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
 }
 
-.ce-chat-start {
-  justify-content: flex-start;
-}
-
-.ce-chat-end {
+.ce-chat-row-user {
   justify-content: flex-end;
 }
 
-/* Bubble base */
+.ce-chat-row-assistant {
+  justify-content: flex-start;
+}
+
+.ce-chat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ce-border);
+  color: var(--ifm-color-primary);
+  background: var(--ce-surface-2);
+  flex: 0 0 auto;
+}
+
+.ce-chat-icon-svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ce-chat-bubble-wrap {
+  max-width: min(78%, 720px);
+}
+
+.ce-chat-bubble-meta {
+  font-size: 0.72rem;
+  color: var(--ce-text-soft);
+  margin-bottom: 0.2rem;
+}
+
 .ce-chat-bubble {
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--ce-border);
   position: relative;
-  max-width: 70%;
-  padding: 0.75rem 1rem;
-  border-radius: 1rem;
-  line-height: 1.5;
-  font-size: 0.875rem;
-  word-wrap: break-word;
+  line-height: 1.45;
 }
 
-/* Assistant bubble (neutral) */
-.ce-chat-bubble-assistant {
-  background-color: #2a2e37;
-  color: #e5e7eb;
-  border-bottom-left-radius: 0.25rem;
-}
-
-/* User bubble (primary) */
 .ce-chat-bubble-user {
-  background-color: #2563eb;
-  color: white;
-  border-bottom-right-radius: 0.25rem;
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  color: #fff;
+  border-color: transparent;
 }
 
-/* Bubble tails (exact daisyUI feel) */
-.ce-chat-bubble-assistant::after {
-  content: "";
-  position: absolute;
-  left: -6px;
-  bottom: 6px;
-  width: 12px;
-  height: 12px;
-  background: #2a2e37;
-  transform: rotate(45deg);
+.ce-chat-bubble-assistant {
+  background: var(--ce-surface-2);
 }
 
 .ce-chat-bubble-user::after {
-  content: "";
+  content: '';
   position: absolute;
   right: -6px;
-  bottom: 6px;
+  bottom: 10px;
   width: 12px;
   height: 12px;
-  background: #2563eb;
   transform: rotate(45deg);
+  background: #1d4ed8;
 }
 
-
-html[data-theme="light"] .ce-chat-bubble-assistant {
-  background: #e5e7eb;
-  color: #111827;
+.ce-chat-bubble-assistant::after {
+  content: '';
+  position: absolute;
+  left: -7px;
+  bottom: 10px;
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  background: var(--ce-surface-2);
+  border-left: 1px solid var(--ce-border);
+  border-bottom: 1px solid var(--ce-border);
 }
 
-html[data-theme="light"] .ce-chat-bubble-user {
-  background: #3b82f6;
-}
-
-/* =====================================================
-   Conversation Container
-===================================================== */
-
-.ce-conversation {
-  border: 1px solid var(--ifm-color-gray-100);
-  border-radius: 12px;
-  overflow: hidden;
+.ce-table-card {
+  border: 1px solid var(--ce-border);
+  border-radius: 14px;
   margin: 1rem 0;
-  background: var(--ifm-color-primary);
+  overflow: hidden;
 }
 
-/* =====================================================
-   Engine Header
-===================================================== */
-
-.ce-engine-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 0.75rem;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  background: var(--ifm-color-primary);
+.ce-table-card-title {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid var(--ce-border);
+  background: var(--ce-surface-2);
 }
 
-.ce-engine-toggle {
-  opacity: 0.7;
+.ce-table-wrap {
+  overflow-x: auto;
 }
 
-/* Engine badge */
-.ce-engine-badge {
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  font-size: 11px;
+.ce-table-card table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ce-table-card th,
+.ce-table-card td {
+  text-align: left;
+  padding: 0.62rem 0.8rem;
+  border-bottom: 1px solid var(--ce-border);
+  vertical-align: top;
+}
+
+.ce-table-card th {
+  background: rgba(29, 78, 216, 0.08);
   font-weight: 700;
 }
 
-/* Status colors */
-.ce-engine-completed {
-  background: #16a34a;
-  color: white;
+.ce-table-note {
+  padding: 0.7rem 0.9rem;
+  font-size: 0.82rem;
+  color: var(--ce-text-soft);
 }
 
-.ce-engine-ready {
-  background: #16a34a;
-  color: white;
+.ce-decision-card,
+.ce-flow-step-card,
+.ce-schema-card {
+  border: 1px solid var(--ce-border);
+  border-radius: 12px;
+  padding: 0.85rem 0.95rem;
+  margin: 0.9rem 0;
+  background: var(--ce-surface);
 }
 
-.ce-engine-running {
-  background: #2563eb;
-  color: white;
-}
-
-.ce-engine-error {
-  background: #dc2626;
-  color: white;
-}
-
-/* =====================================================
-   Engine Details
-===================================================== */
-
-.ce-engine-details {
-  padding: 0.5rem 0.75rem;
-  font-size: 12px;
-  background: var(--ifm-color-emphasis-100);
-  border-bottom: 1px solid var(--ifm-color-primary);
-}
-
-/* =====================================================
-   Chat (daisyUI-style bubbles)
-===================================================== */
-
-.ce-chat {
+.ce-flow-step-card > header {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem;
+  margin-bottom: 0.55rem;
 }
 
-.ce-chat-row {
-  display: flex;
-}
-
-.ce-chat-start {
-  justify-content: flex-start;
-}
-
-.ce-chat-end {
-  justify-content: flex-end;
-}
-
-/* Bubble base */
-.ce-chat-bubble {
-  position: relative;
-  max-width: 70%;
-  padding: 0.75rem 1rem;
-  border-radius: 1rem;
-  line-height: 1.5;
-  font-size: 0.875rem;
-}
-
-/* Assistant bubble (neutral) */
-.ce-chat-bubble-assistant {
-  background: #2a2e37;
-  color: #e5e7eb;
-  border-bottom-left-radius: 0.25rem;
-}
-
-/* User bubble (primary) */
-.ce-chat-bubble-user {
-  background: #2563eb;
-  color: white;
-  border-bottom-right-radius: 0.25rem;
-}
-
-/* Bubble tails */
-.ce-chat-bubble-assistant::after {
-  content: "";
-  position: absolute;
-  left: -6px;
-  bottom: 6px;
-  width: 12px;
-  height: 12px;
-  background: #2a2e37;
-  transform: rotate(45deg);
-}
-
-.ce-chat-bubble-user::after {
-  content: "";
-  position: absolute;
-  right: -6px;
-  bottom: 6px;
-  width: 12px;
-  height: 12px;
-  background: #2563eb;
-  transform: rotate(45deg);
-}
-
-/* =====================================================
-   Chat Layout
-===================================================== */
-
-.ce-chat {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px;
-}
-
-.ce-chat-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.ce-chat-start {
-  justify-content: flex-start;
-}
-
-.ce-chat-end {
-  justify-content: flex-end;
-}
-
-/* =====================================================
-   Avatars (daisyUI-style)
-===================================================== */
-
-.ce-avatar {
+.ce-flow-step-index {
   width: 26px;
   height: 26px;
   border-radius: 999px;
+  background: var(--ifm-color-primary);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.ce-schema-title {
+  font-weight: 700;
+  margin-bottom: 0.45rem;
+}
+
+@media (max-width: 768px) {
+  .ce-code-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ce-code-panel-head-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .ce-chat-bubble-wrap {
+    max-width: 92%;
+  }
+}
+
+/* --- E2E docs polish overrides --- */
+.ce-flow-step-card header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  flex-shrink: 0;
+  gap: 0.65rem;
+  margin-bottom: 0.5rem;
 }
 
-.ce-avatar-user {
-  background: #2563eb;
-  color: white;
+.ce-flow-step-index {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--ce-border);
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--ifm-color-primary);
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
-.ce-avatar-assistant {
-  background: #374151;
-  color: #e5e7eb;
+.ce-flow-step-card h4 {
+  margin: 0;
 }
 
-/* =====================================================
-   Compact Chat Bubbles (Reduced Height)
-===================================================== */
-
-.ce-chat-bubble {
-  position: relative;
-  max-width: 68%;
-  padding: 6px 10px;        /* 🔽 reduced */
-  border-radius: 14px;
-  font-size: 13px;          /* 🔽 smaller */
-  line-height: 1.4;         /* 🔽 tighter */
+.ce-code-panel {
+  box-shadow: 0 10px 30px rgba(2, 18, 52, 0.08);
 }
 
-/* Assistant bubble */
-.ce-chat-bubble-assistant {
-  background: #2a2e37;
-  color: #e5e7eb;
-  border-bottom-left-radius: 4px;
+[data-theme='dark'] .ce-code-panel {
+  box-shadow: 0 14px 38px rgba(2, 8, 22, 0.42);
 }
 
-/* User bubble */
-.ce-chat-bubble-user {
-  background: #2563eb;
-  color: white;
-  border-bottom-right-radius: 4px;
+.ce-code-panel-header {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.14), rgba(147, 197, 253, 0.08));
 }
 
-/* =====================================================
-   Bubble Tails (Adjusted for Compact Height)
-===================================================== */
-
-.ce-chat-bubble-assistant::after {
-  content: "";
-  position: absolute;
-  left: -5px;
-  bottom: 6px;
-  width: 10px;
-  height: 10px;
-  background: #2a2e37;
-  transform: rotate(45deg);
+[data-theme='dark'] .ce-code-panel-header {
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.24), rgba(15, 23, 42, 0.45));
 }
 
-.ce-chat-bubble-user::after {
-  content: "";
-  position: absolute;
-  right: -5px;
-  bottom: 6px;
-  width: 10px;
-  height: 10px;
-  background: #2563eb;
-  transform: rotate(45deg);
-}
-/* =====================================================
-   Light Theme Fix (daisyUI-like)
-===================================================== */
-
-html[data-theme="light"] .ce-chat {
-  background: #f9fafb;
-}
-
-/* Assistant bubble (neutral light) */
-html[data-theme="light"] .ce-chat-bubble-assistant {
-  background: #e5e7eb;        /* daisyUI neutral */
-  color: #111827;
-  border: 1px solid #d1d5db;
-}
-
-/* User bubble (primary light) */
-html[data-theme="light"] .ce-chat-bubble-user {
-  background: #3b82f6;        /* daisyUI primary */
-  color: white;
-}
-
-/* Assistant tail */
-html[data-theme="light"] .ce-chat-bubble-assistant::after {
-  background: #e5e7eb;
-  border-left: 1px solid #d1d5db;
-  border-bottom: 1px solid #d1d5db;
-}
-
-/* User tail */
-html[data-theme="light"] .ce-chat-bubble-user::after {
-  background: #3b82f6;
-}
-
-/* Avatars */
-html[data-theme="light"] .ce-avatar-assistant {
-  background: #d1d5db;
-  color: #111827;
-}
-
-html[data-theme="light"] .ce-avatar-user {
-  background: #3b82f6;
-  color: white;
-}
-
-
-/* =====================================================
-   Engine Details – Status Styling
-===================================================== */
-
-.ce-engine-details {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* Base pill */
-.ce-engine-item {
+.ce-code-panel-ide-strip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 0.36rem;
+}
+
+.ce-ide-dot {
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  width: fit-content;
+  border: 1px solid rgba(0, 0, 0, 0.2);
 }
 
-/* Icons */
-.ce-engine-item::before {
-  font-size: 12px;
+.ce-ide-dot-red { background: #ff5f57; }
+.ce-ide-dot-yellow { background: #ffbd2e; }
+.ce-ide-dot-green { background: #28c840; }
+
+.ce-code-panel-path-package {
+  background: rgba(29, 78, 216, 0.11);
+  border-color: rgba(37, 99, 235, 0.35);
+  color: #1d4ed8;
 }
 
-/* OK / Info */
-.ce-engine-item.ok {
-  background: #dcfce7;
-  color: #111827;
-}
-.ce-engine-item.ok::before {
-  content: "✔";
+.ce-code-panel-path-file {
+  background: rgba(15, 23, 42, 0.08);
+  border-color: rgba(30, 41, 59, 0.22);
+  color: #0f172a;
 }
 
-/* Warning */
-.ce-engine-item.warn {
-  background: #fef3c7;
-  color: #92400e;
-}
-.ce-engine-item.warn::before {
-  content: "⚠";
+[data-theme='dark'] .ce-code-panel-path-package {
+  background: rgba(96, 165, 250, 0.16);
+  border-color: rgba(147, 197, 253, 0.3);
+  color: #cbe4ff;
 }
 
-/* Error / Missing */
-.ce-engine-item.error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-.ce-engine-item.error::before {
-  content: "✖";
+[data-theme='dark'] .ce-code-panel-path-file {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: #253e65;
+  color: #dbeafe;
 }
 
-
-html[data-theme="dark"] .ce-engine-item.ok {
-  background: #dcfce7;
-  color: #374151;
+.theme-code-block {
+  border-radius: 12px;
 }
 
-html[data-theme="dark"] .ce-engine-item.warn {
-  background: #78350f;
-  color: #fde68a;
+.theme-code-block pre {
+  background: #f8fbff;
 }
 
-html[data-theme="dark"] .ce-engine-item.error {
-  background: #7f1d1d;
-  color: #fecaca;
+[data-theme='dark'] .theme-code-block pre {
+  background: #101a2d;
 }
 
-.ce-engine-item.success {
-  background: #dcfce7;          /* light green */
-  color: #065f46;
+.theme-code-block pre code {
+  font-size: 0.84rem;
 }
 
-.ce-engine-item.success::before {
-  content: "✔";
+@media (max-width: 996px) {
+  .ce-chat-bubble-wrap {
+    max-width: 88%;
+  }
+
+  .ce-code-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ce-code-panel-head-right {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
-/* Emphasized success (READY) */
-.ce-engine-item.success.strong {
-  background: #16a34a;
-  color: white;
+/* --- File/Method tags across docs --- */
+.ce-file-ref,
+.ce-method-ref {
+  display: inline-block;
+  border-radius: 0;
+  padding: 0;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.8em;
+  border: 0;
 }
 
-/* Dark theme */
-html[data-theme="dark"] .ce-engine-item.success {
-  background: #064e3b;
-  color: #d1fae5;
+.markdown :not(pre) > code {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  color: #7f1d1d !important;
+  font-family: var(--ifm-font-family-monospace);
 }
 
-html[data-theme="dark"] .ce-engine-item.success.strong {
-  background: #22c55e;
-  color: #052e16;
+[data-theme='dark'] .markdown :not(pre) > code {
+  color: #fda4af !important;
+}
+
+.ce-file-ref {
+  color: #7f1d1d;
+  background: transparent;
+}
+
+.ce-method-ref {
+  color: #1e3a8a;
+  background: transparent;
+}
+
+[data-theme='dark'] .ce-file-ref {
+  color: #fecdd3;
+  background: transparent;
+}
+
+[data-theme='dark'] .ce-method-ref {
+  color: #bfdbfe;
+  background: transparent;
+}
+
+/* --- Better table visuals --- */
+.ce-table-card {
+  border: 1px solid var(--ce-border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme='dark'] .ce-table-card {
+  box-shadow: 0 12px 34px rgba(2, 8, 22, 0.4);
+}
+
+.ce-table-card table {
+  font-size: 0.92rem;
+}
+
+.ce-table-card thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.14), rgba(191, 219, 254, 0.24));
+}
+
+[data-theme='dark'] .ce-table-card thead th {
+  background: linear-gradient(90deg, rgba(30, 64, 175, 0.55), rgba(2, 6, 23, 0.65));
+}
+
+.ce-table-card tbody tr:nth-child(even) {
+  background: rgba(191, 219, 254, 0.12);
+}
+
+[data-theme='dark'] .ce-table-card tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.ce-table-card tbody tr:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+[data-theme='dark'] .ce-table-card tbody tr:hover {
+  background: rgba(37, 99, 235, 0.22);
+}
+
+/* --- Collapsible method trace --- */
+.ce-trace-details {
+  border: 1px solid var(--ce-border);
+  border-radius: 12px;
+  background: var(--ce-surface);
+  padding: 0.65rem 0.8rem;
+  margin-top: 1rem;
+}
+
+.ce-trace-details > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+}
+
+.ce-trace-details[open] {
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.2);
 }

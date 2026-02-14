@@ -1,0 +1,38 @@
+---
+title: Consumer Guide
+sidebar_position: 1
+---
+
+import { Highlight, FlowStep, FileRef, MethodRef } from "@site/src/components/convengine";
+
+# Consumer Guide
+
+This section is for teams integrating ConvEngine inside domain applications (utility ops, support workflows, request tracking, diagnostics).
+
+## Integration checklist
+
+<FlowStep step="1" title="Enable framework">
+Use <MethodRef>@EnableConvEngine</MethodRef> in your Spring Boot app.
+</FlowStep>
+
+<FlowStep step="2" title="Provide LlmClient">
+Register concrete <MethodRef>LlmClient</MethodRef> bean used by intent/schema/derived/MCP flows.
+</FlowStep>
+
+<FlowStep step="3" title="Apply ce_* schema">
+Apply DDL and seed minimal rows: intent, classifier, response, prompt template.
+</FlowStep>
+
+<FlowStep step="4" title="Validate with audit trace">
+Use <FileRef>/audit/{'{conversationId}'}</FileRef> and <FileRef>/audit/{'{conversationId}'}/trace</FileRef> for every integration test.
+</FlowStep>
+
+## Suggested rollout
+
+- Phase A: exact responses, deterministic rule path
+- Phase B: schema extraction + intent collision flow
+- Phase C: MCP tool planning + derived outputs
+
+<Highlight type="success" title="Production practice">
+Treat <FileRef>ce_audit</FileRef> as mandatory observability. Never deploy new DB behavior without reviewing a full multi-turn trace.
+</Highlight>

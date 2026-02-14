@@ -1,0 +1,327 @@
+---
+title: Configuration
+sidebar_position: 2
+---
+
+import { DbTable, CodeBlockToggle, Highlight } from "@site/src/components/convengine";
+
+# Configuration Deep Guide
+
+## `ce_prompt_template` in detail
+
+`ce_prompt_template` holds reusable prompt text for both schema extraction and derived response generation.
+
+Use `response_type` to route templates:
+
+- `SCHEMA_JSON` for schema extraction prompts
+- `TEXT` for derived text response prompts
+- `JSON` for derived json response prompts
+
+<CodeBlockToggle title="Example ce_prompt_template rows" language="sql">
+{`-- Schema extraction template
+INSERT INTO ce_prompt_template
+(intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+VALUES
+('DISCONNECT_ELECTRICITY', 'COLLECTING', 'SCHEMA_JSON',
+ 'Extract required fields strictly as JSON. No commentary.',
+ 'User: {{user_input}}\nContext: {{context}}\nSchema: {{schema}}',
+ true);
+
+-- Derived text response template
+INSERT INTO ce_prompt_template
+(intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+VALUES
+('REQUEST_TRACKER', 'IDLE', 'TEXT',
+ 'You are a concise status assistant. Keep response under 3 lines.',
+ 'User: {{user_input}}\nContext: {{context}}\nSession: {{session}}',
+ true);`}
+</CodeBlockToggle>
+
+## `ce_config` in detail
+
+`ce_config` stores runtime tunables keyed by component class.
+
+Common keys:
+
+- `AgentIntentResolver.MIN_CONFIDENCE`
+- `AgentIntentResolver.COLLISION_GAP_THRESHOLD`
+- `AgentIntentResolver.SYSTEM_PROMPT`
+- `AgentIntentResolver.USER_PROMPT`
+- `McpPlanner.SYSTEM_PROMPT`
+- `McpPlanner.USER_PROMPT`
+- `ResetResolvedIntentStep.RESET_INTENT_CODES`
+
+<CodeBlockToggle title="Example ce_config rows" language="sql">
+{`INSERT INTO ce_config (config_type, config_key, config_value, enabled) VALUES
+('AgentIntentResolver', 'MIN_CONFIDENCE', '0.60', true),
+('AgentIntentResolver', 'COLLISION_GAP_THRESHOLD', '0.15', true),
+('ResetResolvedIntentStep', 'RESET_INTENT_CODES', 'RESET_SESSION,START_OVER', true),
+('McpPlanner', 'SYSTEM_PROMPT', 'You are an MCP planner. Prefer safe calls and minimal arguments.', true),
+('McpPlanner', 'USER_PROMPT', 'User: {{user_input}}\nTools: {{mcp_tools}}\nContext: {{context}}', true);`}
+</CodeBlockToggle>
+
+<DbTable
+  title="Implemented type/action values"
+  columns={["Field", "Allowed values", "Notes"]}
+  rows={[
+    ["ce_response.response_type", "EXACT, DERIVED", "EXACT bypasses LLM generation"],
+    ["ce_response.output_format", "TEXT, JSON", "Used by output format resolver"],
+    ["ce_rule.rule_type", "EXACT, REGEX, JSON_PATH", "Must match installed rule type resolvers"],
+    ["ce_rule.action", "SET_INTENT, SET_STATE, SET_JSON, GET_CONTEXT, GET_SCHEMA_JSON, GET_SESSION, SET_TASK", "Must match installed action resolvers"],
+  ]}
+/>
+
+## `ce_output_schema` in detail
+
+`ce_output_schema` defines extraction contract per intent/state. `SchemaExtractionStep` uses this JSON schema to detect missing fields and drive clarification flow.
+
+<CodeBlockToggle title="ce_output_schema shape (DDL-style)" language="sql">
+{`-- Core columns (simplified)
+CREATE TABLE ce_output_schema (
+  schema_id BIGSERIAL PRIMARY KEY,
+  intent_code TEXT NOT NULL,
+  state_code TEXT NOT NULL,
+  schema_name TEXT,
+  schema_description TEXT,
+  json_schema JSONB NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Example ce_output_schema row" language="sql">
+{`INSERT INTO ce_output_schema
+(intent_code, state_code, schema_name, schema_description, json_schema, enabled)
+VALUES
+(
+  'DISCONNECT_ELECTRICITY',
+  'COLLECTING',
+  'disconnect_request',
+  'Required data to process electricity disconnect request.',
+  '{
+     "type":"object",
+     "required":["accountNumber","reason"],
+     "properties":{
+       "accountNumber":{"type":"string"},
+       "reason":{"type":"string","enum":["MOVE_OUT","TEMP_CLOSE","PERMANENT_CLOSE"]},
+       "requestedDate":{"type":"string","format":"date"}
+     }
+   }'::jsonb,
+  true
+);`}
+</CodeBlockToggle>
+
+## `ce_response` in detail
+
+`ce_response` maps resolved intent/state to response strategy.
+
+- `EXACT`: static response body from DB.
+- `DERIVED`: runtime generated response (LLM), optionally using `ce_prompt_template`.
+
+<CodeBlockToggle title="ce_response shape (DDL-style)" language="sql">
+{`CREATE TABLE ce_response (
+  response_id BIGSERIAL PRIMARY KEY,
+  intent_code TEXT NOT NULL,
+  state_code TEXT NOT NULL,
+  response_type TEXT NOT NULL,  -- EXACT | DERIVED
+  output_format TEXT NOT NULL,  -- TEXT | JSON
+  response_text TEXT,
+  response_json JSONB,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Example ce_response rows" language="sql">
+{`-- EXACT TEXT response
+INSERT INTO ce_response
+(intent_code, state_code, response_type, output_format, response_text, enabled)
+VALUES
+('FAQ', 'IDLE', 'EXACT', 'TEXT', 'Yes, you can move your connection using Zapper app.', true);
+
+-- DERIVED JSON response
+INSERT INTO ce_response
+(intent_code, state_code, response_type, output_format, response_json, enabled)
+VALUES
+('REQUEST_TRACKER', 'IDLE', 'DERIVED', 'JSON', '{"template":"status-card"}'::jsonb, true);`}
+</CodeBlockToggle>
+
+## `ce_rule` in detail
+
+`ce_rule` is the conditional transition/action layer executed in `RulesStep`.
+
+- `rule_type`: `EXACT`, `REGEX`, `JSON_PATH`
+- `action`: `SET_INTENT`, `SET_STATE`, `SET_JSON`, `GET_CONTEXT`, `GET_SCHEMA_JSON`, `GET_SESSION`, `SET_TASK`
+
+<CodeBlockToggle title="ce_rule shape (DDL-style)" language="sql">
+{`CREATE TABLE ce_rule (
+  rule_id BIGSERIAL PRIMARY KEY,
+  intent_code TEXT NOT NULL,
+  state_code TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  rule_type TEXT NOT NULL,
+  condition_expr TEXT,
+  action TEXT NOT NULL,
+  action_payload JSONB,
+  priority INT NOT NULL DEFAULT 100,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Example ce_rule rows" language="sql">
+{`-- If user says reset keywords, set reset intent
+INSERT INTO ce_rule
+(intent_code, state_code, stage, rule_type, condition_expr, action, action_payload, priority, enabled)
+VALUES
+('FAQ', 'IDLE', 'PRE_RESPONSE', 'REGEX', '(?i)^(reset|restart)$', 'SET_INTENT', '{"intent":"RESET_SESSION"}'::jsonb, 10, true);
+
+-- Pull context snapshot into payload path
+INSERT INTO ce_rule
+(intent_code, state_code, stage, rule_type, condition_expr, action, action_payload, priority, enabled)
+VALUES
+('REQUEST_TRACKER', 'IDLE', 'PRE_RESPONSE', 'EXACT', 'true', 'GET_CONTEXT', '{"target":"payload.context"}'::jsonb, 50, true);`}
+</CodeBlockToggle>
+
+## Prompt variable guidance
+
+Common variables used in templates:
+
+- `{{user_input}}`
+- `{{context}}`
+- `{{session}}`
+- `{{schema}}`
+- `{{conversation_history}}`
+- schema helpers: `{{missing_fields}}`, `{{missing_field_options}}`, `{{schema_description}}`
+
+<Highlight type="warning" title="Prompt variable safety">
+Engine now controls prompt variable exposure and blocks unsafe system-derived keys from being unintentionally injected into prompt templates.
+</Highlight>
+
+## Runtime transport/audit properties
+
+<CodeBlockToggle title="application.yml (feature toggles)" language="yaml">
+{`convengine:
+  transport:
+    stomp:
+      enabled: true
+      broker:
+        mode: SIMPLE # SIMPLE | RELAY
+        relay-destination-prefixes: /topic,/queue
+        relay-host: localhost
+        relay-port: 61613
+        client-login: ""
+        client-passcode: ""
+        system-login: ""
+        system-passcode: ""
+        virtual-host: ""
+        system-heartbeat-send-interval-ms: 10000
+        system-heartbeat-receive-interval-ms: 10000
+
+  audit:
+    enabled: true
+    level: ALL # ALL | STANDARD | ERROR_ONLY | NONE
+    include-stages: []
+    exclude-stages: []
+    persistence:
+      mode: IMMEDIATE # IMMEDIATE | DEFERRED_BULK
+      jdbc-batch-size: 200
+      max-buffered-events: 5000
+      flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
+      final-step-names: PipelineEndGuardStep
+      flush-on-stop-outcome: true
+    dispatch:
+      async-enabled: false
+      worker-threads: 2
+      queue-capacity: 2000
+      rejection-policy: CALLER_RUNS # CALLER_RUNS | DROP_NEWEST | DROP_OLDEST | ABORT
+      keep-alive-seconds: 60
+    rate-limit:
+      enabled: false
+      max-events: 200
+      window-ms: 1000
+      per-conversation: true
+      per-stage: true
+      max-tracked-buckets: 20000`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Optional annotations" language="java">
+{`@EnableConvEngine(stream = true)
+@EnableConvEngineAsyncAuditDispatch
+@EnableConvEngineStompBrokerRelay
+@SpringBootApplication
+public class MyApplication {
+}`}
+</CodeBlockToggle>
+
+## New 1.0.8+ runtime controls explained
+
+1. Async audit dispatch:
+- Moves transport fan-out off request thread when enabled.
+- Configure with `convengine.audit.dispatch.*` or `@EnableConvEngineAsyncAuditDispatch`.
+
+2. Backpressure policy:
+- Queue capacity + rejection policy control behavior under burst.
+- `CALLER_RUNS` is safest default; `DROP_*` favors latency; `ABORT` is strict.
+
+3. Stage-level audit controls:
+- `level`, `include-stages`, `exclude-stages`, and `rate-limit` reduce noisy audit traffic.
+
+4. Deferred bulk persistence:
+- `convengine.audit.persistence.mode=DEFERRED_BULK` buffers events and writes batch inserts.
+- Flushes on terminal step/error (configurable), plus request-end safety flush.
+
+5. STOMP broker mode:
+- `SIMPLE` (default): in-memory broker.
+- `RELAY`: external STOMP broker (RabbitMQ/other relay supporting STOMP).
+
+## RabbitMQ relay example
+
+<CodeBlockToggle title="application-rabbitmq-relay.yml" language="yaml">
+{`convengine:
+  transport:
+    stomp:
+      enabled: true
+      endpoint: /ws-convengine
+      app-destination-prefix: /app
+      topic-prefix: /topic
+      audit-destination-base: /topic/convengine/audit
+      broker:
+        mode: RELAY
+        relay-destination-prefixes: /topic,/queue
+        relay-host: localhost
+        relay-port: 61613
+        client-login: guest
+        client-passcode: guest
+        system-login: guest
+        system-passcode: guest
+        virtual-host: /
+        system-heartbeat-send-interval-ms: 10000
+        system-heartbeat-receive-interval-ms: 10000`}
+</CodeBlockToggle>
+
+## Redis example (via STOMP gateway/bridge)
+
+<Highlight type="warning" title="Redis note">
+ConvEngine STOMP relay requires a STOMP-compatible broker endpoint. Redis alone is not a native STOMP broker; use a STOMP gateway/bridge in front of Redis.
+</Highlight>
+
+<CodeBlockToggle title="application-redis-bridge-relay.yml" language="yaml">
+{`convengine:
+  transport:
+    stomp:
+      enabled: true
+      broker:
+        mode: RELAY
+        relay-destination-prefixes: /topic,/queue
+        relay-host: redis-stomp-bridge.local
+        relay-port: 61613
+        client-login: ""
+        client-passcode: ""
+        system-login: ""
+        system-passcode: ""
+        virtual-host: ""`}
+</CodeBlockToggle>

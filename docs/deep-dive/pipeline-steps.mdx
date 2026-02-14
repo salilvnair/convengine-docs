@@ -1,0 +1,41 @@
+---
+title: Pipeline & Steps
+sidebar_position: 4
+---
+
+import { DbTable, Highlight } from "@site/src/components/convengine";
+
+# Pipeline Steps (what each step does)
+
+<DbTable
+  title="Step responsibilities"
+  columns={["Step", "Primary responsibility", "Main session mutations", "Config/table dependencies"]}
+  rows={[
+    ["LoadOrCreateConversationStep", "Fetch or bootstrap conversation row", "conversation, intent/state/context sync", "ce_conversation"],
+    ["ResetConversationStep", "Early explicit reset", "intent/state/context/input params reset", "input flags, command text"],
+    ["PersistConversationBootstrapStep", "Ensure conversation row persisted", "none/metadata", "ce_conversation"],
+    ["AuditUserInputStep", "Persist user input audit", "none", "ce_audit"],
+    ["PolicyEnforcementStep", "Policy block and stop", "payload + stop result on block", "ce_policy"],
+    ["IntentResolutionStep", "Resolve intent with classifier+agent", "intent/state/clarification fields", "ce_intent, ce_intent_classifier, ce_config"],
+    ["ResetResolvedIntentStep", "Reset on configured reset intent", "full reset", "ce_config RESET_INTENT_CODES"],
+    ["FallbackIntentStateStep", "Fill missing intent/state defaults", "intent/state", "none"],
+    ["AddContainerDataStep", "Fetch and attach container data", "containerData/context merge", "ce_container_config"],
+    ["McpToolStep", "MCP planner/tool loop", "context_json.mcp.*", "ce_mcp_tool, ce_mcp_db_tool, ce_config"],
+    ["SchemaExtractionStep", "Schema-driven extraction and lock handling", "schema facts/context/lock", "ce_output_schema, ce_prompt_template"],
+    ["AutoAdvanceStep", "Compute schema status facts", "schemaComplete/hasAny", "resolved schema + context"],
+    ["RulesStep", "Match and apply transitions/actions", "intent/state/input params", "ce_rule"],
+    ["ResponseResolutionStep", "Resolve and generate output payload", "payload/last assistant json", "ce_response, ce_prompt_template"],
+    ["PersistConversationStep", "Persist final conversation and result", "finalResult", "ce_conversation"],
+    ["PipelineEndGuardStep", "Timing audit + terminal guard", "timings", "ce_audit"],
+  ]}
+/>
+
+:::tip Hook where you need precision
+- Before schema extraction: normalize inputs
+- After rules: inspect intent/state transition correctness
+- Before response resolution: inject display hints
+:::
+
+<Highlight type="warning" title="Don’t hardcode transitions in steps">
+Prefer transitions in `ce_rule` unless absolutely framework-level behavior is required. This keeps domain behavior data-driven and testable via audit traces.
+</Highlight>

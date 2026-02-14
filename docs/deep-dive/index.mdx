@@ -1,0 +1,31 @@
+---
+title: Deep Dive
+sidebar_position: 1
+---
+
+import { Highlight } from "@site/src/components/convengine";
+
+# Deep Dive
+
+This is the file-level wiki for how request control actually moves through ConvEngine.
+
+## Read this section when
+
+- you need to debug why a turn changed state unexpectedly
+- a template variable was unresolved
+- MCP produced wrong tool call
+- intent switched during schema collection
+- response mapping selection looks wrong
+
+## Recommended read order
+
+1. File Map
+2. Request Lifecycle
+3. Pipeline Steps
+4. Intent & Schema
+5. Rules & Responses
+6. MCP & Audit
+
+<Highlight type="info" title="How to use this section">
+Keep one real `conversationId` open in `/audit/{id}` while reading this section. Follow each stage and compare with the file-level explanation.
+</Highlight>

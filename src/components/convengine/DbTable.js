@@ -1,23 +1,11 @@
 import React from "react";
 
-export function DbTable({
-  name,
-  purpose,
-  title,
-  columns,
-  rows,
-  children,
-}) {
-  const tableName = name || title;
-
+export function DbTable({ title, columns = [], rows = [], note }) {
   return (
-    <div className="ce-db-table">
-      {tableName && <h4>🗄️ {tableName}</h4>}
-      {purpose && <p><em>{purpose}</em></p>}
-
-      {/* ✅ Structured table mode */}
-      {columns && rows ? (
-        <table className="ce-db-table-grid">
+    <section className="ce-table-card">
+      {title && <h3 className="ce-table-card-title">{title}</h3>}
+      <div className="ce-table-wrap">
+        <table>
           <thead>
             <tr>
               {columns.map((col, i) => (
@@ -35,14 +23,8 @@ export function DbTable({
             ))}
           </tbody>
         </table>
-      ) : null}
-
-      {/* ✅ Narrative list mode (backward compatible) */}
-      {!columns && !rows && children ? (
-        <ul>{children}</ul>
-      ) : null}
-    </div>
+      </div>
+      {note && <div className="ce-table-note">{note}</div>}
+    </section>
   );
 }
-
-export default DbTable;

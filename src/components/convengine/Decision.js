@@ -1,15 +1,10 @@
 import React from "react";
 
-export function Decision({ type, children }) {
-    const icon =
-        type === "deterministic" ? "🧮" :
-            type === "llm" ? "🤖" :
-                "🛑";
-
-    return (
-        <div className={`ce-decision ce-${type}`}>
-            <strong>{icon} {type.toUpperCase()}</strong>
-            <div>{children}</div>
-        </div>
-    );
+export function Decision({ title, children }) {
+  return (
+    <section className="ce-decision-card">
+      {title && <h4>{title}</h4>}
+      <div>{children}</div>
+    </section>
+  );
 }

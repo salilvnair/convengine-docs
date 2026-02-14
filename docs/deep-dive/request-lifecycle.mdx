@@ -1,0 +1,166 @@
+---
+title: Request Lifecycle
+sidebar_position: 3
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { FlowStep, CodeBlockToggle, Highlight, DbTable, FileRef, MethodRef } from "@site/src/components/convengine";
+
+# Request Lifecycle (Detailed Control Flow)
+
+This mirrors the examples page but with deeper internals and method trace focus.
+
+<Tabs groupId="lifecycle-view">
+  <TabItem value="summary" label="Summary" default>
+
+1. <MethodRef>ConversationController.message</MethodRef> receives API request.
+2. Builds <MethodRef>EngineContext</MethodRef> and calls <MethodRef>DefaultConversationalEngine.process</MethodRef>.
+3. <MethodRef>EngineSessionFactory.open</MethodRef> creates mutable session.
+4. <MethodRef>EnginePipelineFactory.orderByDag</MethodRef> prepares ordered steps.
+5. <MethodRef>EnginePipeline.execute</MethodRef> loops each step.
+6. If a step returns <MethodRef>StepResult.Stop</MethodRef>, engine returns early.
+7. Else final output is produced by <MethodRef>ResponseResolutionStep</MethodRef> and persisted.
+
+  </TabItem>
+
+  <TabItem value="controller-engine" label="Controller + Engine">
+
+<CodeBlockToggle
+  title="ConversationController.message"
+  language="java"
+  packagePath="com.github.salilvnair.convengine.api.controller"
+  filePath="src/main/java/com/github/salilvnair/convengine/api/controller/ConversationController.java"
+>
+{`EngineContext engineContext = EngineContext.builder()
+    .conversationId(conversationId.toString())
+    .userText(request.getMessage())
+    .inputParams(inputParams)
+    .build();
+
+EngineResult result = engine.process(engineContext);`}
+</CodeBlockToggle>
+
+<CodeBlockToggle
+  title="DefaultConversationalEngine.process"
+  language="java"
+  filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java"
+>
+{`EngineSession session = sessionFactory.open(engineContext);
+session.setConversationHistory(historyProvider.lastTurns(session.getConversationId(), 10));
+EnginePipeline pipeline = pipelineFactory.create();
+return pipeline.execute(session);`}
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="pipeline" label="Pipeline Factory + Loop">
+
+<CodeBlockToggle
+  title="EnginePipelineFactory init/orderByDag"
+  language="java"
+  filePath="src/main/java/com/github/salilvnair/convengine/engine/factory/EnginePipelineFactory.java"
+>
+{`@PostConstruct
+public void init() {
+  List<EngineStep> ordered = orderByDag(discoveredSteps);
+  this.pipeline = new EnginePipeline(wrapWithTiming(ordered));
+}
+
+// Constraints used:
+// @MustRunAfter, @MustRunBefore, @RequiresConversationPersisted
+// plus one @TerminalStep`}
+</CodeBlockToggle>
+
+<CodeBlockToggle
+  title="EnginePipeline.execute"
+  language="java"
+  filePath="src/main/java/com/github/salilvnair/convengine/engine/pipeline/EnginePipeline.java"
+>
+{`for (EngineStep step : steps) {
+  StepResult r = step.execute(session);
+  if (r instanceof StepResult.Stop(EngineResult result)) {
+    return result;
+  }
+}
+return session.getFinalResult();`}
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="steps" label="All Step Methods">
+
+<FlowStep step="1" title="LoadOrCreateConversationStep.execute">
+Loads/syncs conversation from <FileRef>ce_conversation</FileRef>.
+</FlowStep>
+
+<FlowStep step="2" title="ResetConversationStep.execute">
+Checks reset inputs and wipes prior state/context when requested.
+</FlowStep>
+
+<FlowStep step="3" title="AuditUserInputStep.execute">
+Writes <MethodRef>USER_INPUT</MethodRef> stage into <FileRef>ce_audit</FileRef>.
+</FlowStep>
+
+<FlowStep step="4" title="IntentResolutionStep.execute">
+Resolves intent via composite resolver; respects schema lock.
+</FlowStep>
+
+<FlowStep step="5" title="SchemaExtractionStep.execute">
+Prompts LLM for structured JSON; merges context; computes missing fields.
+</FlowStep>
+
+<FlowStep step="6" title="AutoAdvanceStep.execute">
+Derives schema completion facts for rule evaluation.
+</FlowStep>
+
+<FlowStep step="7" title="RulesStep.execute">
+Runs multi-pass rule evaluation and action resolvers.
+</FlowStep>
+
+<FlowStep step="8" title="ResponseResolutionStep.execute">
+Resolves <FileRef>ce_response</FileRef>, applies EXACT/DERIVED, audits assistant payload.
+</FlowStep>
+
+<FlowStep step="9" title="PersistConversationStep.execute">
+Persists final intent/state/context and result envelope.
+</FlowStep>
+
+  </TabItem>
+
+  <TabItem value="table-map" label="Table Map">
+
+<DbTable
+  title="Request lifecycle table map"
+  columns={["Table", "Read in methods", "Write in methods"]}
+  rows={[
+    ["ce_conversation", "LoadOrCreateConversationStep", "PersistConversationStep"],
+    ["ce_intent", "IntentResolutionStep", "-"],
+    ["ce_intent_classifier", "IntentResolutionStep", "-"],
+    ["ce_output_schema", "SchemaExtractionStep", "-"],
+    ["ce_prompt_template", "SchemaExtractionStep, ResponseResolutionStep", "-"],
+    ["ce_rule", "RulesStep", "-"],
+    ["ce_response", "ResponseResolutionStep", "-"],
+    ["ce_config", "Intent/MCP/reset-related methods", "-"],
+    ["ce_audit", "-", "DbAuditService.audit"],
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+
+<details className="ce-trace-details">
+  <summary>Open expanded method trace checklist</summary>
+
+- <MethodRef>ConversationController.message</MethodRef> in <FileRef>api/controller/ConversationController.java</FileRef>
+- <MethodRef>DefaultConversationalEngine.process</MethodRef> in <FileRef>engine/provider/DefaultConversationalEngine.java</FileRef>
+- <MethodRef>EnginePipelineFactory.init/orderByDag</MethodRef> in <FileRef>engine/factory/EnginePipelineFactory.java</FileRef>
+- <MethodRef>EnginePipeline.execute</MethodRef> in <FileRef>engine/pipeline/EnginePipeline.java</FileRef>
+- Step `execute` methods in <FileRef>engine/steps/*.java</FileRef>
+- <MethodRef>DbAuditService.audit</MethodRef> in <FileRef>audit/DbAuditService.java</FileRef>
+
+</details>
+
+<Highlight type="info" title="Tip for consumers">
+Attach <MethodRef>EngineStepHook</MethodRef> to inspect session mutations before and after each critical step.
+</Highlight>

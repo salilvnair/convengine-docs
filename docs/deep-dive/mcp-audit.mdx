@@ -1,0 +1,59 @@
+---
+title: MCP & Audit
+sidebar_position: 7
+---
+
+import { CodeBlockToggle, Highlight, DbTable } from "@site/src/components/convengine";
+
+# MCP and Audit Internals
+
+## MCP flow
+
+`McpToolStep` does:
+
+1. skip on pending clarification
+2. list enabled tools
+3. clear stale `context_json.mcp` branch
+4. planner loop (`CALL_TOOL` or `ANSWER`)
+5. DB tool execution via `McpDbExecutor`
+6. store observations and final answer in context
+
+## MCP-related tables
+
+<DbTable
+  title="MCP table usage"
+  columns={["Table", "Role", "Key fields"]}
+  rows={[
+    ["ce_mcp_tool", "Tool registry", "tool_code, tool_group, enabled"],
+    ["ce_mcp_db_tool", "DB tool SQL template config", "sql_template, param_schema, max_rows, safe_mode"],
+    ["ce_config", "Planner prompts", "McpPlanner.SYSTEM_PROMPT, McpPlanner.USER_PROMPT"],
+  ]}
+/>
+
+## Audit stream model
+
+`DbAuditService` writes normalized payload with `_meta` block, then:
+- applies `AuditStageControl` (level/include/exclude/rate controls)
+- dispatches listeners through `AuditEventDispatcher` (sync by default, async optional)
+
+Transport outputs:
+- SSE stream (`/api/v1/conversation/stream/{conversationId}`)
+- optional STOMP topic (`/topic/convengine/audit/{conversationId}`)
+- STOMP broker mode: simple in-memory (default) or relay (RabbitMQ/other STOMP relay)
+
+## Trace API
+
+`GET /api/v1/conversation/audit/{conversationId}/trace`
+
+Returns:
+- step timeline
+- ordered stage list
+- source class/file metadata
+
+<CodeBlockToggle title="SSE subscribe example" language="bash">
+{`curl -N http://localhost:8080/api/v1/conversation/stream/9bf7540a-b129-4685-a120-730e8a0cb94b`}
+</CodeBlockToggle>
+
+<Highlight type="success" title="Debug strategy">
+When output is wrong, compare raw audit stages with trace step boundaries. This isolates whether issue came from resolver logic, rule mutation, MCP plan, or response mapping.
+</Highlight>

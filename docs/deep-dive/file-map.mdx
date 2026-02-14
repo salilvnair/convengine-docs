@@ -1,0 +1,61 @@
+---
+title: File Map
+sidebar_position: 2
+---
+
+import { DbTable } from "@site/src/components/convengine";
+
+# File Map (by responsibility)
+
+<DbTable
+  title="API"
+  columns={["Class", "Path", "Responsibility"]}
+  rows={[
+    ["ConversationController", "api/controller/ConversationController.java", "Main request/audit endpoints"],
+    ["ExperimentalController", "api/controller/ExperimentalController.java", "Experimental SQL generation endpoint"],
+    ["ConversationRequest/Response", "api/dto/*", "REST contracts"],
+  ]}
+/>
+
+<DbTable
+  title="Engine Core"
+  columns={["Class", "Path", "Responsibility"]}
+  rows={[
+    ["DefaultConversationalEngine", "engine/provider/DefaultConversationalEngine.java", "Entry point to pipeline"],
+    ["EnginePipelineFactory", "engine/factory/EnginePipelineFactory.java", "Step DAG ordering + wrappers"],
+    ["EnginePipeline", "engine/pipeline/EnginePipeline.java", "Step loop execution"],
+    ["EngineSession", "engine/session/EngineSession.java", "Mutable turn state"],
+  ]}
+/>
+
+<DbTable
+  title="Intent + Schema"
+  columns={["Class", "Path", "Responsibility"]}
+  rows={[
+    ["CompositeIntentResolver", "intent/CompositeIntentResolver.java", "Classifier + agent arbitration"],
+    ["AgentIntentResolver", "intent/AgentIntentResolver.java", "LLM-based intent scoring"],
+    ["SchemaExtractionStep", "engine/steps/SchemaExtractionStep.java", "Structured extraction + lock handling"],
+  ]}
+/>
+
+<DbTable
+  title="Rules + Response"
+  columns={["Class", "Path", "Responsibility"]}
+  rows={[
+    ["RulesStep", "engine/steps/RulesStep.java", "Rule passes + action dispatch"],
+    ["ResponseResolutionStep", "engine/steps/ResponseResolutionStep.java", "ce_response selection + payload build"],
+    ["TextOutputFormatResolver", "engine/response/format/provider/TextOutputFormatResolver.java", "Derived text generation"],
+    ["JsonOutputFormatResolver", "engine/response/format/provider/JsonOutputFormatResolver.java", "Derived json generation"],
+  ]}
+/>
+
+<DbTable
+  title="MCP + Audit"
+  columns={["Class", "Path", "Responsibility"]}
+  rows={[
+    ["McpToolStep", "engine/steps/McpToolStep.java", "Planner-tool loop"],
+    ["McpPlanner", "engine/mcp/McpPlanner.java", "LLM decision CALL_TOOL/ANSWER"],
+    ["DbAuditService", "audit/DbAuditService.java", "Audit persistence + metadata"],
+    ["AuditTraceService", "audit/AuditTraceService.java", "Step timeline projection"],
+  ]}
+/>

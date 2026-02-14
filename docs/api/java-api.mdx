@@ -1,0 +1,51 @@
+---
+title: Java API
+sidebar_position: 2
+---
+
+import { CodeBlockToggle, DbTable, MethodRef } from "@site/src/components/convengine";
+
+# Java API (Core Contracts)
+
+## Entry points
+
+<DbTable
+  title="Primary interfaces"
+  columns={["Type", "Package", "Role"]}
+  rows={[
+    ["ConversationalEngine", "engine.core", "Main process method"],
+    ["LlmClient", "llm.core", "LLM adapter contract"],
+    ["EngineStep", "engine.pipeline", "Step unit contract"],
+    ["EngineStepHook", "engine.hook", "Step interception contract"],
+  ]}
+/>
+
+<CodeBlockToggle title="ConversationalEngine" language="java" packagePath="com.github.salilvnair.convengine.engine.core">
+{`public interface ConversationalEngine {
+    EngineResult process(EngineContext engineContext);
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="LlmClient" language="java" packagePath="com.github.salilvnair.convengine.llm.core">
+{`public interface LlmClient {
+    String generateText(String hint, String contextJson);
+    String generateJson(String hint, String jsonSchema, String contextJson);
+    float[] generateEmbedding(String input);
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="EngineStepHook" language="java" packagePath="com.github.salilvnair.convengine.engine.hook">
+{`public interface EngineStepHook {
+    default boolean supports(String stepName, EngineSession session) { return true; }
+    default void beforeStep(String stepName, EngineSession session) {}
+    default void afterStep(String stepName, EngineSession session, StepResult result) {}
+    default void onStepError(String stepName, EngineSession session, Throwable error) {}
+}`}
+</CodeBlockToggle>
+
+## Extension contracts
+
+- <MethodRef>ResponseTransformerHandler</MethodRef>
+- <MethodRef>ContainerDataTransformerHandler</MethodRef>
+- container interceptors
+- rule task execution pathway via <MethodRef>SET_TASK</MethodRef>

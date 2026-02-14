@@ -1,0 +1,55 @@
+---
+title: Overview
+sidebar_position: 1
+---
+
+import { Highlight, DbTable } from "@site/src/components/convengine";
+
+# ConvEngine Overview
+
+ConvEngine is a deterministic, DB-configured conversation engine. It is built for workflow-grade systems where behavior must be auditable and configurable through data.
+
+:::tip Why teams choose ConvEngine
+You can evolve behavior by updating `ce_*` rows instead of re-releasing Java code for every intent/state/prompt change.
+:::
+
+## Runtime Model
+
+1. API receives one turn.
+2. Engine opens/restores session state.
+3. Ordered steps run as a pipeline.
+4. Rules and response mapping produce output.
+5. Conversation and audit timeline are persisted.
+
+## Determinism Boundary
+
+- Deterministic controls: `ce_rule`, `ce_response`, `ce_intent_classifier`, `ce_output_schema`, `ce_policy`
+- Constrained LLM usage: intent scoring, schema extraction, derived response generation
+- Fully auditable runtime: `ce_audit` stage stream + trace API
+
+## All `ce_*` Tables (what/why)
+
+<DbTable
+  title="Control Plane + Runtime Tables"
+  columns={["Table", "Why this table exists", "Typical example row"]}
+  rows={[
+    ["ce_intent", "Defines allowed intents and metadata for resolvers.", "FAQ, DISCONNECT_ELECTRICITY, LOG_ANALYSIS, REQUEST_TRACKER"],
+    ["ce_intent_classifier", "Deterministic matcher config (regex/exact/etc.) before/alongside LLM.", "Rule matching 'disconnect my power' -> DISCONNECT_ELECTRICITY"],
+    ["ce_output_schema", "Schema contract for structured data extraction by intent/state.", "Required fields: accountId, serviceAddress"],
+    ["ce_prompt_template", "System/user prompt templates for schema extraction and derived outputs.", "response_type=SCHEMA_JSON or TEXT with system/user prompt"],
+    ["ce_response", "Maps intent/state to EXACT or DERIVED output behavior.", "intent=FAQ, state=IDLE, response_type=EXACT"],
+    ["ce_rule", "State machine transitions and context actions.", "JSON_PATH match -> SET_STATE=AWAITING_ACCOUNT_ID"],
+    ["ce_policy", "Early safety blocks (contains/regex/etc.).", "Block prohibited request patterns with fixed response"],
+    ["ce_mcp_tool", "Tool registry visible to MCP planner.", "postgres.schema, postgres.query"],
+    ["ce_mcp_db_tool", "SQL templates and safety limits for DB tools.", "sql_template with param_schema and max_rows"],
+    ["ce_config", "Runtime tunables/prompts per component class.", "AgentIntentResolver.MIN_CONFIDENCE=0.55"],
+    ["ce_conversation", "Current durable state for each conversation id.", "intent/state/context json + last assistant output"],
+    ["ce_audit", "Append-only execution timeline for each stage.", "INTENT_RESOLVE_START, RULE_MATCHED, ASSISTANT_OUTPUT"],
+  ]}
+/>
+
+<Highlight type="info" title="Important">
+`ce_prompt_template` and `ce_config` are not interchangeable.
+- `ce_prompt_template` is intent/state/response template content.
+- `ce_config` is class-keyed runtime config (thresholds/system prompts/component behavior).
+</Highlight>

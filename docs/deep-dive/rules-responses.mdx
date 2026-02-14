@@ -1,0 +1,67 @@
+---
+title: Rules & Responses
+sidebar_position: 6
+---
+
+import { DbTable, CodeBlockToggle, Highlight } from "@site/src/components/convengine";
+
+# Rules and Response Resolution
+
+## Rule types currently implemented
+
+<DbTable
+  title="Rule type resolver coverage"
+  columns={["rule_type", "Resolver", "When to use"]}
+  rows={[
+    ["EXACT", "ExactRuleTypeResolver", "Exact text-driven trigger"],
+    ["REGEX", "RegexRuleTypeResolver", "Pattern-driven trigger"],
+    ["JSON_PATH", "JsonPathRuleTypeResolver", "Condition over session/context/payload facts"],
+  ]}
+/>
+
+## Rule actions in detail
+
+<DbTable
+  title="Action behavior"
+  columns={["action", "What it changes", "Typical real-world use"]}
+  rows={[
+    ["SET_STATE", "session.state", "Move flow to AWAITING_ACCOUNT_ID"],
+    ["SET_INTENT", "session.intent", "Reclassify after deterministic signal"],
+    ["SET_JSON", "input param from JSON path extract", "Pull ticketId/correlationId from context"],
+    ["GET_CONTEXT", "input param snapshot of context", "Use context in downstream prompts/tasks"],
+    ["GET_SESSION", "input param snapshot of session facts", "Expose runtime flags to prompts"],
+    ["GET_SCHEMA_JSON", "input param schema-only field subset", "Use only extracted form fields"],
+    ["SET_TASK", "executes custom task bean methods", "Raise incident, call internal orchestrator"]
+  ]}
+/>
+
+
+## Response selection algorithm
+
+1. Find enabled `ce_response` candidates matching intent/state
+2. Score by exact state/intent > ANY/null fallback > priority
+3. Choose top candidate
+4. Resolve by response type
+
+## EXACT vs DERIVED
+
+- `EXACT`: deterministic payload (`exact_text`)
+- `DERIVED`: template-rendered + LLM-generated output
+
+<CodeBlockToggle title="Derived response path (concept)" language="text">
+{`ce_response(response_type=DERIVED, output_format=TEXT)
+   -> template from ce_prompt_template(response_type=TEXT)
+   -> render variables
+   -> llm.generateText(...)
+   -> optional ResponseTransformer
+   -> persisted assistant output`}
+</CodeBlockToggle>
+
+:::tip Intervention points
+- Use `ResponseTransformer` after response resolution to apply consumer-specific post-processing.
+- Use hook on `RulesStep` to inspect rule cascades in production debugging.
+:::
+
+<Highlight type="warning" title="Enum drift warning">
+Do not insert unimplemented rule types/actions in DB. Keep `ce_rule` values aligned with installed resolver classes.
+</Highlight>

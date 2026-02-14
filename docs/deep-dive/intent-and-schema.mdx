@@ -1,0 +1,67 @@
+---
+title: Intent & Schema
+sidebar_position: 5
+---
+
+import { CodeBlockToggle, Highlight, DbTable } from "@site/src/components/convengine";
+
+# Intent Resolution and Schema Collection
+
+## Intent resolution sources
+
+1. Deterministic classifier rules (`ce_intent_classifier`)
+2. Agent scoring path (`AgentIntentResolver`) using `ce_config` prompts
+3. Composite arbitration in `CompositeIntentResolver`
+
+## `ce_config` keys that shape intent behavior
+
+<DbTable
+  title="AgentIntentResolver keys"
+  columns={["config_key", "Purpose", "Example"]}
+  rows={[
+    ["MIN_CONFIDENCE", "Minimum confidence to accept agent intent", "0.55"],
+    ["COLLISION_GAP_THRESHOLD", "Top-score gap threshold for collision", "0.10"],
+    ["SYSTEM_PROMPT", "System behavior contract", "JSON-only intent scoring rules"],
+    ["USER_PROMPT", "User template with context/history/allowed intents", "{{context}}, {{allowed_intents}}, {{user_input}}"],
+  ]}
+/>
+
+## `ce_prompt_template` for schema extraction
+
+`SchemaExtractionStep` resolves template by:
+
+- `response_type = SCHEMA_JSON`
+- `intent_code`
+- `state_code` (or fallback)
+
+<CodeBlockToggle
+  title="Schema extraction prompt pattern"
+  language="text"
+  defaultOpen={false}
+>
+{`System prompt:
+Extract only valid JSON that conforms to schema.
+No extra keys. No prose.
+
+User prompt:
+User Input: {{user_input}}
+Context: {{context}}
+Schema: {{schema}}
+Conversation History: {{conversation_history}}`}
+</CodeBlockToggle>
+
+## Intent lock behavior
+
+When schema is incomplete:
+
+- `session.intentLocked = true`
+- `IntentResolutionStep` skips re-resolving to prevent intent drift
+- lock reason is persisted in context (`intent_lock.reason`)
+
+When schema becomes complete:
+
+- lock is released
+
+<Highlight type="success" title="Why this matters">
+Without lock behavior, multi-turn collection flows can jump to a new intent after partial input and break deterministic progression.
+</Highlight>

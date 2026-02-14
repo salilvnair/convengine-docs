@@ -1,0 +1,380 @@
+---
+title: UI Integration
+sidebar_position: 2
+---
+
+import { CodeBlockToggle, Highlight, FileRef, MethodRef, FlowStep } from "@site/src/components/convengine";
+
+# UI Integration
+
+This page shows end-to-end UI wiring with:
+- React (Vite) in JS + TS
+- Angular (standalone) in TS
+- SSE now + STOMP commented for later switch
+
+<FlowStep step="1" title="Call message API">
+POST to <FileRef>/api/v1/conversation/message</FileRef> using <MethodRef>conversationId</MethodRef> and <MethodRef>message</MethodRef>.
+</FlowStep>
+
+<FlowStep step="2" title="Subscribe to stream">
+Use <MethodRef>EventSource</MethodRef> on <FileRef>/api/v1/conversation/stream/{'{conversationId}'}</FileRef>.
+</FlowStep>
+
+<FlowStep step="3" title="Refresh timeline">
+On each stream event, refresh <FileRef>/audit/{'{conversationId}'}</FileRef> or trace endpoint.
+</FlowStep>
+
+## React Vite (JavaScript)
+
+<CodeBlockToggle
+  title="convengine.api.js"
+  language="js"
+  packagePath="src/api"
+  filePath="src/api/convengine.api.js"
+>
+{`const API_BASE = "http://localhost:8080/api/v1/conversation";
+
+export async function sendMessage(conversationId, message, inputParams = {}, reset = false) {
+  const res = await fetch(API_BASE + "/message", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conversationId, message, reset, inputParams }),
+  });
+  if (!res.ok) throw new Error("Backend error: " + res.status);
+  return res.json();
+}
+
+export async function fetchAudits(conversationId) {
+  const res = await fetch(API_BASE + "/audit/" + conversationId);
+  if (!res.ok) throw new Error("Backend error: " + res.status);
+  return res.json();
+}
+
+export function subscribeConversationSse(conversationId, handlers = {}) {
+  const source = new EventSource(API_BASE + "/stream/" + conversationId);
+
+  source.onopen = () => handlers.onConnected?.();
+  source.onerror = (error) => handlers.onError?.(error);
+
+  ["CONNECTED", "USER_INPUT", "STEP_ENTER", "STEP_EXIT", "STEP_ERROR", "ASSISTANT_OUTPUT", "ENGINE_RETURN"]
+    .forEach((stage) => {
+      source.addEventListener(stage, (event) => {
+        let data = null;
+        try { data = event.data ? JSON.parse(event.data) : null; } catch {}
+        handlers.onEvent?.({ stage, data, raw: event });
+      });
+    });
+
+  return { close() { source.close(); handlers.onClosed?.(); } };
+}
+
+// STOMP scaffold (optional)
+// npm install @stomp/stompjs sockjs-client
+// import { Client } from "@stomp/stompjs";
+// import SockJS from "sockjs-client";
+// export function subscribeConversationStomp(conversationId, handlers = {}) {
+//   const client = new Client({
+//     webSocketFactory: () => new SockJS("http://localhost:8080/ws-convengine"),
+//     reconnectDelay: 5000,
+//     onConnect: () => {
+//       handlers.onConnected?.();
+//       client.subscribe("/topic/convengine/audit/" + conversationId, (msg) => {
+//         try { handlers.onEvent?.(JSON.parse(msg.body)); }
+//         catch { handlers.onEvent?.(msg.body); }
+//       });
+//     },
+//     onStompError: (frame) => handlers.onError?.(frame),
+//   });
+//   client.activate();
+//   return { close() { client.deactivate(); handlers.onClosed?.(); } };
+// }`}
+</CodeBlockToggle>
+
+<CodeBlockToggle
+  title="App.jsx"
+  language="jsx"
+  packagePath="src"
+  filePath="src/App.jsx"
+>
+{`import { useEffect, useState } from "react";
+import { subscribeConversationSse } from "./api/convengine.api.js";
+
+export default function App() {
+  const [conversationId] = useState(crypto.randomUUID());
+  const [auditVersion, setAuditVersion] = useState(0);
+
+  useEffect(() => {
+    const stream = subscribeConversationSse(conversationId, {
+      onConnected: () => setAuditVersion((v) => v + 1),
+      onEvent: () => setAuditVersion((v) => v + 1),
+    });
+
+    // STOMP alternate:
+    // const stream = subscribeConversationStomp(conversationId, { ... });
+
+    return () => stream.close();
+  }, [conversationId]);
+
+  return <div>conversationId={conversationId} auditVersion={auditVersion}</div>;
+}`}
+</CodeBlockToggle>
+
+## React Vite (TypeScript)
+
+<CodeBlockToggle
+  title="convengine.api.ts"
+  language="ts"
+  packagePath="src/api"
+  filePath="src/api/convengine.api.ts"
+>
+{`const API_BASE = "http://localhost:8080/api/v1/conversation";
+
+export type SseStage =
+  | "CONNECTED"
+  | "USER_INPUT"
+  | "STEP_ENTER"
+  | "STEP_EXIT"
+  | "STEP_ERROR"
+  | "ASSISTANT_OUTPUT"
+  | "ENGINE_RETURN"
+  | "MESSAGE";
+
+export interface StreamEvent<T = unknown> {
+  stage: SseStage;
+  data: T | null;
+  raw: MessageEvent;
+}
+
+export interface StreamHandlers<T = unknown> {
+  onConnected?: () => void;
+  onEvent?: (event: StreamEvent<T>) => void;
+  onError?: (event: Event) => void;
+  onClosed?: () => void;
+}
+
+export async function sendMessage(
+  conversationId: string,
+  message: string,
+  inputParams: Record<string, unknown> = {},
+  reset = false
+) {
+  const res = await fetch(API_BASE + "/message", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conversationId, message, inputParams, reset }),
+  });
+  if (!res.ok) throw new Error("Backend error: " + res.status);
+  return res.json();
+}
+
+export function subscribeConversationSse<T = unknown>(
+  conversationId: string,
+  handlers: StreamHandlers<T> = {}
+) {
+  const source = new EventSource(API_BASE + "/stream/" + conversationId);
+
+  source.onopen = () => handlers.onConnected?.();
+  source.onerror = (event) => handlers.onError?.(event);
+
+  ["CONNECTED", "USER_INPUT", "STEP_ENTER", "STEP_EXIT", "STEP_ERROR", "ASSISTANT_OUTPUT", "ENGINE_RETURN"]
+    .forEach((stage) => {
+      source.addEventListener(stage, (event) => {
+        let data: T | null = null;
+        try { data = (event as MessageEvent).data ? JSON.parse((event as MessageEvent).data) as T : null; }
+        catch { data = null; }
+        handlers.onEvent?.({ stage: stage as SseStage, data, raw: event as MessageEvent });
+      });
+    });
+
+  return { close() { source.close(); handlers.onClosed?.(); } };
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle
+  title="App.tsx"
+  language="tsx"
+  packagePath="src"
+  filePath="src/App.tsx"
+>
+{`import { useEffect, useState } from "react";
+import { subscribeConversationSse } from "./api/convengine.api";
+
+export default function App() {
+  const [conversationId] = useState<string>(crypto.randomUUID());
+  const [auditVersion, setAuditVersion] = useState<number>(0);
+
+  useEffect(() => {
+    const stream = subscribeConversationSse(conversationId, {
+      onConnected: () => setAuditVersion((v) => v + 1),
+      onEvent: () => setAuditVersion((v) => v + 1),
+      onError: () => {},
+    });
+
+    return () => stream.close();
+  }, [conversationId]);
+
+  return <main>auditVersion={auditVersion}</main>;
+}`}
+</CodeBlockToggle>
+
+## Angular Integration (authored sample)
+
+<CodeBlockToggle
+  title="convengine-api.service.ts"
+  language="ts"
+  packagePath="src/app/core"
+  filePath="src/app/core/convengine-api.service.ts"
+>
+{`import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+
+export interface ConversationEvent<T = unknown> {
+  stage: string;
+  data: T | null;
+  raw: MessageEvent;
+}
+
+@Injectable({ providedIn: 'root' })
+export class ConvengineApiService {
+  private readonly apiBase = 'http://localhost:8080/api/v1/conversation';
+
+  constructor(private readonly http: HttpClient) {}
+
+  sendMessage(payload: {
+    conversationId: string;
+    message: string;
+    reset?: boolean;
+    inputParams?: Record<string, unknown>;
+  }): Observable<any> {
+    return this.http.post(this.apiBase + '/message', payload);
+  }
+
+  fetchAudits(conversationId: string): Observable<any[]> {
+    return this.http.get<any[]>(this.apiBase + '/audit/' + conversationId);
+  }
+
+  subscribeConversationSse(
+    conversationId: string,
+    handlers: {
+      onConnected?: () => void;
+      onEvent?: (event: ConversationEvent) => void;
+      onError?: (event: Event) => void;
+      onClosed?: () => void;
+    } = {}
+  ) {
+    const source = new EventSource(this.apiBase + '/stream/' + conversationId);
+
+    source.onopen = () => handlers.onConnected?.();
+    source.onerror = (event) => handlers.onError?.(event);
+
+    ["CONNECTED", "USER_INPUT", "STEP_ENTER", "STEP_EXIT", "STEP_ERROR", "ASSISTANT_OUTPUT", "ENGINE_RETURN"]
+      .forEach((stage) => {
+        source.addEventListener(stage, (event) => {
+          let data: unknown = null;
+          try { data = (event as MessageEvent).data ? JSON.parse((event as MessageEvent).data) : null; }
+          catch { data = null; }
+          handlers.onEvent?.({ stage, data, raw: event as MessageEvent });
+        });
+      });
+
+    return {
+      close: () => {
+        source.close();
+        handlers.onClosed?.();
+      }
+    };
+  }
+
+  // STOMP scaffold (optional)
+  // npm i @stomp/stompjs sockjs-client
+  // connect ws://localhost:8080/ws-convengine
+  // subscribe /topic/convengine/audit/{conversationId}
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle
+  title="chat.component.ts"
+  language="ts"
+  packagePath="src/app/features/chat"
+  filePath="src/app/features/chat/chat.component.ts"
+>
+{`import { Component, OnDestroy, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ConvengineApiService } from '../../core/convengine-api.service';
+
+@Component({
+  standalone: true,
+  selector: 'app-chat',
+  imports: [CommonModule, FormsModule],
+  templateUrl: './chat.component.html'
+})
+export class ChatComponent implements OnInit, OnDestroy {
+  conversationId = crypto.randomUUID();
+  message = '';
+  messages: Array<{ role: 'user' | 'assistant'; text: string }> = [];
+  typing = false;
+
+  private streamCloser: { close: () => void } | null = null;
+
+  constructor(private readonly api: ConvengineApiService) {}
+
+  ngOnInit(): void {
+    this.streamCloser = this.api.subscribeConversationSse(this.conversationId, {
+      onEvent: () => {
+        // optionally refresh audit panel
+      }
+    });
+  }
+
+  send(): void {
+    const text = this.message.trim();
+    if (!text || this.typing) return;
+
+    this.messages.push({ role: 'user', text });
+    this.message = '';
+    this.typing = true;
+
+    this.api.sendMessage({ conversationId: this.conversationId, message: text }).subscribe({
+      next: (res) => {
+        const value = res?.payload?.value ?? '';
+        this.messages.push({ role: 'assistant', text: String(value) });
+        this.typing = false;
+      },
+      error: () => {
+        this.typing = false;
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.streamCloser?.close();
+  }
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle
+  title="chat.component.html"
+  language="html"
+  packagePath="src/app/features/chat"
+  filePath="src/app/features/chat/chat.component.html"
+>
+{`<section class="chat-shell">
+  <div class="messages">
+    <div *ngFor="let m of messages" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'">
+      {{ m.text }}
+    </div>
+    <div *ngIf="typing" class="assistant typing">Agent is typing...</div>
+  </div>
+
+  <div class="composer">
+    <input [(ngModel)]="message" placeholder="Type message" />
+    <button (click)="send()" [disabled]="typing">Send</button>
+  </div>
+</section>`}
+</CodeBlockToggle>
+
+<Highlight type="tip" title="React + Angular parity">
+Keep one shared backend contract for <MethodRef>conversationId</MethodRef>, <MethodRef>payload.type</MethodRef>, and audit stage names. Only transport/client wrappers should differ per framework.
+</Highlight>

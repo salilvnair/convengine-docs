@@ -1,0 +1,53 @@
+---
+title: Audit Trace API
+sidebar_position: 3
+---
+
+import { CodeBlockToggle, Highlight } from "@site/src/components/convengine";
+
+# Audit Trace API
+
+## Endpoint
+
+`GET /api/v1/conversation/audit/{conversationId}/trace`
+
+## Response shape
+
+<CodeBlockToggle title="Trace response" language="json" defaultOpen={true}>
+{`{
+  "conversationId": "9bf7540a-b129-4685-a120-730e8a0cb94b",
+  "steps": [
+    {
+      "step": "IntentResolutionStep",
+      "stepClass": "com.github.salilvnair.convengine.engine.steps.IntentResolutionStep",
+      "sourceFile": "com/github/salilvnair/convengine/engine/steps/IntentResolutionStep.java",
+      "status": "OK",
+      "startedAt": "2026-02-14T10:22:01.102Z",
+      "endedAt": "2026-02-14T10:22:01.147Z",
+      "durationMs": 45,
+      "error": null,
+      "stages": []
+    }
+  ],
+  "stages": [
+    {
+      "auditId": 12031,
+      "stage": "STEP_ENTER",
+      "createdAt": "2026-02-14T10:22:01.102Z",
+      "payload": {
+        "step": "IntentResolutionStep"
+      }
+    }
+  ]
+}`}
+</CodeBlockToggle>
+
+## Why this endpoint exists
+
+- separates timeline from raw audit payload parsing
+- easier UI rendering for runbooks and debug tools
+- preserves both domain and technical stages
+
+<Highlight type="tip" title="Best practice">
+Use both endpoints together: `/audit/{id}` for raw forensic payload, `/audit/{id}/trace` for step-flow visualization.
+</Highlight>
