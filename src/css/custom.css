@@ -86,6 +86,44 @@ body {
   backdrop-filter: blur(8px);
 }
 
+.navbar__logo img {
+  height: 3.5rem;
+  width: auto;
+  display: block;
+}
+
+.navbar__brand {
+  display: flex;
+  align-items: center;
+}
+
+.navbar__logo {
+  display: flex;
+  align-items: center;
+  margin-right: 0.5rem;
+}
+
+.navbar__title {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.navbar__link,
+.navbar__link:visited {
+  color: #1e293b;
+}
+
+.navbar__link:hover {
+  color: #0f172a;
+}
+
+.navbar__link--active,
+.navbar__link--active:visited {
+  color: #0f172a;
+  font-weight: 700;
+}
+
 [data-theme='dark'] .navbar,
 [data-theme='dark'] .theme-doc-sidebar-container,
 [data-theme='dark'] .menu {

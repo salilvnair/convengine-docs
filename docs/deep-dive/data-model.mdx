@@ -52,10 +52,9 @@ When writing Java extensions (Interceptors, Transformers), you interact with `En
 void setIntent(String intent);
 void setState(String state);
 
-// Context (The Memory)
-// Access the JSON context map
-Map<String, Object> contextDict();
-void putContext(String key, Object value);
+// Extras/Input params used by steps, prompts and rules
+Map<String, Object> getInputParams();
+void putInputParam(String key, Object value);
 
 // Persisted Entity
 CeConversation getConversation();
@@ -92,5 +91,5 @@ public class RequestTrackerTask implements CeRuleTask {
 Access data extracted by the Schema Extraction step.
 
 <CodeBlockToggle title="Read extracted value" language="java" packagePath="consumer logic">
-{`String accountId = (String) session.contextDict().get("accountId");`}
+{`String accountId = (String) session.getInputParams().get("accountId");`}
 </CodeBlockToggle>

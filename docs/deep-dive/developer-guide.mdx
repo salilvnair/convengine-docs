@@ -408,9 +408,9 @@ public ConversationResponse message(@RequestBody ConversationRequest request) {
 void setIntent(String intent);
 void setState(String state);
 
-// conversation memory (context json)
-Map<String, Object> contextDict();
-void putContext(String key, Object value);
+// extras/input params
+Map<String, Object> getInputParams();
+void putInputParam(String key, Object value);
 
 // persisted conversation row
 CeConversation getConversation();
@@ -466,7 +466,7 @@ public class RequestTrackerTask implements CeRuleTask {
   <TabItem value="schema-json" label="Getting Extracted Data">
 
 <CodeBlockToggle title="Read schema extracted values" language="java" packagePath="consumer logic">
-{`String accountId = (String) session.contextDict().get("accountId");`}
+{`String accountId = (String) session.getInputParams().get("accountId");`}
 </CodeBlockToggle>
 
   </TabItem>

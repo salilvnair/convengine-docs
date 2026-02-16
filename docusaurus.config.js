@@ -54,10 +54,11 @@ const config = {
       title: 'ConvEngine Docs',
       logo: {
         alt: 'ConvEngine',
-        src: 'img/logo.png',
+        src: 'img/logo_light.png',
+        srcDark: 'img/logo.png',
       },
       items: [
-        { type: 'doc', docId: 'overview', position: 'left', label: 'Overview' },
+        { to: '/docs/overview', position: 'left', label: 'Overview' },
         { to: '/docs/architecture', position: 'left', label: 'Architecture' },
         { to: '/docs/examples', position: 'left', label: 'Examples' },
         { to: '/docs/version-history', position: 'left', label: 'Version History' },
