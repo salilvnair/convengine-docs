@@ -73,7 +73,7 @@ Run a real turn and validate with <FileRef>/api/v1/conversation/audit/{'{convers
 <Tabs groupId="consumer-setup">
   <TabItem value="boot" label="Bootstrapping" default>
 
-<CodeBlockToggle title="Spring Boot entry point" language="java" packagePath="com.acme.demo" filePath="src/main/java/com/acme/demo/DemoApplication.java">
+<CodeBlockToggle title="Spring Boot entry point" language="java" packagePath="com.zapper.demo" filePath="src/main/java/com/acme/demo/DemoApplication.java">
 {`@SpringBootApplication
 @EnableConvEngine(stream = true)
 public class DemoApplication {
@@ -83,7 +83,7 @@ public class DemoApplication {
 }`}
 </CodeBlockToggle>
 
-<CodeBlockToggle title="LlmClient bean" language="java" packagePath="com.acme.demo.config" filePath="src/main/java/com/acme/demo/config/LlmConfig.java">
+<CodeBlockToggle title="LlmClient bean" language="java" packagePath="com.zapper.demo.config" filePath="src/main/java/com/acme/demo/config/LlmConfig.java">
 {`@Configuration
 public class LlmConfig {
   @Bean
@@ -122,7 +122,7 @@ values (
 
   <TabItem value="intervene" label="Intervention Points">
 
-<CodeBlockToggle title="EngineStepHook (typed step matching)" language="java" packagePath="com.acme.demo.hooks" filePath="src/main/java/com/acme/demo/hooks/SchemaHintHook.java">
+<CodeBlockToggle title="EngineStepHook (typed step matching)" language="java" packagePath="com.zapper.demo.hooks" filePath="src/main/java/com/acme/demo/hooks/SchemaHintHook.java">
 {`@Component
 public class SchemaHintHook implements EngineStepHook {
   @Override
@@ -138,7 +138,7 @@ public class SchemaHintHook implements EngineStepHook {
 }`}
 </CodeBlockToggle>
 
-<CodeBlockToggle title="ResponseTransformer (last-mile output shaping)" language="java" packagePath="com.acme.demo.transform" filePath="src/main/java/com/acme/demo/transform/ApiResponseTransformer.java">
+<CodeBlockToggle title="ResponseTransformer (last-mile output shaping)" language="java" packagePath="com.zapper.demo.transform" filePath="src/main/java/com/acme/demo/transform/ApiResponseTransformer.java">
 {`@Component
 public class ApiResponseTransformer implements ResponseTransformer {
   @Override

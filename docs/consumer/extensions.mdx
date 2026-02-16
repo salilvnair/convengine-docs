@@ -13,7 +13,7 @@ import { CodeBlockToggle, Highlight, FlowStep, DbTable, MethodRef, FileRef } fro
 
 Real scenario: For `LOG_ANALYSIS`, inject additional retrieval hint before schema extraction.
 
-<CodeBlockToggle title="EngineStepHook example" language="java" packagePath="com.acme.convengine.hooks">
+<CodeBlockToggle title="EngineStepHook example" language="java" packagePath="com.zapper.convengine.hooks">
 {`@Component
 public class LogAnalysisHintHook implements EngineStepHook {
     @Override
@@ -37,7 +37,7 @@ Use hooks when you need low-friction runtime intervention without forking framew
 
 Real scenario: CCF returns nested payload; you flatten to schema-friendly map.
 
-<CodeBlockToggle title="ContainerDataTransformer example" language="java" packagePath="com.acme.convengine.transformers">
+<CodeBlockToggle title="ContainerDataTransformer example" language="java" packagePath="com.zapper.convengine.transformers">
 {`@Component
 @ContainerDataTransformer(intent = "REQUEST_TRACKER", state = "IDLE")
 public class RequestTrackerContainerTransformer implements ContainerDataTransformerHandler {
@@ -57,7 +57,7 @@ public class RequestTrackerContainerTransformer implements ContainerDataTransfor
 
 Real scenario: Add support-team escalation footer for high-severity disconnect failures.
 
-<CodeBlockToggle title="ResponseTransformer example" language="java" packagePath="com.acme.convengine.transformers">
+<CodeBlockToggle title="ResponseTransformer example" language="java" packagePath="com.zapper.convengine.transformers">
 {`@Component
 @ResponseTransformer(intent = "DISCONNECT_ELECTRICITY", state = "FAILED")
 public class DisconnectFailureResponseTransformer implements ResponseTransformerHandler {
@@ -125,7 +125,7 @@ Bean must be a Spring bean with the configured bean name and implement <MethodRe
 <CodeBlockToggle
   title="Consumer task bean (Java)"
   language="java"
-  packagePath="com.acme.convengine.tasks"
+  packagePath="com.zapper.convengine.tasks"
   filePath="src/main/java/com/acme/convengine/tasks/RequestTrackerTask.java"
 >
 {`@Component("requestTrackerTask")
@@ -237,7 +237,7 @@ Implement <MethodRef>RuleActionResolver</MethodRef> and return your action name 
 <CodeBlockToggle
   title="Custom RuleActionResolver example"
   language="java"
-  packagePath="com.acme.convengine.rules"
+  packagePath="com.zapper.convengine.rules"
   filePath="src/main/java/com/acme/convengine/rules/EnrichCustomerTierActionResolver.java"
 >
 {`@Component
