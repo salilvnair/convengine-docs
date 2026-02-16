@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useWindowSize } from '@docusaurus/theme-common';
 import { useDoc } from '@docusaurus/plugin-content-docs/client';
@@ -85,6 +85,7 @@ export default function DocItemLayout({ children }) {
   const { metadata } = useDoc();
   const [openSections, setOpenSections] = useState(false);
   const flashTimerRef = useRef(null);
+  const autoCloseTimerRef = useRef(null);
   const [activeHash, setActiveHash] = useState(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -93,6 +94,24 @@ export default function DocItemLayout({ children }) {
   });
   const hasToc = docTOC.headings.length > 0;
   const markers = buildHierarchicalMarkers(docTOC.headings);
+
+  const clearAutoCloseTimer = useCallback(() => {
+    if (autoCloseTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleAutoClose = useCallback(() => {
+    if (typeof window === 'undefined' || !openSections) {
+      return;
+    }
+    clearAutoCloseTimer();
+    autoCloseTimerRef.current = window.setTimeout(() => {
+      setOpenSections(false);
+      autoCloseTimerRef.current = null;
+    }, 5000);
+  }, [clearAutoCloseTimer, openSections]);
 
   const flashHeading = (headingId) => {
     if (typeof window === 'undefined' || !headingId) {
@@ -118,6 +137,7 @@ export default function DocItemLayout({ children }) {
 
   useEffect(() => {
     if (!openSections) {
+      clearAutoCloseTimer();
       return undefined;
     }
 
@@ -128,8 +148,11 @@ export default function DocItemLayout({ children }) {
     };
 
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [openSections]);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      clearAutoCloseTimer();
+    };
+  }, [clearAutoCloseTimer, openSections]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -147,7 +170,8 @@ export default function DocItemLayout({ children }) {
     if (flashTimerRef.current && typeof window !== 'undefined') {
       window.clearTimeout(flashTimerRef.current);
     }
-  }, []);
+    clearAutoCloseTimer();
+  }, [clearAutoCloseTimer]);
 
   return (
     <div className="row">
@@ -161,7 +185,11 @@ export default function DocItemLayout({ children }) {
             {docTOC.mobile}
 
             {hasToc && (
-              <div className="ce-sections-wrap">
+              <div
+                className="ce-sections-wrap"
+                onMouseEnter={clearAutoCloseTimer}
+                onMouseLeave={scheduleAutoClose}
+              >
                 <button
                   type="button"
                   className="ce-sections-fab"

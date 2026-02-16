@@ -1811,7 +1811,7 @@ html.ce-show-toc .ce-toc-container {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-8px);
-  transition: all 0.2s ease;
+  transition: opacity 0.45s ease, transform 0.45s ease, max-height 0.45s ease;
   border: 1px solid var(--ce-border);
   border-radius: 14px;
   background: var(--ce-surface);
