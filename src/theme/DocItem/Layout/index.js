@@ -26,6 +26,42 @@ function flattenToc(items = []) {
   return result;
 }
 
+function isNumberedHeading(value = '') {
+  const plain = value
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .trim();
+  return /^\d+(?:\.\d+)*\s*[\)\.\-:]?\s+/.test(plain);
+}
+
+function stripHeadingNumberPrefix(value = '') {
+  return value.replace(
+    /^(\s*<[^>]+>\s*)*\s*\d+(?:\.\d+)*\s*[\)\.\-:]?\s+/,
+    '$1'
+  );
+}
+
+function buildHierarchicalMarkers(headings = []) {
+  if (!headings.length) return [];
+  const minLevel = Math.min(...headings.map((h) => Number(h.level) || 2));
+  const counters = {};
+  return headings.map((h) => {
+    const level = Math.max(minLevel, Number(h.level) || minLevel);
+    counters[level] = (counters[level] || 0) + 1;
+    Object.keys(counters)
+      .map(Number)
+      .filter((l) => l > level)
+      .forEach((l) => {
+        delete counters[l];
+      });
+    const marker = [];
+    for (let l = minLevel; l <= level; l += 1) {
+      if (counters[l] != null) marker.push(counters[l]);
+    }
+    return marker.join('.');
+  });
+}
+
 function useDocTOC() {
   const { toc } = useDoc();
   const windowSize = useWindowSize();
@@ -49,6 +85,7 @@ export default function DocItemLayout({ children }) {
   const { metadata } = useDoc();
   const [openSections, setOpenSections] = useState(false);
   const hasToc = docTOC.headings.length > 0;
+  const markers = buildHierarchicalMarkers(docTOC.headings);
 
   return (
     <div className="row">
@@ -62,7 +99,7 @@ export default function DocItemLayout({ children }) {
             {docTOC.mobile}
 
             {hasToc && (
-              <>
+              <div className="ce-sections-wrap">
                 <button
                   type="button"
                   className="ce-sections-fab"
@@ -80,6 +117,12 @@ export default function DocItemLayout({ children }) {
                   </div>
                   <div className="ce-sections-drawer-body">
                     {docTOC.headings.map((h, idx) => (
+                      (() => {
+                        const numbered = isNumberedHeading(h.value);
+                        const displayValue = numbered ? stripHeadingNumberPrefix(h.value) : h.value;
+                        const marker = markers[idx] || String(idx + 1);
+                        const isNestedMarker = marker.includes('.');
+                        return (
                       <a
                         key={`${h.id}-${idx}`}
                         href={`#${h.id}`}
@@ -87,13 +130,17 @@ export default function DocItemLayout({ children }) {
                         onClick={() => setOpenSections(false)}
                         style={{ paddingLeft: `${10 + Math.max(0, h.level - 2) * 14}px` }}
                       >
-                        <span className="ce-sections-link-index">{idx + 1}</span>
-                        <span>{h.value}</span>
+                        <span className={clsx('ce-sections-link-index', isNestedMarker && 'ce-sections-link-index-nested')}>
+                          {marker}
+                        </span>
+                        <span dangerouslySetInnerHTML={{ __html: displayValue }} />
                       </a>
+                        );
+                      })()
                     ))}
                   </div>
                 </aside>
-              </>
+              </div>
             )}
 
             <DocItemContent>{children}</DocItemContent>

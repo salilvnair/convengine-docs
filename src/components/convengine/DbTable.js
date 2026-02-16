@@ -1,4 +1,5 @@
 import React from "react";
+import { renderInlineTokens } from "./renderInlineTokens";
 
 export function DbTable({ title, columns = [], rows = [], note, className = "" }) {
   const colsClass = `ce-table-cols-${columns.length || 0}`;
@@ -16,7 +17,7 @@ export function DbTable({ title, columns = [], rows = [], note, className = "" }
       className={`ce-table-card ${colsClass} ${className}`.trim()}
       style={{ width: "100%", maxWidth: "100%", display: "block" }}
     >
-      {title && <h3 className="ce-table-card-title">{title}</h3>}
+      {title && <h3 className="ce-table-card-title">{renderInlineTokens(title)}</h3>}
       <div className="ce-table-wrap" style={{ width: "100%", maxWidth: "100%" }}>
         <table style={{ width: "100%", minWidth: "100%", tableLayout: "fixed" }}>
           <colgroup>
@@ -32,7 +33,7 @@ export function DbTable({ title, columns = [], rows = [], note, className = "" }
                     className={`ce-table-cell-content ce-table-cell-head ce-table-cell-col-${i + 1}`}
                     style={{ display: "block", width: "100%" }}
                   >
-                    {col}
+                    {renderInlineTokens(col)}
                   </span>
                 </th>
               ))}
@@ -47,7 +48,7 @@ export function DbTable({ title, columns = [], rows = [], note, className = "" }
                       className={`ce-table-cell-content ce-table-cell-body ce-table-cell-col-${cIdx + 1}`}
                       style={{ display: "block", width: "100%", boxSizing: "border-box" }}
                     >
-                      {cell}
+                      {renderInlineTokens(cell)}
                     </span>
                   </td>
                 ))}

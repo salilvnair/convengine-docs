@@ -7,7 +7,9 @@ import { CodeBlockToggle, Highlight, FlowStep, DbTable, MethodRef, FileRef } fro
 
 # Extension Points and Intervention Scenarios
 
-## 1) `EngineStepHook` - intervene between any steps
+<div className="ce-extensions-page">
+
+## `EngineStepHook` - intervene between any steps {#1-enginestephook---intervene-between-any-steps}
 
 Real scenario: For `LOG_ANALYSIS`, inject additional retrieval hint before schema extraction.
 
@@ -31,7 +33,7 @@ public class LogAnalysisHintHook implements EngineStepHook {
 Use hooks when you need low-friction runtime intervention without forking framework steps.
 :::
 
-## 2) `ContainerDataTransformer` - reshape container response
+## `ContainerDataTransformer` - reshape container response {#2-containerdatatransformer---reshape-container-response}
 
 Real scenario: CCF returns nested payload; you flatten to schema-friendly map.
 
@@ -51,7 +53,7 @@ public class RequestTrackerContainerTransformer implements ContainerDataTransfor
 }`}
 </CodeBlockToggle>
 
-## 3) `ResponseTransformer` - post-process final payload
+## `ResponseTransformer` - post-process final payload {#3-responsetransformer---post-process-final-payload}
 
 Real scenario: Add support-team escalation footer for high-severity disconnect failures.
 
@@ -71,7 +73,7 @@ public class DisconnectFailureResponseTransformer implements ResponseTransformer
 }`}
 </CodeBlockToggle>
 
-## 4) `ContainerDataInterceptor` - intercept request/response around CCF
+## `ContainerDataInterceptor` - intercept request/response around CCF {#4-containerdatainterceptor---intercept-requestresponse-around-ccf}
 
 Real scenario: add tenant metadata and redact a field before persistence.
 
@@ -85,7 +87,7 @@ After Execute:
 - enrich session input params for downstream rule checks`}
 </CodeBlockToggle>
 
-## 5) Rule Action Playbook (`SET_TASK`, `SET_JSON`, `GET_CONTEXT`, `GET_SESSION`)
+## Rule Action Playbook (`SET_TASK`, `SET_JSON`, `GET_CONTEXT`, `GET_SESSION`) {#5-rule-action-playbook-set_task-set_json-get_context-get_session}
 
 These actions execute inside <MethodRef>RulesStep.execute(...)</MethodRef> and mutate the live <MethodRef>EngineSession</MethodRef>.
 
@@ -100,7 +102,7 @@ These actions execute inside <MethodRef>RulesStep.execute(...)</MethodRef> and m
   ]}
 />
 
-### 5.1 `SET_TASK` - execute consumer Java methods from rule
+### `SET_TASK` - execute consumer Java methods from rule {#51-set_task---execute-consumer-java-methods-from-rule}
 
 Use this when a rule match must trigger consumer-side business logic (incident raise, tracker lookup, eligibility fetch, etc).
 
@@ -146,7 +148,7 @@ public class RequestTrackerTask implements CeRuleTask {
 Downstream prompt/response can read new context/inputParams (for example `requestStatus`, `lastUpdated`, `eta_hours`).
 </FlowStep>
 
-### 5.2 `SET_JSON` - move JSONPath value into input params
+### `SET_JSON` - move JSONPath value into input params {#52-set_json---move-jsonpath-value-into-input-params}
 
 Use this to extract one value from runtime session JSON into a flat prompt var.
 
@@ -163,7 +165,7 @@ VALUES
 It does not change `session.contextJson` unless your subsequent task/hook updates context explicitly.
 </Highlight>
 
-### 5.3 `GET_CONTEXT` - snapshot context into input params
+### `GET_CONTEXT` - snapshot context into input params {#53-get_context---snapshot-context-into-input-params}
 
 Use this when prompt templates or tasks need full context as a single variable.
 
@@ -177,7 +179,7 @@ VALUES
 
 If `action_value` is blank, engine uses default key `context`.
 
-### 5.4 `GET_SESSION` - snapshot session facts into input params
+### `GET_SESSION` - snapshot session facts into input params {#54-get_session---snapshot-session-facts-into-input-params}
 
 Use this for advanced derived responses that need runtime flags (`schemaComplete`, `intentLocked`, `missingRequiredFields`, etc).
 
@@ -197,12 +199,34 @@ For side-effecting calls (ticket creation, webhook dispatch), guard with strict 
 </Highlight>
 
 <Highlight type="tip" title="Where to trace this in code">
-Resolvers: <FileRef>engine/rule/type/provider/SetTaskActionResolver.java</FileRef>, <FileRef>engine/rule/type/provider/SetJsonActionResolver.java</FileRef>, <FileRef>engine/rule/type/provider/GetContextActionResolver.java</FileRef>, <FileRef>engine/rule/type/provider/GetSessionActionResolver.java</FileRef>.  
-Task invocation: <FileRef>engine/rule/task/CeRuleTaskExecutor.java</FileRef>.  
-Execution loop: <FileRef>engine/steps/RulesStep.java</FileRef>.
+<div className="ce-chip-groups">
+  <div className="ce-chip-group">
+    <span className="ce-chip-group-label">Resolvers</span>
+    <div className="ce-chip-list">
+      <span className="ce-chip-item"><FileRef>engine/rule/type/provider/SetTaskActionResolver.java</FileRef></span>
+      <span className="ce-chip-item"><FileRef>engine/rule/type/provider/SetJsonActionResolver.java</FileRef></span>
+      <span className="ce-chip-item"><FileRef>engine/rule/type/provider/GetContextActionResolver.java</FileRef></span>
+      <span className="ce-chip-item"><FileRef>engine/rule/type/provider/GetSessionActionResolver.java</FileRef></span>
+    </div>
+  </div>
+
+  <div className="ce-chip-group">
+    <span className="ce-chip-group-label">Task invocation</span>
+    <div className="ce-chip-list">
+      <span className="ce-chip-item"><FileRef>engine/rule/task/CeRuleTaskExecutor.java</FileRef></span>
+    </div>
+  </div>
+
+  <div className="ce-chip-group">
+    <span className="ce-chip-group-label">Execution loop</span>
+    <div className="ce-chip-list">
+      <span className="ce-chip-item"><FileRef>engine/steps/RulesStep.java</FileRef></span>
+    </div>
+  </div>
+</div>
 </Highlight>
 
-### 5.5 Custom action resolver (`RuleActionResolver`)
+### Custom action resolver (`RuleActionResolver`) {#55-custom-action-resolver-ruleactionresolver}
 
 Consumer can define a brand-new rule action without changing framework core.
 
@@ -253,3 +277,5 @@ VALUES
 <Highlight type="tip" title="Auto-registration behavior">
 No manual factory config is needed. <MethodRef>RuleActionResolverFactory</MethodRef> auto-discovers all Spring beans implementing <MethodRef>RuleActionResolver</MethodRef> and maps by <MethodRef>action().toUpperCase()</MethodRef>.
 </Highlight>
+
+</div>

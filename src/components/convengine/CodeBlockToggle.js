@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import CodeBlock from "@theme/CodeBlock";
+import { renderInlineTokens } from "./renderInlineTokens";
 
 function autoIndentBraceCode(snippet) {
   const lines = snippet.split("\n");
@@ -136,7 +137,7 @@ export function CodeBlockToggle({
             <span className="ce-ide-dot ce-ide-dot-green" />
           </div>
 
-          <div className="ce-code-panel-title">{title || "Code Snippet"}</div>
+          <div className="ce-code-panel-title">{renderInlineTokens(title || "Code Snippet")}</div>
 
           {(packagePath || filePath) && (
             <div className="ce-code-panel-path-wrap">

@@ -32,6 +32,30 @@ Apply DDL and seed minimum rows in <FileRef>ce_intent</FileRef>, <FileRef>ce_int
 Run a real turn and validate with <FileRef>/api/v1/conversation/audit/{'{conversationId}'}</FileRef> and <FileRef>/api/v1/conversation/audit/{'{conversationId}'}/trace</FileRef>.
 </FlowStep>
 
+## Dependency
+
+<Tabs groupId="consumer-dependency">
+  <TabItem value="maven" label="Maven" default>
+
+<CodeBlockToggle title="pom.xml dependency" language="xml" packagePath="project build">
+{`<dependency>
+    <groupId>com.github.salilvnair</groupId>
+    <artifactId>convengine</artifactId>
+    <version>1.0.9</version>
+</dependency>`}
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="gradle" label="Gradle">
+
+<CodeBlockToggle title="build.gradle.kts dependency" language="kotlin" packagePath="project build">
+{`implementation("com.github.salilvnair:convengine:1.0.9")`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
 ## Core Contracts
 
 <DbTable
