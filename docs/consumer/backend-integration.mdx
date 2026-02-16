@@ -89,83 +89,104 @@ spring:
 
 convengine:
   demo:
-    stream-mode: SSE
-    step-hook:
-      enabled: true
+      stream-mode: SSE
+      step-hook:
+        enabled: true
+
+  tables:
+      AUDIT: CE_AUDIT
+      CONTAINER_CONFIG: CE_CONTAINER_CONFIG
+      CONVERSATION: CE_CONVERSATION
+      INTENT: CE_INTENT
+      INTENT_CLASSIFIER: CE_INTENT_CLASSIFIER
+      LLM_CALL_LOG: CE_LLM_CALL_LOG
+      MCP_DB_TOOL: CE_MCP_DB_TOOL
+      MCP_TOOL: CE_MCP_TOOL
+      OUTPUT_SCHEMA: CE_OUTPUT_SCHEMA
+      PROMPT_TEMPLATE: CE_PROMPT_TEMPLATE
+      RESPONSE: CE_RESPONSE
+      RULE: CE_RULE
+      VALIDATION_SNAPSHOT: CE_VALIDATION_SNAPSHOT
 
   llm:
-    provider: openai
-    openai:
-      api-key: \${OPENAI_API_KEY}
-      model: gpt-4.1
+      provider: openai
+      temperature: 0.3
+      openai:
+        api-key: \${OPENAI_API_KEY\}
+        model: gpt-4.1
+        base-url: https://api.openai.com
+      lmstudio:
+          api-key: \${LMSTUDIO_API_KEY\}
+          model: openai/gpt-oss-20b
+          base-url: http://localhost:1234
 
   transport:
-    sse:
-      enabled: true
-      emitter-timeout-ms: 1800000
-    stomp:
-      enabled: false
-      endpoint: /ws-convengine
-      app-destination-prefix: /app
-      topic-prefix: /topic
-      audit-destination-base: /topic/convengine/audit
-      allowed-origin-pattern: "*"
-      sock-js: true
-      broker:
-        mode: SIMPLE
-        relay-destination-prefixes: /topic,/queue
-        relay-host: localhost
-        relay-port: 61613
-        client-login: ""
-        client-passcode: ""
-        system-login: ""
-        system-passcode: ""
-        virtual-host: ""
-        system-heartbeat-send-interval-ms: 10000
-        system-heartbeat-receive-interval-ms: 10000
+      sse:
+        enabled: true
+        emitter-timeout-ms: 1800000
+      stomp:
+        enabled: false
+        endpoint: /ws-convengine
+        app-destination-prefix: /app
+        topic-prefix: /topic
+        audit-destination-base: /topic/convengine/audit
+        allowed-origin-pattern: "*"
+        sock-js: true
+        broker:
+          mode: SIMPLE
+          relay-destination-prefixes: /topic,/queue
+          relay-host: localhost
+          relay-port: 61613
+          client-login: ""
+          client-passcode: ""
+          system-login: ""
+          system-passcode: ""
+          virtual-host: ""
+          system-heartbeat-send-interval-ms: 10000
+          system-heartbeat-receive-interval-ms: 10000
 
   audit:
-    enabled: true
-    level: ALL
-    include-stages: []
-    exclude-stages: []
-    persistence:
-      mode: IMMEDIATE
-      jdbc-batch-size: 200
-      max-buffered-events: 5000
-      flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
-      final-step-names: PipelineEndGuardStep
-      flush-on-stop-outcome: true
-    dispatch:
-      async-enabled: false
-      worker-threads: 2
-      queue-capacity: 2000
-      rejection-policy: CALLER_RUNS
-      keep-alive-seconds: 60
-    rate-limit:
-      enabled: false
-      max-events: 200
-      window-ms: 1000
-      per-conversation: true
-      per-stage: true
-      max-tracked-buckets: 20000`}
+      enabled: true
+      level: ALL
+      include-stages: []
+      exclude-stages: []
+      persistence:
+        mode: IMMEDIATE
+        jdbc-batch-size: 200
+        max-buffered-events: 5000
+        flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
+        final-step-names: PipelineEndGuardStep
+        flush-on-stop-outcome: true
+      dispatch:
+        async-enabled: false
+        worker-threads: 2
+        queue-capacity: 2000
+        rejection-policy: CALLER_RUNS
+        keep-alive-seconds: 60
+      rate-limit:
+        enabled: false
+        max-events: 200
+        window-ms: 1000
+        per-conversation: true
+        per-stage: true
+        max-tracked-buckets: 20000`}
 </CodeBlockToggle>
 
 <CodeBlockToggle title="application-sse.yml" language="yaml" filePath="convengine-demo/src/main/resources/application-sse.yml">
 {`convengine:
-  demo:
-    stream-mode: SSE
-  transport:
-    sse:
-      enabled: true
-    stomp:
-      enabled: false`}
+    demo:
+      stream-mode: SSE
+    transport:
+      sse:
+        enabled: true
+      stomp:
+        enabled: false`}
 </CodeBlockToggle>
 
 <CodeBlockToggle title="application-stomp.yml" language="yaml" filePath="convengine-demo/src/main/resources/application-stomp.yml">
 {`convengine:
   demo:
-    stream-mode: STOMP
+      stream-mode: STOMP
   transport:
     sse:
       enabled: false
@@ -175,13 +196,13 @@ convengine:
 
 <CodeBlockToggle title="application-both.yml" language="yaml" filePath="convengine-demo/src/main/resources/application-both.yml">
 {`convengine:
-  demo:
-    stream-mode: BOTH
-  transport:
-    sse:
-      enabled: true
-    stomp:
-      enabled: true`}
+    demo:
+      stream-mode: BOTH
+    transport:
+      sse:
+        enabled: true
+      stomp:
+        enabled: true`}
 </CodeBlockToggle>
 
 <Highlight type="tip" title="Relay + async audit rollout">

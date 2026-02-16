@@ -56,68 +56,56 @@ spring:
       password: convengine_pwd
 
 convengine:
-  demo:
-    stream-mode: SSE
-    step-hook:
-      enabled: true
-
-  llm:
-    provider: openai
-    openai:
-      api-key: \${OPENAI_API_KEY}
-      model: gpt-4.1
-
   transport:
-    sse:
-      enabled: true
-      emitter-timeout-ms: 1800000
-    stomp:
-      enabled: false
-      endpoint: /ws-convengine
-      app-destination-prefix: /app
-      topic-prefix: /topic
-      audit-destination-base: /topic/convengine/audit
-      allowed-origin-pattern: "*"
-      sock-js: true
-      broker:
-        mode: SIMPLE
-        relay-destination-prefixes: /topic,/queue
-        relay-host: localhost
-        relay-port: 61613
-        client-login: ""
-        client-passcode: ""
-        system-login: ""
-        system-passcode: ""
-        virtual-host: ""
-        system-heartbeat-send-interval-ms: 10000
-        system-heartbeat-receive-interval-ms: 10000
+      sse:
+        enabled: true or false
+        emitter-timeout-ms: 1800000
+      stomp:
+        enabled: true or false
+        endpoint: /ws-convengine
+        app-destination-prefix: /app
+        topic-prefix: /topic
+        audit-destination-base: /topic/convengine/audit
+        allowed-origin-pattern: "*"
+        sock-js: true
+        broker:
+          mode: SIMPLE
+          relay-destination-prefixes: /topic,/queue
+          relay-host: localhost
+          relay-port: 61613
+          client-login: ""
+          client-passcode: ""
+          system-login: ""
+          system-passcode: ""
+          virtual-host: ""
+          system-heartbeat-send-interval-ms: 10000
+          system-heartbeat-receive-interval-ms: 10000
 
   audit:
-    enabled: true
-    level: ALL
-    include-stages: []
-    exclude-stages: []
-    persistence:
-      mode: IMMEDIATE
-      jdbc-batch-size: 200
-      max-buffered-events: 5000
-      flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
-      final-step-names: PipelineEndGuardStep
-      flush-on-stop-outcome: true
-    dispatch:
-      async-enabled: false
-      worker-threads: 2
-      queue-capacity: 2000
-      rejection-policy: CALLER_RUNS
-      keep-alive-seconds: 60
-    rate-limit:
-      enabled: false
-      max-events: 200
-      window-ms: 1000
-      per-conversation: true
-      per-stage: true
-      max-tracked-buckets: 20000
-
+      enabled: true
+      level: ALL
+      include-stages: []
+      exclude-stages: []
+      persistence:
+        mode: IMMEDIATE
+        jdbc-batch-size: 200
+        max-buffered-events: 5000
+        flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
+        final-step-names: PipelineEndGuardStep
+        flush-on-stop-outcome: true
+      dispatch:
+        async-enabled: false
+        worker-threads: 2
+        queue-capacity: 2000
+        rejection-policy: CALLER_RUNS
+        keep-alive-seconds: 60
+      rate-limit:
+        enabled: false
+        max-events: 200
+        window-ms: 1000
+        per-conversation: true
+        per-stage: true
+        max-tracked-buckets: 20000
   experimental:
       enabled: false`}
 </CodeBlockToggle>
