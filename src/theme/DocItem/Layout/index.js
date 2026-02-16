@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useWindowSize } from '@docusaurus/theme-common';
 import { useDoc } from '@docusaurus/plugin-content-docs/client';
@@ -84,8 +84,70 @@ export default function DocItemLayout({ children }) {
   const docTOC = useDocTOC();
   const { metadata } = useDoc();
   const [openSections, setOpenSections] = useState(false);
+  const flashTimerRef = useRef(null);
+  const [activeHash, setActiveHash] = useState(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+    return window.location.hash ? window.location.hash.slice(1) : '';
+  });
   const hasToc = docTOC.headings.length > 0;
   const markers = buildHierarchicalMarkers(docTOC.headings);
+
+  const flashHeading = (headingId) => {
+    if (typeof window === 'undefined' || !headingId) {
+      return;
+    }
+    const target = document.getElementById(headingId);
+    if (!target) {
+      return;
+    }
+
+    target.classList.remove('ce-jump-target-flash');
+    void target.offsetWidth;
+    target.classList.add('ce-jump-target-flash');
+
+    if (flashTimerRef.current) {
+      window.clearTimeout(flashTimerRef.current);
+    }
+    flashTimerRef.current = window.setTimeout(() => {
+      target.classList.remove('ce-jump-target-flash');
+      flashTimerRef.current = null;
+    }, 3000);
+  };
+
+  useEffect(() => {
+    if (!openSections) {
+      return undefined;
+    }
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpenSections(false);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [openSections]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    const syncHash = () => {
+      setActiveHash(window.location.hash ? window.location.hash.slice(1) : '');
+    };
+    syncHash();
+    window.addEventListener('hashchange', syncHash);
+    return () => window.removeEventListener('hashchange', syncHash);
+  }, []);
+
+  useEffect(() => () => {
+    if (flashTimerRef.current && typeof window !== 'undefined') {
+      window.clearTimeout(flashTimerRef.current);
+    }
+  }, []);
 
   return (
     <div className="row">
@@ -126,8 +188,11 @@ export default function DocItemLayout({ children }) {
                       <a
                         key={`${h.id}-${idx}`}
                         href={`#${h.id}`}
-                        className="ce-sections-link"
-                        onClick={() => setOpenSections(false)}
+                        className={clsx('ce-sections-link', activeHash === h.id && 'ce-sections-link-active')}
+                        onClick={() => {
+                          setActiveHash(h.id);
+                          flashHeading(h.id);
+                        }}
                         style={{ paddingLeft: `${10 + Math.max(0, h.level - 2) * 14}px` }}
                       >
                         <span className={clsx('ce-sections-link-index', isNestedMarker && 'ce-sections-link-index-nested')}>
