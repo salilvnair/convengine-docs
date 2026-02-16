@@ -121,11 +121,13 @@ export function CodeBlockToggle({
   title,
   packagePath,
   filePath,
-  defaultOpen = false,
+  defaultOpen,
   children,
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   const snippet = normalizeCodeSnippet(children, language);
+  const lineCount = typeof snippet === "string" ? snippet.split("\n").length : 0;
+  const initialOpen = typeof defaultOpen === "boolean" ? defaultOpen : lineCount <= 50;
+  const [open, setOpen] = useState(initialOpen);
 
   return (
     <section className="ce-code-panel">

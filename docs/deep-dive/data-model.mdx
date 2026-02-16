@@ -66,11 +66,26 @@ void setFinalResult(EngineResult result); // Stop pipeline immediately`}
 
 ## Common Operations
 
-### Setting a Task
-Used to signal the UI or downstream systems to perform client-side actions.
+### Setting a Task (`SET_TASK` action)
+Tasks are triggered through rule action resolution, not by writing arbitrary `task` keys in context.
+Configure `ce_rule.action=SET_TASK` and map `action_value` to a Spring task bean method.
 
-<CodeBlockToggle title="Set task" language="java" packagePath="consumer logic">
-{`session.putContext("task", "OPEN_PAYMENT_MODAL");`}
+<CodeBlockToggle title="SET_TASK rule row" language="sql" packagePath="consumer DB">
+{`INSERT INTO ce_rule
+  (intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('REQUEST_TRACKER', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus', 10, true,
+   'Invoke consumer task bean during rule execution');`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Consumer task bean method" language="java" packagePath="consumer logic">
+{`@Component("requestTrackerTask")
+public class RequestTrackerTask implements CeRuleTask {
+  public void loadStatus(EngineSession session, CeRule rule) {
+    // Populate context/input params for downstream response
+    session.putInputParam("requestStatus", "IN_REVIEW");
+  }
+}`}
 </CodeBlockToggle>
 
 ### Getting Extracted Data

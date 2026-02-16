@@ -229,12 +229,6 @@ spring:
       username: convengine_user
       password: convengine_pwd
 
-llm:
-  provider: openai
-  openai:
-    api-key: \${OPENAI_API_KEY}
-    model: gpt-4.1
-
 convengine:
   transport:
     sse:
@@ -291,7 +285,7 @@ convengine:
 ### application.yml tag reference
 
 <DbTable
-  title="server + datasource + llm"
+  title="server + datasource"
   className="ce-config-ref-table"
   columns={["Tag", "What it controls", "Expected values", "Default/notes"]}
   rows={[
@@ -299,9 +293,6 @@ convengine:
     ["spring.datasource.url", "DB connection URL", "jdbc URL", "Must point to DB with ce_* tables"],
     ["spring.datasource.username", "DB username", "string", "DB user with read/write on ce_*"],
     ["spring.datasource.password", "DB password", "string", "Use secret manager/env var in prod"],
-    ["llm.provider", "LLM provider selection", "openai (or your configured provider)", "Must match your LLM config beans"],
-    ["llm.openai.api-key", "OpenAI credential", "string/env ref", "Use ${OPENAI_API_KEY}"],
-    ["llm.openai.model", "Model id used for LLM calls", "model name", "Example: gpt-4.1"],
   ]}
 />
 
@@ -431,7 +422,7 @@ void setFinalResult(EngineResult result);`}
   </TabItem>
 </Tabs>
 
-## 6. Extension examples you asked for
+## 6. Extension examples
 
 <Tabs groupId="extensions">
   <TabItem value="hooks" label="EngineStepHook" default>
@@ -452,10 +443,23 @@ public class SchemaHintHook implements EngineStepHook {
 </CodeBlockToggle>
 
   </TabItem>
-  <TabItem value="task" label="Setting a Task">
+  <TabItem value="task" label="SET_TASK Action">
 
-<CodeBlockToggle title="Set task in context" language="java" packagePath="consumer logic">
-{`session.putContext("task", "OPEN_PAYMENT_MODAL");`}
+<CodeBlockToggle title="SET_TASK via ce_rule" language="sql" packagePath="consumer DB">
+{`INSERT INTO ce_rule
+  (intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('REQUEST_TRACKER', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus', 10, true,
+   'Invoke consumer task bean');`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Consumer task bean" language="java" packagePath="com.acme.convengine.tasks">
+{`@Component("requestTrackerTask")
+public class RequestTrackerTask implements CeRuleTask {
+  public void loadStatus(EngineSession session, CeRule rule) {
+    session.putInputParam("requestStatus", "IN_REVIEW");
+  }
+}`}
 </CodeBlockToggle>
 
   </TabItem>
@@ -500,6 +504,10 @@ public class MyResponseTransformer implements ResponseTransformer {
 
 ## 7. Persistence, audit and streaming tuning
 
+<Highlight type="tip" title="Production sequence">
+Start with direct <MethodRef>HTTP</MethodRef> + <MethodRef>IMMEDIATE</MethodRef> audit. Then enable async dispatch and bounded queue. Move to <MethodRef>DEFERRED_BULK</MethodRef> only after validating final-step flush behavior for your trace requirements.
+</Highlight>
+
 <DbTable
   title="High-impact runtime knobs"
   columns={["Area", "Config", "Effect"]}
@@ -512,7 +520,3 @@ public class MyResponseTransformer implements ResponseTransformer {
     ["Stream hard requirement", "@EnableConvEngine(stream=true)", "Fails startup if both SSE and STOMP are disabled"],
   ]}
 />
-
-<Highlight type="tip" title="Production sequence">
-Start with direct HTTP + IMMEDIATE audit. Then enable async dispatch and bounded queue. Move to DEFERRED_BULK only after validating final-step flush behavior for your trace requirements.
-</Highlight>

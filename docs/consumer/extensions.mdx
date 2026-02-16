@@ -132,10 +132,10 @@ Bean must be a Spring bean with the configured bean name and implement <MethodRe
 public class RequestTrackerTask implements CeRuleTask {
 
     public void loadStatus(EngineSession session, CeRule rule) {
-        String requestId = String.valueOf(session.contextDict().getOrDefault("requestId", ""));
+        String requestId = String.valueOf(session.getInputParams().getOrDefault("requestId", ""));
         // fetch from your DB/service
-        session.putContext("requestStatus", "APPROVAL_PENDING");
-        session.putContext("lastUpdated", "2026-02-10T11:40:00Z");
+        session.putInputParam("requestStatus", "APPROVAL_PENDING");
+        session.putInputParam("lastUpdated", "2026-02-10T11:40:00Z");
     }
 
     public void attachEta(EngineSession session, CeRule rule) {
@@ -256,7 +256,6 @@ public class EnrichCustomerTierActionResolver implements RuleActionResolver {
         String key = parts.length > 0 && !parts[0].isBlank() ? parts[0] : "customerTier";
         String value = parts.length > 1 ? parts[1] : "STANDARD";
 
-        session.putContext(key, value);
         session.putInputParam(key, value);
     }
 }`}

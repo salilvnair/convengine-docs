@@ -86,6 +86,7 @@ export default function DocItemLayout({ children }) {
   const [openSections, setOpenSections] = useState(false);
   const flashTimerRef = useRef(null);
   const autoCloseTimerRef = useRef(null);
+  const drawerRef = useRef(null);
   const [activeHash, setActiveHash] = useState(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -103,15 +104,14 @@ export default function DocItemLayout({ children }) {
   }, []);
 
   const scheduleAutoClose = useCallback(() => {
-    if (typeof window === 'undefined' || !openSections) {
+    if (typeof window === 'undefined' || !openSections || autoCloseTimerRef.current) {
       return;
     }
-    clearAutoCloseTimer();
     autoCloseTimerRef.current = window.setTimeout(() => {
       setOpenSections(false);
       autoCloseTimerRef.current = null;
     }, 5000);
-  }, [clearAutoCloseTimer, openSections]);
+  }, [openSections]);
 
   const flashHeading = (headingId) => {
     if (typeof window === 'undefined' || !headingId) {
@@ -141,18 +141,34 @@ export default function DocItemLayout({ children }) {
       return undefined;
     }
 
+    scheduleAutoClose();
+
     const onKeyDown = (event) => {
       if (event.key === 'Escape') {
         setOpenSections(false);
       }
     };
 
+    const onMouseMove = (event) => {
+      const drawer = drawerRef.current;
+      if (!drawer) {
+        return;
+      }
+      if (drawer.contains(event.target)) {
+        clearAutoCloseTimer();
+      } else {
+        scheduleAutoClose();
+      }
+    };
+
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mousemove', onMouseMove);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousemove', onMouseMove);
       clearAutoCloseTimer();
     };
-  }, [clearAutoCloseTimer, openSections]);
+  }, [clearAutoCloseTimer, openSections, scheduleAutoClose]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -200,7 +216,12 @@ export default function DocItemLayout({ children }) {
                   <span className="ce-sections-fab-icon">☰</span>
                   <span>Sections</span>
                 </button>
-                <aside className={clsx('ce-sections-drawer', openSections && 'ce-sections-drawer-open')}>
+                <aside
+                  ref={drawerRef}
+                  className={clsx('ce-sections-drawer', openSections && 'ce-sections-drawer-open')}
+                  onMouseEnter={clearAutoCloseTimer}
+                  onMouseLeave={scheduleAutoClose}
+                >
                   <div className="ce-sections-drawer-head">
                     <strong>Jump To Section</strong>
                     <button type="button" onClick={() => setOpenSections(false)} aria-label="Close sections menu">✕</button>
