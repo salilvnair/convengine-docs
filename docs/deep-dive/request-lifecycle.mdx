@@ -1,30 +1,213 @@
 ---
 title: Request Lifecycle
 sidebar_position: 3
+hide_table_of_contents: true
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import { FlowStep, CodeBlockToggle, Highlight, DbTable, FileRef, MethodRef } from "@site/src/components/convengine";
+import { EngineDebugFlow, CodeBlockToggle, Highlight, DbTable, FileRef, MethodRef, PipelineStepList } from "@site/src/components/convengine";
 
-# Request Lifecycle (Detailed Control Flow)
+export const lifecycleNodes = [
+  { id: "api", position: { x: 20, y: 40 }, data: { label: "API: ConversationController.message" } },
+  { id: "engine", position: { x: 300, y: 40 }, data: { label: "DefaultConversationalEngine.process" } },
+  { id: "session", position: { x: 580, y: 40 }, data: { label: "EngineSessionFactory.open" } },
+  { id: "pipeline", position: { x: 860, y: 40 }, data: { label: "EnginePipelineFactory.create" } },
 
-This mirrors the examples page but with deeper internals and method trace focus.
+  { id: "s1", position: { x: 20, y: 190 }, data: { label: "LoadOrCreateConversationStep" } },
+  { id: "s2", position: { x: 260, y: 190 }, data: { label: "ResetConversationStep" } },
+  { id: "s3", position: { x: 500, y: 190 }, data: { label: "AuditUserInputStep" } },
+  { id: "s4", position: { x: 740, y: 190 }, data: { label: "IntentResolutionStep" } },
+  { id: "s5", position: { x: 980, y: 190 }, data: { label: "SchemaExtractionStep" } },
 
-<Tabs groupId="lifecycle-view">
-  <TabItem value="summary" label="Summary" default>
+  { id: "s6", position: { x: 20, y: 340 }, data: { label: "AutoAdvanceStep" } },
+  { id: "s7", position: { x: 260, y: 340 }, data: { label: "RulesStep" } },
+  { id: "s8", position: { x: 500, y: 340 }, data: { label: "ResponseResolutionStep" } },
+  { id: "s9", position: { x: 740, y: 340 }, data: { label: "PersistConversationStep" } },
+  { id: "s10", position: { x: 980, y: 340 }, data: { label: "PipelineEndGuardStep" } },
 
-1. <MethodRef>ConversationController.message</MethodRef> receives API request.
-2. Builds <MethodRef>EngineContext</MethodRef> and calls <MethodRef>DefaultConversationalEngine.process</MethodRef>.
-3. <MethodRef>EngineSessionFactory.open</MethodRef> creates mutable session.
-4. <MethodRef>EnginePipelineFactory.orderByDag</MethodRef> prepares ordered steps.
-5. <MethodRef>EnginePipeline.execute</MethodRef> loops each step.
-6. If a step returns <MethodRef>StepResult.Stop</MethodRef>, engine returns early.
-7. Else final output is produced by <MethodRef>ResponseResolutionStep</MethodRef> and persisted.
+  { id: "out", position: { x: 500, y: 500 }, data: { label: "EngineResult -> HTTP Response" } },
+];
 
-  </TabItem>
+export const lifecycleEdges = [
+  { id: "e1", source: "api", target: "engine" },
+  { id: "e2", source: "engine", target: "session" },
+  { id: "e3", source: "session", target: "pipeline" },
 
-  <TabItem value="controller-engine" label="Controller + Engine">
+  { id: "e4", source: "pipeline", target: "s1" },
+  { id: "e5", source: "s1", target: "s2" },
+  { id: "e6", source: "s2", target: "s3" },
+  { id: "e7", source: "s3", target: "s4" },
+  { id: "e8", source: "s4", target: "s5" },
+  { id: "e9", source: "s5", target: "s6" },
+  { id: "e10", source: "s6", target: "s7" },
+  { id: "e11", source: "s7", target: "s8" },
+  { id: "e12", source: "s8", target: "s9" },
+  { id: "e13", source: "s9", target: "s10" },
+  { id: "e14", source: "s10", target: "out" },
+];
+
+export const lifecycleDetails = {
+  api: {
+    title: "ConversationController.message",
+    file: "api/controller/ConversationController.java",
+    method: "message(...)",
+    stage: "HTTP_ENTRY",
+    summary: "Reads request body, normalizes inputParams, injects reset flag when needed, builds EngineContext and delegates to engine.process.",
+    session: ["conversationId maybe provided or generated", "userText from request.message", "inputParams merged"],
+    tables: ["none"],
+  },
+  engine: {
+    title: "DefaultConversationalEngine.process",
+    file: "engine/provider/DefaultConversationalEngine.java",
+    method: "process(EngineContext)",
+    stage: "ENGINE_ENTRY",
+    summary: "Opens EngineSession, loads conversation history provider data, executes pipeline, returns EngineResult.",
+    session: ["session created", "conversationHistory injected"],
+    tables: ["ce_audit (indirect via steps)", "ce_conversation (indirect via steps)"],
+  },
+  session: {
+    title: "EngineSessionFactory.open",
+    file: "engine/factory/EngineSessionFactory.java",
+    method: "open(EngineContext)",
+    stage: "SESSION_BOOTSTRAP",
+    summary: "Ensures conversation bootstrap row exists, attaches it into session, syncs state/intent/context/input params.",
+    session: ["conversation object attached", "intent/state/context synced from DB"],
+    tables: ["ce_conversation (R/W bootstrap)"],
+  },
+  pipeline: {
+    title: "EnginePipelineFactory.create",
+    file: "engine/factory/EnginePipelineFactory.java",
+    method: "orderByDag(...) + wrapWithTiming(...)",
+    stage: "PIPELINE_BUILD",
+    summary: "Resolves step DAG by annotations, wraps each step in timing/audit/hook-aware wrapper.",
+    session: ["none (topology build)"],
+    tables: ["none"],
+  },
+  s1: {
+    title: "LoadOrCreateConversationStep.execute",
+    file: "engine/steps/LoadOrCreateConversationStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Loads/syncs conversation row into session and keeps runtime state consistent.",
+    session: ["conversation synchronized", "state available for next steps"],
+    tables: ["ce_conversation (R/W)"],
+  },
+  s2: {
+    title: "ResetConversationStep.execute",
+    file: "engine/steps/ResetConversationStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Checks reset controls (`reset`, `restart`, `conversation_reset`, command text). If triggered, wipes conversation runtime state.",
+    session: ["intent/state/context reset conditionally", "input controls filtered"],
+    tables: ["ce_conversation (W)", "ce_audit (CONVERSATION_RESET)"],
+  },
+  s3: {
+    title: "AuditUserInputStep.execute",
+    file: "engine/steps/AuditUserInputStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Writes compact user input audit record with session meta intent/state.",
+    session: ["user input captured"],
+    tables: ["ce_audit (W)"],
+  },
+  s4: {
+    title: "IntentResolutionStep.execute",
+    file: "engine/steps/IntentResolutionStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Resolves intent using classifier + agent flow, with schema lock checks and collision handling.",
+    session: ["intent maybe changed", "state may become INTENT_COLLISION"],
+    tables: ["ce_intent (R)", "ce_intent_classifier (R)", "ce_config (R)", "ce_audit (W)"],
+  },
+  s5: {
+    title: "SchemaExtractionStep.execute",
+    file: "engine/steps/SchemaExtractionStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Finds schema by intent/state, renders prompt template, calls LLM JSON extraction, merges context, computes missing fields, locks/unlocks intent.",
+    session: ["contextJson merged", "schemaComplete/schemaHasAnyValue flags", "missing fields/options"],
+    tables: ["ce_output_schema (R)", "ce_prompt_template (R)", "ce_audit (W)", "ce_config (R optional)"],
+  },
+  s6: {
+    title: "AutoAdvanceStep.execute",
+    file: "engine/steps/AutoAdvanceStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Applies deterministic state changes from schema facts before rules run.",
+    session: ["state may auto-transition"],
+    tables: ["ce_audit (W)"],
+  },
+  s7: {
+    title: "RulesStep.execute",
+    file: "engine/steps/RulesStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Runs enabled rules in priority order with multi-pass cascading when intent/state changes.",
+    session: ["intent/state/context/inputParams may mutate via actions"],
+    tables: ["ce_rule (R)", "ce_audit (W)"],
+  },
+  s8: {
+    title: "ResponseResolutionStep.execute",
+    file: "engine/steps/ResponseResolutionStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Selects response mapping, executes EXACT/DERIVED strategy, resolves templates for derived output, applies transformers, audits output.",
+    session: ["payload set", "finalResult staged"],
+    tables: ["ce_response (R)", "ce_prompt_template (R)", "ce_audit (W)"],
+  },
+  s9: {
+    title: "PersistConversationStep.execute",
+    file: "engine/steps/PersistConversationStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Persists final conversation state and last assistant payload to durable row.",
+    session: ["conversation row synchronized with runtime"],
+    tables: ["ce_conversation (W)", "ce_audit (W optional)"],
+  },
+  s10: {
+    title: "PipelineEndGuardStep.execute",
+    file: "engine/steps/PipelineEndGuardStep.java",
+    method: "execute(EngineSession)",
+    stage: "STEP",
+    summary: "Final guard/timing stage, emits pipeline timing audit and closes execution envelope.",
+    session: ["step timings finalized"],
+    tables: ["ce_audit (W)"],
+  },
+  out: {
+    title: "EngineResult return",
+    file: "api/controller/ConversationController.java",
+    method: "message(...) return",
+    stage: "HTTP_RESPONSE",
+    summary: "Controller maps EngineResult to API response payload type (TEXT/JSON) and returns to client.",
+    session: ["final result exposed"],
+    tables: ["none"],
+  },
+};
+
+# Request Lifecycle (IDE Debug Mode)
+
+This page is the runtime control-flow view for one turn. Think of it as stepping through breakpoints from API entry to final persistence.
+
+## Canonical step inventory (latest)
+
+<PipelineStepList ariaLabel="Canonical step inventory" />
+
+<Highlight type="tip" title="Graph below is the common path">
+The visual flow highlights the common deterministic runtime path. Conditional/system steps from the list above still execute when their prerequisites are met.
+</Highlight>
+
+<EngineDebugFlow
+  title="Request Turn Execution Graph"
+  subtitle="Click any node in tree or graph to inspect method-level detail, session snapshots, and table touch points."
+  nodes={lifecycleNodes}
+  edges={lifecycleEdges}
+  detailsById={lifecycleDetails}
+  defaultSelectedId="s4"
+/>
+
+<Tabs groupId="lifecycle-code">
+  <TabItem value="entry" label="Controller -> Engine" default>
 
 <CodeBlockToggle
   title="ConversationController.message"
@@ -44,6 +227,7 @@ EngineResult result = engine.process(engineContext);`}
 <CodeBlockToggle
   title="DefaultConversationalEngine.process"
   language="java"
+  packagePath="com.github.salilvnair.convengine.engine.provider"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java"
 >
 {`EngineSession session = sessionFactory.open(engineContext);
@@ -54,11 +238,12 @@ return pipeline.execute(session);`}
 
   </TabItem>
 
-  <TabItem value="pipeline" label="Pipeline Factory + Loop">
+  <TabItem value="pipeline" label="DAG + Step Wrapper">
 
 <CodeBlockToggle
-  title="EnginePipelineFactory init/orderByDag"
+  title="EnginePipelineFactory.orderByDag + wrapWithTiming"
   language="java"
+  packagePath="com.github.salilvnair.convengine.engine.factory"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/factory/EnginePipelineFactory.java"
 >
 {`@PostConstruct
@@ -67,14 +252,14 @@ public void init() {
   this.pipeline = new EnginePipeline(wrapWithTiming(ordered));
 }
 
-// Constraints used:
-// @MustRunAfter, @MustRunBefore, @RequiresConversationPersisted
-// plus one @TerminalStep`}
+// orderByDag uses @MustRunAfter, @MustRunBefore, @RequiresConversationPersisted
+// wrapWithTiming adds STEP_ENTER / STEP_EXIT / STEP_ERROR audits + hook callbacks`}
 </CodeBlockToggle>
 
 <CodeBlockToggle
   title="EnginePipeline.execute"
   language="java"
+  packagePath="com.github.salilvnair.convengine.engine.pipeline"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/pipeline/EnginePipeline.java"
 >
 {`for (EngineStep step : steps) {
@@ -88,79 +273,62 @@ return session.getFinalResult();`}
 
   </TabItem>
 
-  <TabItem value="steps" label="All Step Methods">
+  <TabItem value="hooks" label="Step Hook Interception">
 
-<FlowStep step="1" title="LoadOrCreateConversationStep.execute">
-Loads/syncs conversation from <FileRef>ce_conversation</FileRef>.
-</FlowStep>
+<CodeBlockToggle
+  title="EngineStepHook typed step matching"
+  language="java"
+  packagePath="com.github.salilvnair.convengine.engine.hook"
+  filePath="src/main/java/com/github/salilvnair/convengine/engine/hook/EngineStepHook.java"
+>
+{`public interface EngineStepHook {
+    default boolean supports(EngineStep.Name stepName, EngineSession session) { return true; }
+    default void beforeStep(EngineStep.Name stepName, EngineSession session) {}
+    default void afterStep(EngineStep.Name stepName, EngineSession session, StepResult result) {}
+    default void onStepError(EngineStep.Name stepName, EngineSession session, Throwable error) {}
+}`}
+</CodeBlockToggle>
 
-<FlowStep step="2" title="ResetConversationStep.execute">
-Checks reset inputs and wipes prior state/context when requested.
-</FlowStep>
+<CodeBlockToggle
+  title="Consumer hook example"
+  language="java"
+  packagePath="com.acme.convengine.hooks"
+>
+{`@Component
+public class MyHook implements EngineStepHook {
+  @Override
+  public boolean supports(EngineStep.Name stepName, EngineSession session) {
+    return EngineStep.Name.SchemaExtractionStep == stepName;
+  }
 
-<FlowStep step="3" title="AuditUserInputStep.execute">
-Writes <MethodRef>USER_INPUT</MethodRef> stage into <FileRef>ce_audit</FileRef>.
-</FlowStep>
-
-<FlowStep step="4" title="IntentResolutionStep.execute">
-Resolves intent via composite resolver; respects schema lock.
-</FlowStep>
-
-<FlowStep step="5" title="SchemaExtractionStep.execute">
-Prompts LLM for structured JSON; merges context; computes missing fields.
-</FlowStep>
-
-<FlowStep step="6" title="AutoAdvanceStep.execute">
-Derives schema completion facts for rule evaluation.
-</FlowStep>
-
-<FlowStep step="7" title="RulesStep.execute">
-Runs multi-pass rule evaluation and action resolvers.
-</FlowStep>
-
-<FlowStep step="8" title="ResponseResolutionStep.execute">
-Resolves <FileRef>ce_response</FileRef>, applies EXACT/DERIVED, audits assistant payload.
-</FlowStep>
-
-<FlowStep step="9" title="PersistConversationStep.execute">
-Persists final intent/state/context and result envelope.
-</FlowStep>
-
-  </TabItem>
-
-  <TabItem value="table-map" label="Table Map">
-
-<DbTable
-  title="Request lifecycle table map"
-  columns={["Table", "Read in methods", "Write in methods"]}
-  rows={[
-    ["ce_conversation", "LoadOrCreateConversationStep", "PersistConversationStep"],
-    ["ce_intent", "IntentResolutionStep", "-"],
-    ["ce_intent_classifier", "IntentResolutionStep", "-"],
-    ["ce_output_schema", "SchemaExtractionStep", "-"],
-    ["ce_prompt_template", "SchemaExtractionStep, ResponseResolutionStep", "-"],
-    ["ce_rule", "RulesStep", "-"],
-    ["ce_response", "ResponseResolutionStep", "-"],
-    ["ce_config", "Intent/MCP/reset-related methods", "-"],
-    ["ce_audit", "-", "DbAuditService.audit"],
-  ]}
-/>
+  @Override
+  public void beforeStep(EngineStep.Name stepName, EngineSession session) {
+    session.putInputParam("consumer_hint", "compact");
+  }
+}`}
+</CodeBlockToggle>
 
   </TabItem>
 </Tabs>
 
-<details className="ce-trace-details">
-  <summary>Open expanded method trace checklist</summary>
+## Table Touch Matrix
 
-- <MethodRef>ConversationController.message</MethodRef> in <FileRef>api/controller/ConversationController.java</FileRef>
-- <MethodRef>DefaultConversationalEngine.process</MethodRef> in <FileRef>engine/provider/DefaultConversationalEngine.java</FileRef>
-- <MethodRef>EnginePipelineFactory.init/orderByDag</MethodRef> in <FileRef>engine/factory/EnginePipelineFactory.java</FileRef>
-- <MethodRef>EnginePipeline.execute</MethodRef> in <FileRef>engine/pipeline/EnginePipeline.java</FileRef>
-- Step `execute` methods in <FileRef>engine/steps/*.java</FileRef>
-- <MethodRef>DbAuditService.audit</MethodRef> in <FileRef>audit/DbAuditService.java</FileRef>
+<DbTable
+  title="Per-turn table access"
+  columns={["Table", "Read Path", "Write Path"]}
+  rows={[
+    ["ce_conversation", "LoadOrCreateConversationStep", "PersistConversationStep / reset steps"],
+    ["ce_intent", "IntentResolutionStep", "-"],
+    ["ce_intent_classifier", "IntentResolutionStep", "-"],
+    ["ce_output_schema", "SchemaExtractionStep", "-"],
+    ["ce_prompt_template", "SchemaExtractionStep / ResponseResolutionStep", "-"],
+    ["ce_rule", "RulesStep", "-"],
+    ["ce_response", "ResponseResolutionStep", "-"],
+    ["ce_config", "intent/reset/mcp/sql-agent config lookup", "-"],
+    ["ce_audit", "-", "all stage audits via DbAuditService"],
+  ]}
+/>
 
-</details>
-
-<Highlight type="info" title="Tip for consumers">
-Attach <MethodRef>EngineStepHook</MethodRef> to inspect session mutations before and after each critical step.
+<Highlight type="info" title="How to read this page">
+Start at `IntentResolutionStep`, then click `SchemaExtractionStep` and `RulesStep` in the tree. That path explains most multi-turn behavior differences.
 </Highlight>

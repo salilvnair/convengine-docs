@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
+import useBaseUrl from '@docusaurus/useBaseUrl';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
 import styles from './index.module.css';
@@ -40,25 +41,35 @@ const sections = [
 
 function HomepageHeader() {
   const { siteConfig } = useDocusaurusContext();
+  const logoDarkUrl = useBaseUrl('/img/logo.png');
+  const logoLightUrl = useBaseUrl('/img/logo_light.png');
 
   return (
-    <header className={clsx('hero', styles.heroBanner)}>
-      <div className="container">
-        <div className={styles.eyebrow}>ConvEngine Documentation</div>
-        <Heading as="h1" className={styles.heroTitle}>
-          {siteConfig.title}
-        </Heading>
-        <p className={styles.heroSubtitle}>
-          Deterministic conversation runtime for enterprise workflows.
-          Database-first behavior, auditable execution, and controlled LLM integration.
-        </p>
-        <div className={styles.heroActions}>
-          <Link className="button button--primary button--lg" to="/docs/overview">
-            Start Reading
-          </Link>
-          <Link className="button button--secondary button--lg" to="/docs/deep-dive">
-            Open Deep Dive
-          </Link>
+    <header
+      className={clsx('hero', styles.heroBanner)}
+      style={{
+        '--ce-hero-logo-light': `url("${logoLightUrl}")`,
+        '--ce-hero-logo-dark': `url("${logoDarkUrl}")`,
+      }}
+    >
+      <div className={clsx('container', styles.heroContainer)}>
+        <div className={styles.heroContent}>
+          <div className={styles.eyebrow}>ConvEngine Documentation</div>
+          <Heading as="h1" className={styles.heroTitle}>
+            {siteConfig.title}
+          </Heading>
+          <p className={styles.heroSubtitle}>
+            Deterministic conversation runtime for enterprise workflows.
+            Database-first behavior, auditable execution, and controlled LLM integration.
+          </p>
+          <div className={styles.heroActions}>
+            <Link className="button button--primary button--lg" to="/docs/overview">
+              Start Reading
+            </Link>
+            <Link className="button button--secondary button--lg" to="/docs/deep-dive">
+              Open Deep Dive
+            </Link>
+          </div>
         </div>
       </div>
     </header>
@@ -89,30 +100,6 @@ function SectionGrid() {
   );
 }
 
-function ValueSection() {
-  return (
-    <section className={styles.valueWrap}>
-      <div className="container">
-        <div className={styles.valueGrid}>
-          <div>
-            <Heading as="h2">Why this docs rewrite</Heading>
-            <p>
-              This documentation is aligned to the latest runtime code: step hooks,
-              reset semantics, intent lock behavior, and audit trace contracts.
-            </p>
-          </div>
-          <ul className={styles.valueList}>
-            <li>Current API DTOs and endpoint contracts</li>
-            <li>Current pipeline sequence and annotation constraints</li>
-            <li>Current rule/action/output type values</li>
-            <li>Current extension points for consumers</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export default function Home() {
   const { siteConfig } = useDocusaurusContext();
 
@@ -124,7 +111,6 @@ export default function Home() {
       <HomepageHeader />
       <main>
         <SectionGrid />
-        <ValueSection />
       </main>
     </Layout>
   );

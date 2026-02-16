@@ -1,0 +1,486 @@
+---
+title: Real-world Examples (Debug Trace)
+sidebar_position: 3
+hide_table_of_contents: true
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { EngineDebugFlow, CodeBlockToggle, Highlight, DbTable, FileRef, MethodRef, Conversation, User, Assistant } from "@site/src/components/convengine";
+
+export const faqNodes = [
+  { id: "faq_api", position: { x: 20, y: 50 }, data: { label: "ConversationController.message" } },
+  { id: "faq_engine", position: { x: 280, y: 50 }, data: { label: "DefaultConversationalEngine.process" } },
+  { id: "faq_pipeline", position: { x: 540, y: 50 }, data: { label: "EnginePipeline.execute" } },
+  { id: "faq_intent", position: { x: 20, y: 220 }, data: { label: "IntentResolutionStep" } },
+  { id: "faq_rules", position: { x: 280, y: 220 }, data: { label: "RulesStep" } },
+  { id: "faq_response", position: { x: 540, y: 220 }, data: { label: "ResponseResolutionStep" } },
+  { id: "faq_persist", position: { x: 800, y: 220 }, data: { label: "PersistConversationStep" } },
+];
+
+export const faqEdges = [
+  { id: "faq_e1", source: "faq_api", target: "faq_engine" },
+  { id: "faq_e2", source: "faq_engine", target: "faq_pipeline" },
+  { id: "faq_e3", source: "faq_pipeline", target: "faq_intent" },
+  { id: "faq_e4", source: "faq_intent", target: "faq_rules" },
+  { id: "faq_e5", source: "faq_rules", target: "faq_response" },
+  { id: "faq_e6", source: "faq_response", target: "faq_persist" },
+];
+
+export const faqDetails = {
+  faq_api: { title: "API entry", file: "api/controller/ConversationController.java", method: "message(...)", stage: "HTTP_ENTRY", summary: "Builds EngineContext and calls engine.process.", session: ["userText set", "inputParams normalized"], tables: ["none"] },
+  faq_engine: { title: "Engine entry", file: "engine/provider/DefaultConversationalEngine.java", method: "process(...)", stage: "ENGINE_ENTRY", summary: "Opens session and executes pipeline.", session: ["session hydrated"], tables: ["ce_conversation (R)"] },
+  faq_pipeline: { title: "Step loop", file: "engine/pipeline/EnginePipeline.java", method: "execute(...)", stage: "STEP_ENTER/STEP_EXIT", summary: "Runs all steps in DAG order.", session: ["timing + audits emitted"], tables: ["ce_audit (W)"] },
+  faq_intent: { title: "Intent resolve", file: "engine/steps/IntentResolutionStep.java", method: "execute(...)", stage: "INTENT_RESOLVED", summary: "Classifier picks FAQ.", session: ["intent=FAQ"], tables: ["ce_intent_classifier (R)", "ce_intent (R)"] },
+  faq_rules: { title: "Rules pass", file: "engine/steps/RulesStep.java", method: "execute(...)", stage: "RULE_NO_MATCH", summary: "No matching action.", session: ["state unchanged"], tables: ["ce_rule (R)"] },
+  faq_response: { title: "Response resolve", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...)", stage: "ASSISTANT_OUTPUT", summary: "Returns EXACT response.", session: ["payload type TEXT"], tables: ["ce_response (R)"] },
+  faq_persist: { title: "Persist", file: "engine/steps/PersistConversationStep.java", method: "execute(...)", stage: "CONVERSATION_PERSIST", summary: "Writes latest state/result.", session: ["conversation synced"], tables: ["ce_conversation (W)"] },
+};
+
+export const disconnectNodes = [
+  { id: "d_intent", position: { x: 20, y: 60 }, data: { label: "IntentResolutionStep" } },
+  { id: "d_schema", position: { x: 280, y: 60 }, data: { label: "SchemaExtractionStep" } },
+  { id: "d_lock", position: { x: 540, y: 60 }, data: { label: "Intent lock (incomplete schema)" } },
+  { id: "d_ask", position: { x: 800, y: 60 }, data: { label: "Follow-up response" } },
+  { id: "d_turn2", position: { x: 20, y: 220 }, data: { label: "Next turn resume" } },
+  { id: "d_merge", position: { x: 280, y: 220 }, data: { label: "Context merge + complete" } },
+  { id: "d_rules", position: { x: 540, y: 220 }, data: { label: "RulesStep (SET_STATE/SET_TASK)" } },
+  { id: "d_done", position: { x: 800, y: 220 }, data: { label: "Final response + persist" } },
+];
+
+export const disconnectEdges = [
+  { id: "d1", source: "d_intent", target: "d_schema" },
+  { id: "d2", source: "d_schema", target: "d_lock" },
+  { id: "d3", source: "d_lock", target: "d_ask" },
+  { id: "d4", source: "d_ask", target: "d_turn2" },
+  { id: "d5", source: "d_turn2", target: "d_merge" },
+  { id: "d6", source: "d_merge", target: "d_rules" },
+  { id: "d7", source: "d_rules", target: "d_done" },
+];
+
+export const disconnectDetails = {
+  d_intent: { title: "Intent", file: "engine/steps/IntentResolutionStep.java", method: "execute(...)", stage: "INTENT_RESOLVED", summary: "Resolves DISCONNECT_ELECTRICITY.", session: ["intent fixed for flow"], tables: ["ce_intent (R)"] },
+  d_schema: { title: "Extract schema", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...)", stage: "SCHEMA_EVALUATED", summary: "Gets accountId, missing required fields remain.", session: ["contextJson partial", "missing fields tracked"], tables: ["ce_output_schema (R)", "ce_prompt_template (R)"] },
+  d_lock: { title: "Lock", file: "engine/steps/SchemaExtractionStep.java", method: "lockIntentWhenIncomplete(...)", stage: "SCHEMA_INCOMPLETE", summary: "Prevents reclassification next turn.", session: ["intent locked"], tables: ["ce_audit (W)"] },
+  d_ask: { title: "Follow-up", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...)", stage: "ASSISTANT_OUTPUT", summary: "Asks user only missing fields.", session: ["followups prepared"], tables: ["ce_response (R)"] },
+  d_turn2: { title: "Resume", file: "engine/steps/LoadOrCreateConversationStep.java", method: "execute(...)", stage: "SESSION_REHYDRATE", summary: "Loads same conversationId state.", session: ["prior context loaded"], tables: ["ce_conversation (R)"] },
+  d_merge: { title: "Complete", file: "engine/steps/SchemaExtractionStep.java", method: "mergeExtractedWithContext(...)", stage: "SCHEMA_COMPLETE", summary: "Merges new values and unlocks intent.", session: ["contextJson complete"], tables: ["ce_output_schema (R)"] },
+  d_rules: { title: "Actions", file: "engine/steps/RulesStep.java", method: "execute(...)", stage: "RULE_MATCHED", summary: "Moves state and task.", session: ["state updated", "task set"], tables: ["ce_rule (R)"] },
+  d_done: { title: "Done", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...)", stage: "ASSISTANT_OUTPUT", summary: "Final confirmation.", session: ["payload final"], tables: ["ce_response (R)", "ce_conversation (W)"] },
+};
+
+export const logNodes = [
+  { id: "l_api", position: { x: 20, y: 60 }, data: { label: "API entry" } },
+  { id: "l_intent", position: { x: 280, y: 60 }, data: { label: "IntentResolutionStep" } },
+  { id: "l_schema", position: { x: 540, y: 60 }, data: { label: "SchemaExtractionStep" } },
+  { id: "l_rules", position: { x: 800, y: 60 }, data: { label: "RulesStep (GET_SCHEMA_JSON)" } },
+  { id: "l_resp", position: { x: 280, y: 220 }, data: { label: "ResponseResolutionStep (DERIVED)" } },
+  { id: "l_persist", position: { x: 540, y: 220 }, data: { label: "PersistConversationStep" } },
+];
+
+export const logEdges = [
+  { id: "l1", source: "l_api", target: "l_intent" },
+  { id: "l2", source: "l_intent", target: "l_schema" },
+  { id: "l3", source: "l_schema", target: "l_rules" },
+  { id: "l4", source: "l_rules", target: "l_resp" },
+  { id: "l5", source: "l_resp", target: "l_persist" },
+];
+
+export const logDetails = {
+  l_api: { title: "API", file: "api/controller/ConversationController.java", method: "message(...)", stage: "HTTP_ENTRY", summary: "Start turn.", session: ["incoming log text"], tables: ["none"] },
+  l_intent: { title: "Intent", file: "engine/steps/IntentResolutionStep.java", method: "execute(...)", stage: "INTENT_RESOLVED", summary: "LOG_ANALYSIS selected.", session: ["intent=LOG_ANALYSIS"], tables: ["ce_intent (R)"] },
+  l_schema: { title: "Structured extraction", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...)", stage: "SCHEMA_EVALUATED", summary: "Extracts errorCode/component/severity from text.", session: ["schemaJson built"], tables: ["ce_output_schema (R)"] },
+  l_rules: { title: "Schema-aware rule", file: "engine/steps/RulesStep.java", method: "execute(...)", stage: "RULE_MATCHED", summary: "Reads extracted schema via GET_SCHEMA_JSON.", session: ["state maybe ESCALATE"], tables: ["ce_rule (R)"] },
+  l_resp: { title: "Derived answer", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...)", stage: "ASSISTANT_OUTPUT", summary: "Prompt template creates root-cause summary.", session: ["derived payload"], tables: ["ce_response (R)", "ce_prompt_template (R)"] },
+  l_persist: { title: "Persist", file: "engine/steps/PersistConversationStep.java", method: "execute(...)", stage: "CONVERSATION_PERSIST", summary: "Stores turn output.", session: ["state saved"], tables: ["ce_conversation (W)"] },
+};
+
+export const trackerNodes = [
+  { id: "t_api", position: { x: 20, y: 60 }, data: { label: "API entry" } },
+  { id: "t_intent", position: { x: 260, y: 60 }, data: { label: "IntentResolutionStep" } },
+  { id: "t_rules", position: { x: 500, y: 60 }, data: { label: "RulesStep (SET_TASK)" } },
+  { id: "t_task", position: { x: 740, y: 60 }, data: { label: "Consumer service call" } },
+  { id: "t_resp", position: { x: 260, y: 220 }, data: { label: "ResponseResolutionStep" } },
+  { id: "t_done", position: { x: 500, y: 220 }, data: { label: "Persist + output" } },
+];
+
+export const trackerEdges = [
+  { id: "t1", source: "t_api", target: "t_intent" },
+  { id: "t2", source: "t_intent", target: "t_rules" },
+  { id: "t3", source: "t_rules", target: "t_task" },
+  { id: "t4", source: "t_task", target: "t_resp" },
+  { id: "t5", source: "t_resp", target: "t_done" },
+];
+
+export const trackerDetails = {
+  t_api: { title: "API", file: "api/controller/ConversationController.java", method: "message(...)", stage: "HTTP_ENTRY", summary: "Request starts.", session: ["request id detected"], tables: ["none"] },
+  t_intent: { title: "Intent", file: "engine/steps/IntentResolutionStep.java", method: "execute(...)", stage: "INTENT_RESOLVED", summary: "REQUEST_TRACKER resolved.", session: ["intent set"], tables: ["ce_intent (R)"] },
+  t_rules: { title: "Task assignment", file: "engine/steps/RulesStep.java", method: "execute(...)", stage: "RULE_MATCHED", summary: "SET_TASK marks downstream work.", session: ["task=TRACK_REQUEST_STATUS"], tables: ["ce_rule (R)"] },
+  t_task: { title: "Consumer callback", file: "consumer hook/service", method: "afterStep(...) or service call", stage: "TASK_EXECUTION", summary: "Consumer fetches tracker state from own system and injects context.", session: ["context.status/context.lastUpdated set"], tables: ["consumer DB/API"] },
+  t_resp: { title: "Final response", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...)", stage: "ASSISTANT_OUTPUT", summary: "Builds tracker response from context.", session: ["payload text/json"], tables: ["ce_response (R)"] },
+  t_done: { title: "Persist", file: "engine/steps/PersistConversationStep.java", method: "execute(...)", stage: "CONVERSATION_PERSIST", summary: "Persists turn.", session: ["conversation updated"], tables: ["ce_conversation (W)"] },
+};
+
+export const resetNodes = [
+  { id: "r_api", position: { x: 20, y: 60 }, data: { label: "API entry" } },
+  { id: "r_load", position: { x: 260, y: 60 }, data: { label: "LoadOrCreateConversationStep" } },
+  { id: "r_reset", position: { x: 500, y: 60 }, data: { label: "ResetConversationStep" } },
+  { id: "r_audit", position: { x: 740, y: 60 }, data: { label: "CONVERSATION_RESET audit" } },
+  { id: "r_resp", position: { x: 260, y: 220 }, data: { label: "ResponseResolutionStep" } },
+  { id: "r_done", position: { x: 500, y: 220 }, data: { label: "PersistConversationStep" } },
+];
+
+export const resetEdges = [
+  { id: "r1", source: "r_api", target: "r_load" },
+  { id: "r2", source: "r_load", target: "r_reset" },
+  { id: "r3", source: "r_reset", target: "r_audit" },
+  { id: "r4", source: "r_audit", target: "r_resp" },
+  { id: "r5", source: "r_resp", target: "r_done" },
+];
+
+export const resetDetails = {
+  r_api: { title: "API", file: "api/controller/ConversationController.java", method: "message(...)", stage: "HTTP_ENTRY", summary: "Receives reset command.", session: ["message contains reset token"], tables: ["none"] },
+  r_load: { title: "Load", file: "engine/steps/LoadOrCreateConversationStep.java", method: "execute(...)", stage: "SESSION_REHYDRATE", summary: "Loads existing session state.", session: ["existing intent/state/context loaded"], tables: ["ce_conversation (R)"] },
+  r_reset: { title: "Reset", file: "engine/steps/ResetConversationStep.java", method: "execute(...)", stage: "CONVERSATION_RESET", summary: "Clears intent/state/context by configured reset command.", session: ["intent/state/context wiped"], tables: ["ce_config (R)", "ce_conversation (W)"] },
+  r_audit: { title: "Audit", file: "audit/DbAuditService.java", method: "audit(...)", stage: "CONVERSATION_RESET", summary: "Writes reset trace.", session: ["meta includes conversationId"], tables: ["ce_audit (W)"] },
+  r_resp: { title: "Reset response", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...)", stage: "ASSISTANT_OUTPUT", summary: "Returns fresh-start message.", session: ["final payload"], tables: ["ce_response (R)"] },
+  r_done: { title: "Persist", file: "engine/steps/PersistConversationStep.java", method: "execute(...)", stage: "CONVERSATION_PERSIST", summary: "Saves empty baseline state.", session: ["new baseline saved"], tables: ["ce_conversation (W)"] },
+};
+
+# Real-world Examples (Debug Trace)
+
+## Canonical Runtime Step Set
+
+<div className="ce-step-badge-list" role="list" aria-label="Canonical runtime step set">
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">1</span><span className="ce-step-badge-label">LoadOrCreateConversationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">2</span><span className="ce-step-badge-label">ResetConversationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">3</span><span className="ce-step-badge-label">PersistConversationBootstrapStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">4</span><span className="ce-step-badge-label">AuditUserInputStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">5</span><span className="ce-step-badge-label">PolicyEnforcementStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">6</span><span className="ce-step-badge-label">IntentResolutionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">7</span><span className="ce-step-badge-label">ResetResolvedIntentStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">8</span><span className="ce-step-badge-label">FallbackIntentStateStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">9</span><span className="ce-step-badge-label">AddContainerDataStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">10</span><span className="ce-step-badge-label">McpToolStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">11</span><span className="ce-step-badge-label">SchemaExtractionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">12</span><span className="ce-step-badge-label">AutoAdvanceStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">13</span><span className="ce-step-badge-label">RulesStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">14</span><span className="ce-step-badge-label">ResponseResolutionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">15</span><span className="ce-step-badge-label">PersistConversationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">16</span><span className="ce-step-badge-label">PipelineEndGuardStep</span></div>
+</div>
+
+These examples zoom into relevant branches; conditional/system steps from the canonical set are omitted in each graph unless they materially affect that scenario.
+
+Each example has three tabs:
+- `Conversation`: chat + execution flow
+- `DML Entries`: starter rows for `ce_intent`, `ce_prompt_template`, `ce_output_schema`, `ce_response`
+- `Audit Trail`: stage-by-stage `ce_audit` view
+
+## Example 1: FAQ
+
+<Tabs groupId="ex-faq-tabs">
+  <TabItem value="conversation" label="Conversation" default>
+
+<Conversation title="FAQ">
+  <User>Can I move my connection within Zapper?</User>
+  <Assistant>Yes, you can request relocation from the support portal.</Assistant>
+</Conversation>
+
+<EngineDebugFlow title="FAQ flow" subtitle="Classifier-first deterministic path" nodes={faqNodes} edges={faqEdges} detailsById={faqDetails} defaultSelectedId="faq_intent" />
+
+  </TabItem>
+  <TabItem value="dml" label="DML Entries">
+
+<CodeBlockToggle title="FAQ scenario DML" language="sql">
+{`insert into ce_intent(intent_code, enabled) values ('FAQ', true);
+insert into ce_prompt_template(intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+values ('FAQ', null, 'TEXT', 'You are a support assistant.', 'Answer FAQ clearly in one paragraph from user text: {{user_input}}', true);
+insert into ce_output_schema(intent_code, state_code, schema_json, enabled)
+values ('FAQ', null, '{"type":"object","properties":{"question":{"type":"string"}}}', true);
+insert into ce_response(intent_code, state_code, response_type, output_format, exact_text, enabled)
+values ('FAQ', 'IDLE', 'EXACT', 'TEXT', 'Yes, you can request relocation from the support portal.', true);`}
+</CodeBlockToggle>
+
+<DbTable
+  title="FAQ config rows preview"
+  columns={["Table", "Key values"]}
+  rows={[
+    ["ce_intent", "intent_code=FAQ"],
+    ["ce_prompt_template", "intent_code=FAQ, state_code=null, response_type=TEXT"],
+    ["ce_output_schema", "intent_code=FAQ"],
+    ["ce_response", "response_type=EXACT, output_format=TEXT"],
+  ]}
+/>
+
+  </TabItem>
+  <TabItem value="audit" label="Audit Trail">
+
+<DbTable
+  title="FAQ ce_audit trail"
+  columns={["Stage", "What happened"]}
+  rows={[
+    ["USER_INPUT", "Incoming user message stored"],
+    ["STEP_ENTER (IntentResolutionStep)", "Intent step starts"],
+    ["INTENT_RESOLVED", "Classifier matched FAQ"],
+    ["RULE_NO_MATCH", "No rule action"],
+    ["ASSISTANT_OUTPUT", "Exact FAQ response selected"],
+    ["STEP_EXIT (PersistConversationStep)", "Conversation persisted"],
+  ]}
+/>
+
+<CodeBlockToggle title="FAQ audit payload sample" language="json">
+{`{
+  "_meta": {
+    "stage": "ASSISTANT_OUTPUT",
+    "conversationId": "conv-faq-001",
+    "intent": "FAQ",
+    "state": "IDLE"
+  },
+  "responseType": "EXACT",
+  "outputFormat": "TEXT"
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## Example 2: DISCONNECT_ELECTRICITY
+
+<Tabs groupId="ex-disconnect-tabs">
+  <TabItem value="conversation" label="Conversation" default>
+
+<Conversation title="DISCONNECT_ELECTRICITY">
+  <User>Disconnect electricity for account 10004567.</User>
+  <Assistant>Please share disconnect date and reason.</Assistant>
+  <User>Date is 2026-03-31, reason moving out.</User>
+  <Assistant>Done, request submitted.</Assistant>
+</Conversation>
+
+<EngineDebugFlow title="Disconnect flow" subtitle="Multi-turn schema completion and intent lock/unlock" nodes={disconnectNodes} edges={disconnectEdges} detailsById={disconnectDetails} defaultSelectedId="d_schema" />
+
+  </TabItem>
+  <TabItem value="dml" label="DML Entries">
+
+<CodeBlockToggle title="DISCONNECT_ELECTRICITY scenario DML" language="sql">
+{`insert into ce_intent(intent_code, enabled) values ('DISCONNECT_ELECTRICITY', true);
+insert into ce_prompt_template(intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED', 'TEXT', 'Collect missing disconnect fields.', 'If required fields are missing, ask only for missing values. User: {{user_input}}', true);
+insert into ce_output_schema(intent_code, state_code, schema_json, enabled)
+values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED',
+        '{"type":"object","properties":{"accountId":{"type":"string"},"disconnectDate":{"type":"string"},"reason":{"type":"string"}},"required":["accountId","disconnectDate","reason"]}',
+        true);
+insert into ce_response(intent_code, state_code, response_type, output_format, exact_text, enabled)
+values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED', 'DERIVED', 'TEXT', null, true);`}
+</CodeBlockToggle>
+
+<DbTable
+  title="DISCONNECT_ELECTRICITY config rows preview"
+  columns={["Table", "Key values"]}
+  rows={[
+    ["ce_intent", "intent_code=DISCONNECT_ELECTRICITY"],
+    ["ce_prompt_template", "intent_code=DISCONNECT_ELECTRICITY, state_code=COLLECT_REQUIRED"],
+    ["ce_output_schema", "required=accountId,disconnectDate,reason"],
+    ["ce_response", "response_type=DERIVED"],
+  ]}
+/>
+
+  </TabItem>
+  <TabItem value="audit" label="Audit Trail">
+
+<DbTable
+  title="DISCONNECT_ELECTRICITY ce_audit trail"
+  columns={["Stage", "What happened"]}
+  rows={[
+    ["INTENT_RESOLVED", "Intent set to DISCONNECT_ELECTRICITY"],
+    ["SCHEMA_EVALUATED", "accountId extracted, fields missing"],
+    ["SCHEMA_INCOMPLETE", "Intent lock enabled"],
+    ["ASSISTANT_OUTPUT", "Follow-up question asked"],
+    ["SCHEMA_COMPLETE", "All required fields merged"],
+    ["RULE_MATCHED", "SET_STATE/SET_TASK applied"],
+    ["ASSISTANT_OUTPUT", "Final confirmation response"],
+  ]}
+/>
+
+<CodeBlockToggle title="Schema incomplete audit payload sample" language="json">
+{`{
+  "_meta": {
+    "stage": "SCHEMA_INCOMPLETE",
+    "conversationId": "conv-disconnect-001",
+    "intent": "DISCONNECT_ELECTRICITY"
+  },
+  "missingFields": ["disconnectDate", "reason"],
+  "locked": true
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## Example 3: LOG_ANALYSIS
+
+<Tabs groupId="ex-log-tabs">
+  <TabItem value="conversation" label="Conversation" default>
+
+<Conversation title="LOG_ANALYSIS">
+  <User>Analyze this stack trace and tell root cause.</User>
+  <Assistant>Likely connection pool exhaustion; tune pool and reduce long transactions.</Assistant>
+</Conversation>
+
+<EngineDebugFlow title="Log analysis flow" subtitle="Schema extraction + GET_SCHEMA_JSON rule + derived response" nodes={logNodes} edges={logEdges} detailsById={logDetails} defaultSelectedId="l_schema" />
+
+  </TabItem>
+  <TabItem value="dml" label="DML Entries">
+
+<CodeBlockToggle title="LOG_ANALYSIS scenario DML" language="sql">
+{`insert into ce_intent(intent_code, enabled) values ('LOG_ANALYSIS', true);
+insert into ce_prompt_template(intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+values ('LOG_ANALYSIS', 'ANALYZE', 'TEXT', 'Generate root-cause analysis from extracted fields.', 'Use extracted severity/component/errorCode and explain cause + fix in bullets.', true);
+insert into ce_output_schema(intent_code, state_code, schema_json, enabled)
+values ('LOG_ANALYSIS', 'ANALYZE',
+        '{"type":"object","properties":{"errorCode":{"type":"string"},"component":{"type":"string"},"severity":{"type":"string"}}}',
+        true);
+insert into ce_response(intent_code, state_code, response_type, output_format, exact_text, enabled)
+values ('LOG_ANALYSIS', 'ANALYZE', 'DERIVED', 'TEXT', null, true);`}
+</CodeBlockToggle>
+
+<DbTable
+  title="LOG_ANALYSIS config rows preview"
+  columns={["Table", "Key values"]}
+  rows={[
+    ["ce_intent", "intent_code=LOG_ANALYSIS"],
+    ["ce_prompt_template", "intent_code=LOG_ANALYSIS, state_code=ANALYZE"],
+    ["ce_output_schema", "properties=errorCode,component,severity"],
+    ["ce_response", "response_type=DERIVED"],
+  ]}
+/>
+
+  </TabItem>
+  <TabItem value="audit" label="Audit Trail">
+
+<DbTable
+  title="LOG_ANALYSIS ce_audit trail"
+  columns={["Stage", "What happened"]}
+  rows={[
+    ["INTENT_RESOLVED", "Intent set to LOG_ANALYSIS"],
+    ["SCHEMA_EVALUATED", "errorCode/component/severity extracted"],
+    ["RULE_MATCHED", "GET_SCHEMA_JSON branch triggered"],
+    ["ASSISTANT_OUTPUT", "Derived explanation generated"],
+    ["CONVERSATION_PERSIST", "Final payload persisted"],
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+
+## Example 4: REQUEST_TRACKER
+
+<Tabs groupId="ex-tracker-tabs">
+  <TabItem value="conversation" label="Conversation" default>
+
+<Conversation title="REQUEST_TRACKER">
+  <User>Track request REQ-99123</User>
+  <Assistant>REQ-99123 is APPROVAL_PENDING since 2026-02-10.</Assistant>
+</Conversation>
+
+<EngineDebugFlow title="Tracker flow" subtitle="SET_TASK driven consumer integration path" nodes={trackerNodes} edges={trackerEdges} detailsById={trackerDetails} defaultSelectedId="t_rules" />
+
+  </TabItem>
+  <TabItem value="dml" label="DML Entries">
+
+<CodeBlockToggle title="REQUEST_TRACKER scenario DML" language="sql">
+{`insert into ce_intent(intent_code, enabled) values ('REQUEST_TRACKER', true);
+insert into ce_prompt_template(intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+values ('REQUEST_TRACKER', 'LOOKUP', 'TEXT', 'Render request tracker status from context.', 'Respond with requestId, status and lastUpdated.', true);
+insert into ce_output_schema(intent_code, state_code, schema_json, enabled)
+values ('REQUEST_TRACKER', 'LOOKUP', '{"type":"object","properties":{"requestId":{"type":"string"}}}', true);
+insert into ce_response(intent_code, state_code, response_type, output_format, exact_text, enabled)
+values ('REQUEST_TRACKER', 'LOOKUP', 'DERIVED', 'TEXT', null, true);`}
+</CodeBlockToggle>
+
+<DbTable
+  title="REQUEST_TRACKER config rows preview"
+  columns={["Table", "Key values"]}
+  rows={[
+    ["ce_intent", "intent_code=REQUEST_TRACKER"],
+    ["ce_prompt_template", "intent_code=REQUEST_TRACKER, state_code=LOOKUP"],
+    ["ce_output_schema", "property=requestId"],
+    ["ce_response", "response_type=DERIVED"],
+  ]}
+/>
+
+  </TabItem>
+  <TabItem value="audit" label="Audit Trail">
+
+<DbTable
+  title="REQUEST_TRACKER ce_audit trail"
+  columns={["Stage", "What happened"]}
+  rows={[
+    ["INTENT_RESOLVED", "Intent set to REQUEST_TRACKER"],
+    ["RULE_MATCHED", "SET_TASK=TRACK_REQUEST_STATUS"],
+    ["TASK_EXECUTION", "Consumer service injected context"],
+    ["ASSISTANT_OUTPUT", "Tracker response built"],
+    ["CONVERSATION_PERSIST", "Payload and state persisted"],
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+
+## Example 5: RESET_SESSION
+
+<Tabs groupId="ex-reset-tabs">
+  <TabItem value="conversation" label="Conversation" default>
+
+<Conversation title="RESET_SESSION">
+  <User>RESET_SESSION</User>
+  <Assistant>Session reset complete. Starting fresh.</Assistant>
+</Conversation>
+
+<EngineDebugFlow title="Reset flow" subtitle="Config-driven reset command through ResetConversationStep" nodes={resetNodes} edges={resetEdges} detailsById={resetDetails} defaultSelectedId="r_reset" />
+
+  </TabItem>
+  <TabItem value="dml" label="DML Entries">
+
+<CodeBlockToggle title="RESET_SESSION scenario DML" language="sql">
+{`insert into ce_intent(intent_code, enabled) values ('RESET_SESSION', true);
+insert into ce_prompt_template(intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+values ('RESET_SESSION', 'IDLE', 'TEXT', 'Confirm reset and ask next request.', 'User issued reset. Confirm reset and ask how to help next.', true);
+insert into ce_output_schema(intent_code, state_code, schema_json, enabled)
+values ('RESET_SESSION', 'IDLE', '{"type":"object","properties":{}}', true);
+insert into ce_response(intent_code, state_code, response_type, output_format, exact_text, enabled)
+values ('RESET_SESSION', 'IDLE', 'EXACT', 'TEXT', 'Session reset complete. Starting fresh.', true);`}
+</CodeBlockToggle>
+
+<DbTable
+  title="RESET_SESSION config rows preview"
+  columns={["Table", "Key values"]}
+  rows={[
+    ["ce_intent", "intent_code=RESET_SESSION"],
+    ["ce_prompt_template", "intent_code=RESET_SESSION, state_code=IDLE"],
+    ["ce_output_schema", "empty schema object"],
+    ["ce_response", "response_type=EXACT"],
+  ]}
+/>
+
+  </TabItem>
+  <TabItem value="audit" label="Audit Trail">
+
+<DbTable
+  title="RESET_SESSION ce_audit trail"
+  columns={["Stage", "What happened"]}
+  rows={[
+    ["SESSION_REHYDRATE", "Existing conversation loaded"],
+    ["CONVERSATION_RESET", "Intent/state/context wiped"],
+    ["STEP_EXIT (ResetConversationStep)", "Reset step completed"],
+    ["ASSISTANT_OUTPUT", "Reset confirmation emitted"],
+    ["CONVERSATION_PERSIST", "Baseline state saved"],
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+
+<Highlight type="tip" title="Intervention points">
+For extraction customization hook <MethodRef>EngineStep.Name.SchemaExtractionStep</MethodRef>. For final output normalization use <MethodRef>ResponseTransformer</MethodRef>.
+</Highlight>

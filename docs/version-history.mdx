@@ -1,0 +1,134 @@
+---
+title: Version History
+sidebar_position: 5
+---
+
+import { Highlight, DbTable, MethodRef } from "@site/src/components/convengine";
+
+# Version History
+
+<Highlight type="info" title="Important note on sequence">
+There is a non-linear period (`1.0.3 -> 1.0.2 -> 1.0.3`) visible in raw commit history, which typically happens during branch merges/backports.  
+Current published artifact in `pom.xml` is <MethodRef>1.0.8</MethodRef>.
+</Highlight>
+
+## Artifact Version Bumps (`pom.xml`)
+
+<DbTable
+  title="Version bump trail from Git"
+  columns={["Date", "Commit", "pom.xml change", "Headline"]}
+  rows={[
+    ["2026-01-04", "1ff9681", "-> 1.0.0", "Base code: core entities and interfaces"],
+    ["2026-01-16", "0f1ff98", "1.0.0 -> 2.0.0", "Large framework/entity expansion (transitional line)"],
+    ["2026-01-27", "7e778cc", "2.0.0 -> 1.0.0", "Packaging/publishing reset + metadata hardening"],
+    ["2026-01-28", "cb38cc8", "1.0.0 -> 1.0.1", "Release bump + core dependency refresh"],
+    ["2026-02-07", "e302374", "1.0.1 -> 1.0.3", "Intent/state handling upgrade"],
+    ["2026-02-08", "d8faa28", "1.0.3 -> 1.0.2", "JSON/session action resolver line (non-linear branch)"],
+    ["2026-02-12", "976c8f8", "1.0.2 -> 1.0.3", "Response/session improvements + container/schema refinements"],
+    ["2026-02-12", "48aae75", "1.0.3 -> 1.0.4", "RulesStep integration into intent flow + audit improvements"],
+    ["2026-02-12", "6f6033d", "1.0.4 -> 1.0.5", "inputParamsJson and better session continuity"],
+    ["2026-02-13", "05f9077", "1.0.5 -> 1.0.7", "Schema handling + agent resolver controls"],
+    ["2026-02-14", "a2daeec", "1.0.7 -> 1.0.8", "Audit listener model + SSE/STOMP transport + reset flow"],
+  ]}
+/>
+
+## Release Notes By Version
+
+### 1.0.8 (Current in `pom.xml`)
+
+Commits:
+- `a2daeec` core release bump and transport/audit foundation
+- `57a2faa` async audit dispatch + deferred flush controls (post-bump enhancements on same line)
+- `c5c665f` typed step API via <MethodRef>EngineStep.Name</MethodRef>
+- `0c2c557` rule action rename to <MethodRef>GET_SCHEMA_JSON</MethodRef>
+
+What changed in detail:
+- Added streaming transport stack:
+  - SSE and STOMP/WebSocket support
+  - consumer-configurable stream mode
+- Added audit event plumbing:
+  - `AuditEventListener` extension point
+  - stage broadcast path for streaming UIs
+- Added advanced audit controls:
+  - async dispatch workers
+  - queue/backpressure policy
+  - deferred bulk persistence + flush triggers
+- Strengthened step extension API:
+  - string-based step matching replaced by typed <MethodRef>EngineStep.Name</MethodRef>
+  - safer `EngineStepHook` contracts (`supports/beforeStep/afterStep/onStepError`)
+- Renamed schema action contract:
+  - `GET_SCHEMA_EXTRACTED_DATA` -> `GET_SCHEMA_JSON`
+  - aligned resolver/session access semantics
+
+### 1.0.7
+
+Commit: `05f9077`
+
+What changed:
+- Schema extraction and intent resolution refinements
+- additional agent resolver controls/flags
+- better handling of schema-aware intent decisions
+
+### 1.0.5
+
+Commit: `6f6033d`
+
+What changed:
+- Session continuity improvements with `inputParamsJson`
+- stronger propagation of input parameters across turns
+- better task action resolution in rules/action path
+
+### 1.0.4
+
+Commit: `48aae75`
+
+What changed:
+- Intent pipeline refactor to integrate <MethodRef>RulesStep</MethodRef> cleanly
+- improved rule-driven transition behavior
+- richer audit emission around intent/rule flow
+
+### 1.0.3 Line
+
+Commits: `e302374`, `976c8f8` (and non-linear branch point via `d8faa28`)
+
+What changed:
+- Intent/state handling updates
+- response transformation improvements
+- container data handling and schema path upgrades
+- new JSON/session action resolvers and structured auditing
+
+### 1.0.1 / 1.0.0 Foundation
+
+Commits: `cb38cc8`, `7e778cc`, `1ff9681`
+
+What changed:
+- Initial publish line and project metadata hardening
+- dependency/property cleanup in `pom.xml`
+- foundational entities/interfaces and deterministic engine baseline
+
+## Non-Versioned (But Significant) Commits
+
+<DbTable
+  title="Feature commits not tied to a new pom version"
+  columns={["Commit", "Area", "Why it matters"]}
+  rows={[
+    ["57a2faa", "Audit + streaming controls", "Introduced async audit dispatch controls and deferred flush behavior for production performance"],
+    ["c5c665f", "Step API typing", "Reduced runtime errors by replacing stringly-typed step names with EngineStep.Name enum"],
+    ["0c2c557", "Rule action semantics", "Standardized schema action contract to GET_SCHEMA_JSON across engine/actions/docs"],
+    ["7f4eb70", "Prompt/schema naming", "Aligned template/output naming (`SCHEMA_JSON`) and improved prompt-template retrieval by state"],
+  ]}
+/>
+
+## Current State Snapshot
+
+<DbTable
+  title="Current library status"
+  columns={["Signal", "Value"]}
+  rows={[
+    ["Artifact version (`pom.xml`)", "1.0.8"],
+    ["Engine extension style", "Typed step hooks via EngineStep.Name"],
+    ["Streaming", "REST + SSE + STOMP/WebSocket"],
+    ["Audit model", "Immediate or deferred bulk persistence with async dispatch options"],
+    ["Schema rule action", "GET_SCHEMA_JSON"],
+  ]}
+/>

@@ -1,0 +1,81 @@
+---
+title: Data Model
+sidebar_position: 4
+hide_table_of_contents: true
+---
+
+import { DbTable, CodeBlockToggle } from "@site/src/components/convengine";
+
+# Data Model
+
+ConvEngine is configuration-driven. Behavior is defined in the following tables.
+
+## Configuration Tables
+
+<DbTable
+  title="Core Tables"
+  columns={["Table", "Purpose", "Key Columns"]}
+  rows={[
+    ["ce_intent", "Defines business intents", "intent_code, description, enabled"],
+    ["ce_intent_classifier", "Regex patterns for intents", "match_pattern, priority"],
+    ["ce_rule", "Logic & State Transitions", "rule_type, action, match_pattern"],
+    ["ce_response", "Output mapping", "response_type, output_format, exact_text"],
+    ["ce_output_schema", "Data extraction definition", "json_schema, priority"],
+    ["ce_prompt_template", "LLM Prompts", "system_prompt, user_prompt"],
+  ]}
+/>
+
+## Runtime Tables
+
+<DbTable
+  title="Runtime Persistence"
+  columns={["Table", "Purpose"]}
+  rows={[
+    ["ce_conversation", "Current state of active conversations"],
+    ["ce_audit", "Append-only log of every step execution"],
+  ]}
+/>
+
+---
+
+# Session API
+
+When writing Java extensions (Interceptors, Transformers), you interact with `EngineSession`.
+
+<CodeBlockToggle
+  title="EngineSession.java (key methods)"
+  language="java"
+  packagePath="com.github.salilvnair.convengine.engine.session"
+  filePath="src/main/java/com/github/salilvnair/convengine/engine/session/EngineSession.java"
+>
+{`// State Management
+void setIntent(String intent);
+void setState(String state);
+
+// Context (The Memory)
+// Access the JSON context map
+Map<String, Object> contextDict();
+void putContext(String key, Object value);
+
+// Persisted Entity
+CeConversation getConversation();
+
+// Flow Control
+void setFinalResult(EngineResult result); // Stop pipeline immediately`}
+</CodeBlockToggle>
+
+## Common Operations
+
+### Setting a Task
+Used to signal the UI or downstream systems to perform client-side actions.
+
+<CodeBlockToggle title="Set task" language="java" packagePath="consumer logic">
+{`session.putContext("task", "OPEN_PAYMENT_MODAL");`}
+</CodeBlockToggle>
+
+### Getting Extracted Data
+Access data extracted by the Schema Extraction step.
+
+<CodeBlockToggle title="Read extracted value" language="java" packagePath="consumer logic">
+{`String accountId = (String) session.contextDict().get("accountId");`}
+</CodeBlockToggle>

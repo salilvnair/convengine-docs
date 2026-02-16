@@ -78,15 +78,15 @@ Common keys:
 <CodeBlockToggle title="ce_output_schema shape (DDL-style)" language="sql">
 {`-- Core columns (simplified)
 CREATE TABLE ce_output_schema (
-  schema_id BIGSERIAL PRIMARY KEY,
-  intent_code TEXT NOT NULL,
-  state_code TEXT NOT NULL,
-  schema_name TEXT,
-  schema_description TEXT,
-  json_schema JSONB NOT NULL,
-  enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    schema_id BIGSERIAL PRIMARY KEY,
+    intent_code TEXT NOT NULL,
+    state_code TEXT NOT NULL,
+    schema_name TEXT,
+    schema_description TEXT,
+    json_schema JSONB NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );`}
 </CodeBlockToggle>
 
@@ -121,16 +121,16 @@ VALUES
 
 <CodeBlockToggle title="ce_response shape (DDL-style)" language="sql">
 {`CREATE TABLE ce_response (
-  response_id BIGSERIAL PRIMARY KEY,
-  intent_code TEXT NOT NULL,
-  state_code TEXT NOT NULL,
-  response_type TEXT NOT NULL,  -- EXACT | DERIVED
-  output_format TEXT NOT NULL,  -- TEXT | JSON
-  response_text TEXT,
-  response_json JSONB,
-  enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    response_id BIGSERIAL PRIMARY KEY,
+    intent_code TEXT NOT NULL,
+    state_code TEXT NOT NULL,
+    response_type TEXT NOT NULL,  -- EXACT | DERIVED
+    output_format TEXT NOT NULL,  -- TEXT | JSON
+    response_text TEXT,
+    response_json JSONB,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );`}
 </CodeBlockToggle>
 
@@ -157,18 +157,18 @@ VALUES
 
 <CodeBlockToggle title="ce_rule shape (DDL-style)" language="sql">
 {`CREATE TABLE ce_rule (
-  rule_id BIGSERIAL PRIMARY KEY,
-  intent_code TEXT NOT NULL,
-  state_code TEXT NOT NULL,
-  stage TEXT NOT NULL,
-  rule_type TEXT NOT NULL,
-  condition_expr TEXT,
-  action TEXT NOT NULL,
-  action_payload JSONB,
-  priority INT NOT NULL DEFAULT 100,
-  enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    rule_id BIGSERIAL PRIMARY KEY,
+    intent_code TEXT NOT NULL,
+    state_code TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    rule_type TEXT NOT NULL,
+    condition_expr TEXT,
+    action TEXT NOT NULL,
+    action_payload JSONB,
+    priority INT NOT NULL DEFAULT 100,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );`}
 </CodeBlockToggle>
 
@@ -254,6 +254,9 @@ Engine now controls prompt variable exposure and blocks unsafe system-derived ke
 @EnableConvEngineStompBrokerRelay
 @SpringBootApplication
 public class MyApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(MyApplication.class, args);
+  }
 }`}
 </CodeBlockToggle>
 

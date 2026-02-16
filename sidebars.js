@@ -24,6 +24,7 @@ const sidebars = {
       label: 'API',
       items: [
         'api/rest-api',
+        'api/stream-api',
         'api/java-api',
         'api/audit-trace',
       ],
@@ -33,14 +34,18 @@ const sidebars = {
       label: 'Deep Dive',
       items: [
         'deep-dive/index',
+        'deep-dive/lifecycle',
+        'deep-dive/examples',
+        'deep-dive/data-model',
+        'deep-dive/developer-guide',
         'deep-dive/file-map',
-        'deep-dive/request-lifecycle',
         'deep-dive/pipeline-steps',
         'deep-dive/intent-and-schema',
         'deep-dive/rules-responses',
         'deep-dive/mcp-audit',
       ],
     },
+    'version-history',
   ],
 };
 

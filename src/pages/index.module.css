@@ -1,11 +1,51 @@
 .heroBanner {
+  --ce-hero-logo-light: none;
+  --ce-hero-logo-dark: none;
   background:
+    radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 10%, rgba(20, 184, 166, 0.14), transparent 22%),
+    linear-gradient(135deg, #f3f8ff 0%, #eaf3ff 42%, #e6f1ff 100%);
+  color: #0f172a;
+  padding: 5rem 0 4rem;
+  border-bottom: 1px solid rgba(29, 78, 216, 0.14);
+  position: relative;
+  overflow: hidden;
+}
+
+.heroBanner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--ce-hero-logo-light) right 5% center / min(34vw, 390px) auto no-repeat;
+  opacity: 0.85;
+  mix-blend-mode: normal;
+  pointer-events: none;
+  z-index: 0;
+}
+
+[data-theme='dark'] .heroBanner {
+  background:
+    var(--ce-hero-logo-dark) right 6% center / min(36vw, 420px) auto no-repeat,
     radial-gradient(circle at 10% 20%, rgba(54, 114, 255, 0.38), transparent 28%),
     radial-gradient(circle at 88% 10%, rgba(20, 190, 150, 0.34), transparent 22%),
     linear-gradient(135deg, #0a0f1f 0%, #15172b 42%, #102032 100%);
+  background-blend-mode: screen, normal, normal, normal;
   color: #e9eeff;
-  padding: 5rem 0 4rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .heroBanner::after {
+  content: none;
+}
+
+.heroContainer {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+.heroContent {
+  color: inherit;
 }
 
 .eyebrow {
@@ -112,6 +152,11 @@
 @media screen and (max-width: 996px) {
   .heroBanner {
     padding: 3.2rem 0 2.6rem;
+  }
+
+  .heroBanner::after {
+    background: var(--ce-hero-logo-light) right -16px top 18px / min(62vw, 270px) auto no-repeat;
+    opacity: 0.85;
   }
 
   .valueGrid {

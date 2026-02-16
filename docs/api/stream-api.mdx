@@ -1,0 +1,98 @@
+---
+title: Stream API (Socket)
+sidebar_position: 2
+---
+
+import { CodeBlockToggle, DbTable, Highlight, FileRef, MethodRef } from "@site/src/components/convengine";
+
+# Stream API (Socket)
+
+## Base transport endpoints
+
+<DbTable
+  title="Streaming endpoints"
+  columns={["Transport", "Endpoint / Destination", "Purpose"]}
+  rows={[
+    ["SSE", "GET /api/v1/conversation/stream/{conversationId}", "Server-sent live audit events for one conversation"],
+    ["STOMP WS", "WS handshake: /ws-convengine", "WebSocket endpoint for STOMP clients"],
+    ["STOMP topic", "/topic/convengine/audit/{conversationId}", "Conversation-scoped audit stream destination"],
+  ]}
+/>
+
+<Highlight type="info" title="Flow contract">
+Conversation turns are submitted through <MethodRef>POST /api/v1/conversation/message</MethodRef>.  
+Socket/SSE channels stream audit stages for that same <MethodRef>conversationId</MethodRef>.
+</Highlight>
+
+## SSE subscription
+
+<CodeBlockToggle title="SSE client (browser)" language="javascript">
+{`const conversationId = "9bf7540a-b129-4685-a120-730e8a0cb94b";
+const source = new EventSource(
+  "/api/v1/conversation/stream/" + conversationId
+);
+
+source.onmessage = (event) => {
+  // fallback event channel
+  console.log("SSE message:", event.data);
+};
+
+source.addEventListener("STEP_ENTER", (event) => {
+  console.log("STEP_ENTER:", JSON.parse(event.data));
+});
+
+source.addEventListener("ASSISTANT_OUTPUT", (event) => {
+  console.log("ASSISTANT_OUTPUT:", JSON.parse(event.data));
+});`}
+</CodeBlockToggle>
+
+## STOMP subscription
+
+<CodeBlockToggle title="STOMP client (JS)" language="javascript">
+{`// npm i @stomp/stompjs sockjs-client
+import { Client } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
+
+const conversationId = "9bf7540a-b129-4685-a120-730e8a0cb94b";
+const client = new Client({
+  webSocketFactory: () => new SockJS("/ws-convengine"),
+  reconnectDelay: 5000,
+  onConnect: () => {
+    client.subscribe(
+      "/topic/convengine/audit/" + conversationId,
+      (message) => console.log("STOMP audit:", JSON.parse(message.body))
+    );
+  },
+});
+
+client.activate();`}
+</CodeBlockToggle>
+
+## Socket audit payload contract
+
+<CodeBlockToggle title="SSE/STOMP audit event payload" language="json">
+{`{
+  "auditId": 12031,
+  "stage": "STEP_ENTER",
+  "createdAt": "2026-02-14T10:22:01.102Z",
+  "payload": {
+    "_meta": {
+      "stage": "STEP_ENTER",
+      "conversationId": "9bf7540a-b129-4685-a120-730e8a0cb94b",
+      "intent": "FAQ",
+      "state": "IDLE"
+    }
+  }
+}`}
+</CodeBlockToggle>
+
+## Socket + Audit API usage
+
+1. Call <FileRef>POST /api/v1/conversation/message</FileRef> with `conversationId`.
+2. Subscribe to SSE/STOMP for live stages.
+3. Query <FileRef>GET /api/v1/conversation/audit/{'{conversationId}'}</FileRef> for raw events.
+4. Query <FileRef>GET /api/v1/conversation/audit/{'{conversationId}'}/trace</FileRef> for normalized step timeline.
+
+<Highlight type="tip" title="Operational recommendation">
+Use REST endpoints for deterministic request/response behavior, and use streaming endpoints for observability UX.
+</Highlight>

@@ -1,0 +1,64 @@
+---
+title: Request Lifecycle
+sidebar_position: 2
+hide_table_of_contents: true
+---
+
+import { CodeBlockToggle, Highlight, FileRef, MethodRef, PipelineStepList } from "@site/src/components/convengine";
+
+# Request Lifecycle
+
+This page is the quick lifecycle view. For the full interactive debug tree, open <FileRef>/docs/deep-dive/request-lifecycle</FileRef>.
+
+## 1. API Entry Point
+
+The journey begins when a client sends a POST request to `/api/v1/conversation/message`.
+
+<CodeBlockToggle
+  title="ConversationController.message"
+  language="java"
+  packagePath="com.github.salilvnair.convengine.api.controller"
+  filePath="src/main/java/com/github/salilvnair/convengine/api/controller/ConversationController.java"
+>
+{`@PostMapping("/message")
+public ConversationResponse message(@RequestBody ConversationRequest request) {
+  EngineContext engineContext = EngineContext.builder()
+      .conversationId(request.getConversationId())
+      .userText(request.getMessage())
+      .inputParams(request.getInputParams())
+      .build();
+
+  EngineResult result = engine.process(engineContext);
+
+  return mapToResponse(result);
+}`}
+</CodeBlockToggle>
+
+## 2. Engine Processing
+
+<CodeBlockToggle
+  title="DefaultConversationalEngine.process"
+  language="java"
+  packagePath="com.github.salilvnair.convengine.engine.provider"
+  filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java"
+>
+{`@Override
+public EngineResult process(EngineContext engineContext) {
+  EngineSession session = sessionFactory.open(engineContext);
+  session.setConversationHistory(historyProvider.lastTurns(session.getConversationId(), 10));
+  EnginePipeline pipeline = pipelineFactory.create();
+  return pipeline.execute(session);
+}`}
+</CodeBlockToggle>
+
+## 3. The Pipeline (Step-by-Step)
+
+<PipelineStepList ariaLabel="Pipeline step-by-step" />
+
+<Highlight type="info" title="Core path vs conditional steps">
+`PolicyEnforcementStep`, `ResetResolvedIntentStep`, `FallbackIntentStateStep`, `AddContainerDataStep`, and `McpToolStep` are route-conditional and run only when config/session conditions match.
+</Highlight>
+
+<Highlight type="success" title="Audit Trail">
+Every step above emits an audit event. Use `/audit/{id}/trace` and then open <FileRef>/docs/deep-dive/request-lifecycle</FileRef> for the full interactive step tree and method-level trace.
+</Highlight>

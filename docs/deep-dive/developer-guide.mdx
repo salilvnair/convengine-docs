@@ -1,0 +1,511 @@
+---
+title: Developer Guide
+sidebar_position: 1
+hide_table_of_contents: true
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { EngineDebugFlow, CodeBlockToggle, Highlight, DbTable, FileRef, MethodRef } from "@site/src/components/convengine";
+
+export const extNodes = [
+  { id: "x1", position: { x: 20, y: 60 }, data: { label: "ConversationController.message" } },
+  { id: "x2", position: { x: 260, y: 60 }, data: { label: "ContainerDataInterceptor" } },
+  { id: "x3", position: { x: 500, y: 60 }, data: { label: "EngineSessionFactory.open" } },
+  { id: "x4", position: { x: 740, y: 60 }, data: { label: "EnginePipeline.execute" } },
+  { id: "x5", position: { x: 20, y: 230 }, data: { label: "EngineStepHook.beforeStep" } },
+  { id: "x6", position: { x: 260, y: 230 }, data: { label: "Step.execute" } },
+  { id: "x7", position: { x: 500, y: 230 }, data: { label: "EngineStepHook.afterStep/onStepError" } },
+  { id: "x8", position: { x: 740, y: 230 }, data: { label: "ContainerDataTransformer" } },
+  { id: "x9", position: { x: 260, y: 400 }, data: { label: "ResponseResolutionStep" } },
+  { id: "x10", position: { x: 500, y: 400 }, data: { label: "ResponseTransformer" } },
+  { id: "x11", position: { x: 740, y: 400 }, data: { label: "HTTP/SSE/STOMP output" } },
+];
+
+export const extEdges = [
+  { id: "xe1", source: "x1", target: "x2" },
+  { id: "xe2", source: "x2", target: "x3" },
+  { id: "xe3", source: "x3", target: "x4" },
+  { id: "xe4", source: "x4", target: "x5" },
+  { id: "xe5", source: "x5", target: "x6" },
+  { id: "xe6", source: "x6", target: "x7" },
+  { id: "xe7", source: "x7", target: "x8" },
+  { id: "xe8", source: "x8", target: "x9" },
+  { id: "xe9", source: "x9", target: "x10" },
+  { id: "xe10", source: "x10", target: "x11" },
+];
+
+export const extDetails = {
+  x1: { title: "API Entry", file: "api/controller/ConversationController.java", method: "message(...)", stage: "HTTP_ENTRY", summary: "Builds EngineContext and delegates to engine.", session: ["userText, conversationId, inputParams"], tables: ["none"] },
+  x2: { title: "Input interception", file: "engine/interceptor/ContainerDataInterceptor.java", method: "intercept(...) ", stage: "INPUT_INTERCEPT", summary: "Mutate input params before session start.", session: ["inputParams can be enriched"], tables: ["none"] },
+  x3: { title: "Session bootstrap", file: "engine/factory/EngineSessionFactory.java", method: "open(...) ", stage: "SESSION_BOOTSTRAP", summary: "Loads persisted conversation facts.", session: ["intent/state/context hydrated"], tables: ["ce_conversation (R/W bootstrap)"] },
+  x4: { title: "DAG execution", file: "engine/pipeline/EnginePipeline.java", method: "execute(...) ", stage: "STEP_LOOP", summary: "Runs step chain with wrappers.", session: ["STEP_ENTER/EXIT tracked"], tables: ["ce_audit (W)"] },
+  x5: { title: "Pre-step hook", file: "engine/hook/EngineStepHook.java", method: "beforeStep(...) ", stage: "STEP_ENTER", summary: "Consumer mutates session before target step.", session: ["set hints/context/params"], tables: ["none"] },
+  x6: { title: "Core step", file: "engine/steps/*", method: "execute(EngineSession)", stage: "STEP_CORE", summary: "Intent/state/schema/rules/response handling.", session: ["major mutations happen here"], tables: ["ce_intent, ce_rule, ce_response, ..."] },
+  x7: { title: "Post-step hook", file: "engine/hook/EngineStepHook.java", method: "afterStep(...) / onStepError(...) ", stage: "STEP_EXIT/STEP_ERROR", summary: "Consumer gets outcome and can append diagnostics.", session: ["read and augment session"], tables: ["none"] },
+  x8: { title: "Container transform", file: "engine/transformer/ContainerDataTransformer.java", method: "transform(...) ", stage: "CONTAINER_TRANSFORM", summary: "Transforms intermediate container payload.", session: ["container rewritten"], tables: ["none"] },
+  x9: { title: "Response resolve", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Selects EXACT/DERIVED mapping.", session: ["output payload generated"], tables: ["ce_response (R), ce_prompt_template (R)"] },
+  x10: { title: "Response transform", file: "engine/transformer/ResponseTransformer.java", method: "transform(...) ", stage: "RESPONSE_TRANSFORM", summary: "Last-mile normalization/redaction.", session: ["final payload rewrite"], tables: ["none"] },
+  x11: { title: "Transport", file: "transport/sse/* + transport/stomp/*", method: "emit/publish", stage: "HTTP_RESPONSE or STREAM_EVENT", summary: "Returns direct response or emits stream events.", session: ["conversationId routing key"], tables: ["none"] },
+};
+
+# Developer Guide
+
+This page is the full implementation starter for consumers integrating ConvEngine into a Spring Boot service.
+
+<EngineDebugFlow
+  title="Consumer Extension Map"
+  subtitle="Click each node to inspect extension timing, file, method and expected session state."
+  nodes={extNodes}
+  edges={extEdges}
+  detailsById={extDetails}
+  defaultSelectedId="x5"
+/>
+
+## 1. Start a Spring Boot project
+
+<Tabs groupId="bootstrap">
+  <TabItem value="maven" label="pom.xml" default>
+
+<CodeBlockToggle title="Maven dependency" language="xml" packagePath="project build">
+{`<dependency>
+  <groupId>com.github.salilvnair</groupId>
+  <artifactId>convengine</artifactId>
+  <version>1.0.9</version>
+</dependency>`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="app" label="Application class">
+
+<CodeBlockToggle title="Enable ConvEngine" language="java" packagePath="com.acme.demo" filePath="src/main/java/com/acme/demo/DemoApplication.java">
+{`@SpringBootApplication
+@EnableConvEngine(stream = true)
+public class DemoApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(DemoApplication.class, args);
+  }
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## 2. Required schema (DDL)
+
+<CodeBlockToggle title="Core tables (excerpt)" language="sql" packagePath="db">
+{`create table if not exists ce_conversation (
+    id bigserial primary key,
+    conversation_id varchar(128) not null unique,
+    intent_code varchar(128),
+    state_code varchar(128),
+    context_json text,
+    created_at timestamp not null default now(),
+    updated_at timestamp not null default now()
+);
+
+create table if not exists ce_intent (
+    id bigserial primary key,
+    intent_code varchar(128) not null,
+    description text,
+    enabled boolean not null default true
+);
+
+create table if not exists ce_intent_classifier (
+    id bigserial primary key,
+    intent_code varchar(128) not null,
+    pattern text not null,
+    priority int not null default 100,
+    enabled boolean not null default true
+);
+
+create table if not exists ce_output_schema (
+    id bigserial primary key,
+    intent_code varchar(128) not null,
+    state_code varchar(128),
+    schema_json text not null,
+    enabled boolean not null default true
+);
+
+create table if not exists ce_prompt_template (
+    template_id bigserial primary key,
+    intent_code text,
+    state_code text,
+    response_type text not null,
+    system_prompt text not null,
+    user_prompt text not null,
+    temperature numeric(3,2) not null default 0.0,
+    enabled boolean not null default true
+);
+
+create table if not exists ce_response (
+  response_id bigserial primary key,
+  intent_code text,
+  state_code text not null,
+  output_format text not null,
+  response_type text not null,
+  exact_text text,
+  derivation_hint text,
+  json_schema jsonb,
+  priority int not null default 100,
+  description text,
+  enabled boolean not null default true
+);
+
+create table if not exists ce_rule (
+    id bigserial primary key,
+    intent_code varchar(128),
+    state_code varchar(128),
+    rule_type varchar(32) not null,
+    action varchar(64) not null,
+    action_value text,
+    priority int not null default 100,
+    enabled boolean not null default true
+);
+
+create table if not exists ce_config (
+    id bigserial primary key,
+    config_key varchar(128) not null,
+    config_value text,
+    enabled boolean not null default true
+);
+
+create table if not exists ce_audit (
+    id bigserial primary key,
+    conversation_id varchar(128),
+    stage varchar(128) not null,
+    payload text,
+    created_at timestamp not null default now()
+);`}
+</CodeBlockToggle>
+
+<Highlight type="info" title="Source of truth">
+Run the complete DDL from <FileRef>src/main/resources/db/ddl.sql</FileRef> in the ConvEngine library. The snippet above is onboarding-focused.
+</Highlight>
+
+## 3. Minimal DML for FAQ scenario
+
+<CodeBlockToggle title="FAQ DML example" language="sql" packagePath="db/seed">
+{`insert into ce_intent(intent_code, state_code, enabled)
+values ('FAQ', null, true);
+
+insert into ce_intent_classifier(intent_code, pattern, priority, enabled)
+values ('FAQ', '(?i).*(office|location|address).*', 10, true);
+
+insert into ce_response(intent_code, state_code, response_type, output_format, exact_text, enabled)
+values ('FAQ', null, 'EXACT', 'TEXT', 'Our office is at 123 Tech Park, Silicon Valley.', true);
+
+insert into ce_config(config_key, config_value, enabled)
+values ('RESET_COMMAND', 'RESET_SESSION', true);`}
+</CodeBlockToggle>
+
+<DbTable
+  title="FAQ seed preview"
+  columns={["Table", "Key values"]}
+  rows={[
+    ["ce_intent", "intent_code=FAQ"],
+    ["ce_intent_classifier", "pattern=(?i).*(office|location|address).*"],
+    ["ce_response", "response_type=EXACT, output_format=TEXT"],
+    ["ce_config", "RESET_COMMAND=RESET_SESSION"],
+  ]}
+/>
+
+## 4. application.yml (full consumer starter)
+
+<CodeBlockToggle title="application.yml" language="yaml" packagePath="src/main/resources">
+{`server:
+    port: 8080
+
+spring:
+    datasource:
+      url: jdbc:postgresql://localhost:5432/convengine
+      username: convengine_user
+      password: convengine_pwd
+
+llm:
+  provider: openai
+  openai:
+    api-key: \${OPENAI_API_KEY}
+    model: gpt-4.1
+
+convengine:
+  transport:
+    sse:
+      enabled: true
+      emitter-timeout-ms: 1800000
+    stomp:
+      enabled: false
+      endpoint: /ws-convengine
+      app-destination-prefix: /app
+      topic-prefix: /topic
+      audit-destination-base: /topic/convengine/audit
+      allowed-origin-pattern: "*"
+      sock-js: true
+      broker:
+        mode: SIMPLE   # SIMPLE | RELAY
+        relay-destination-prefixes: ["/topic", "/queue"]
+        relay-host: localhost
+        relay-port: 61613
+        client-login: ""
+        client-passcode: ""
+        system-login: ""
+        system-passcode: ""
+        virtual-host: ""
+        system-heartbeat-send-interval-ms: 10000
+        system-heartbeat-receive-interval-ms: 10000
+
+  audit:
+    enabled: true
+    level: ALL         # ALL | STANDARD | ERROR_ONLY | NONE
+    include-stages: []
+    exclude-stages: []
+    dispatch:
+      async-enabled: true
+      worker-threads: 2
+      queue-capacity: 2000
+      rejection-policy: DROP_OLDEST  # CALLER_RUNS | DROP_NEWEST | DROP_OLDEST | ABORT
+      keep-alive-seconds: 60
+    rate-limit:
+      enabled: false
+      max-events: 200
+      window-ms: 1000
+      per-conversation: true
+      per-stage: true
+      max-tracked-buckets: 20000
+    persistence:
+      mode: DEFERRED_BULK   # IMMEDIATE | DEFERRED_BULK
+      jdbc-batch-size: 200
+      max-buffered-events: 5000
+      flush-stages: ["ENGINE_KNOWN_FAILURE", "ENGINE_UNKNOWN_FAILURE"]
+      final-step-names: ["PipelineEndGuardStep"]
+      flush-on-stop-outcome: true`}
+</CodeBlockToggle>
+
+### application.yml tag reference
+
+<DbTable
+  title="server + datasource + llm"
+  className="ce-config-ref-table"
+  columns={["Tag", "What it controls", "Expected values", "Default/notes"]}
+  rows={[
+    ["server.port", "HTTP port for your app", "integer", "8080 in sample"],
+    ["spring.datasource.url", "DB connection URL", "jdbc URL", "Must point to DB with ce_* tables"],
+    ["spring.datasource.username", "DB username", "string", "DB user with read/write on ce_*"],
+    ["spring.datasource.password", "DB password", "string", "Use secret manager/env var in prod"],
+    ["llm.provider", "LLM provider selection", "openai (or your configured provider)", "Must match your LLM config beans"],
+    ["llm.openai.api-key", "OpenAI credential", "string/env ref", "Use ${OPENAI_API_KEY}"],
+    ["llm.openai.model", "Model id used for LLM calls", "model name", "Example: gpt-4.1"],
+  ]}
+/>
+
+<DbTable
+  title="convengine.transport.sse"
+  className="ce-config-ref-table"
+  columns={["Tag", "What it controls", "Expected values", "Default/notes"]}
+  rows={[
+    ["convengine.transport.sse.enabled", "Enable SSE endpoints/publishers", "true | false", "Default true"],
+    ["convengine.transport.sse.emitter-timeout-ms", "SSE emitter timeout", "milliseconds", "Default 1800000 (30 min)"],
+  ]}
+/>
+
+<DbTable
+  title="convengine.transport.stomp"
+  className="ce-config-ref-table"
+  columns={["Tag", "What it controls", "Expected values", "Default/notes"]}
+  rows={[
+    ["convengine.transport.stomp.enabled", "Enable STOMP websocket transport", "true | false", "Default false"],
+    ["convengine.transport.stomp.endpoint", "WebSocket handshake endpoint", "path", "Default /ws-convengine"],
+    ["convengine.transport.stomp.app-destination-prefix", "Client send prefix", "path prefix", "Default /app"],
+    ["convengine.transport.stomp.topic-prefix", "Server publish topic prefix", "path prefix", "Default /topic"],
+    ["convengine.transport.stomp.audit-destination-base", "Audit topic base path", "path", "Default /topic/convengine/audit"],
+    ["convengine.transport.stomp.allowed-origin-pattern", "CORS origin pattern", "origin pattern", "Default *"],
+    ["convengine.transport.stomp.sock-js", "SockJS fallback toggle", "true | false", "Default true"],
+  ]}
+/>
+
+<DbTable
+  title="convengine.transport.stomp.broker"
+  className="ce-config-ref-table"
+  columns={["Tag", "What it controls", "Expected values", "Default/notes"]}
+  rows={[
+    ["convengine.transport.stomp.broker.mode", "Broker mode selection", "SIMPLE | RELAY", "SIMPLE uses in-memory broker"],
+    ["convengine.transport.stomp.broker.relay-destination-prefixes", "Relay destinations to enable", "list of prefixes", "Default [/topic, /queue]"],
+    ["convengine.transport.stomp.broker.relay-host", "Relay broker host", "hostname", "Used when mode=RELAY"],
+    ["convengine.transport.stomp.broker.relay-port", "Relay broker port", "integer", "Default 61613"],
+    ["convengine.transport.stomp.broker.client-login", "Client login to relay", "string", "Optional"],
+    ["convengine.transport.stomp.broker.client-passcode", "Client passcode to relay", "string", "Optional"],
+    ["convengine.transport.stomp.broker.system-login", "System login to relay", "string", "Optional"],
+    ["convengine.transport.stomp.broker.system-passcode", "System passcode to relay", "string", "Optional"],
+    ["convengine.transport.stomp.broker.virtual-host", "Relay vhost", "string", "Optional"],
+    ["convengine.transport.stomp.broker.system-heartbeat-send-interval-ms", "Outbound heartbeat", "milliseconds", "Default 10000"],
+    ["convengine.transport.stomp.broker.system-heartbeat-receive-interval-ms", "Inbound heartbeat", "milliseconds", "Default 10000"],
+  ]}
+/>
+
+<DbTable
+  title="convengine.audit (root)"
+  className="ce-config-ref-table"
+  columns={["Tag", "What it controls", "Expected values", "Default/notes"]}
+  rows={[
+    ["convengine.audit.enabled", "Master audit enable switch", "true | false", "Default true"],
+    ["convengine.audit.level", "Audit verbosity", "ALL | STANDARD | ERROR_ONLY | NONE", "STANDARD suppresses STEP_ENTER/STEP_EXIT"],
+    ["convengine.audit.include-stages", "Allowlist stages", "list of stage patterns", "Empty = no allowlist filter"],
+    ["convengine.audit.exclude-stages", "Blocklist stages", "list of stage patterns", "Applied after include filter"],
+  ]}
+/>
+
+<DbTable
+  title="convengine.audit.dispatch + rate-limit + persistence"
+  className="ce-config-ref-table"
+  columns={["Tag", "What it controls", "Expected values", "Default/notes"]}
+  rows={[
+    ["convengine.audit.dispatch.async-enabled", "Async listener dispatch", "true | false", "Default false unless enabled"],
+    ["convengine.audit.dispatch.worker-threads", "Async worker count", "integer >= 1", "Default 2"],
+    ["convengine.audit.dispatch.queue-capacity", "Dispatch queue size", "integer >= 1", "Default 2000"],
+    ["convengine.audit.dispatch.rejection-policy", "Backpressure behavior", "CALLER_RUNS | DROP_NEWEST | DROP_OLDEST | ABORT", "Default CALLER_RUNS"],
+    ["convengine.audit.dispatch.keep-alive-seconds", "Thread keep-alive", "seconds", "Default 60"],
+    ["convengine.audit.rate-limit.enabled", "Enable per-window throttling", "true | false", "Default false"],
+    ["convengine.audit.rate-limit.max-events", "Events allowed per window", "integer", "Default 200"],
+    ["convengine.audit.rate-limit.window-ms", "Rate-limit window", "milliseconds", "Default 1000"],
+    ["convengine.audit.rate-limit.per-conversation", "Bucket by conversation", "true | false", "Default true"],
+    ["convengine.audit.rate-limit.per-stage", "Bucket by stage", "true | false", "Default true"],
+    ["convengine.audit.rate-limit.max-tracked-buckets", "Bucket cardinality cap", "integer", "Default 20000"],
+    ["convengine.audit.persistence.mode", "DB persistence mode", "IMMEDIATE | DEFERRED_BULK", "Default IMMEDIATE"],
+    ["convengine.audit.persistence.jdbc-batch-size", "Batch insert chunk size", "integer", "Default 200"],
+    ["convengine.audit.persistence.max-buffered-events", "Deferred buffer cap", "integer", "Default 5000"],
+    ["convengine.audit.persistence.flush-stages", "Stages forcing flush", "list of stages", "Defaults include engine failure stages"],
+    ["convengine.audit.persistence.final-step-names", "Final steps that flush", "list of step names", "Default includes PipelineEndGuardStep"],
+    ["convengine.audit.persistence.flush-on-stop-outcome", "Flush on STOP step outcome", "true | false", "Default true"],
+  ]}
+/>
+
+<Highlight type="warning" title="Streaming startup rule">
+If <MethodRef>@EnableConvEngine(stream=true)</MethodRef> is set, startup fails when both <MethodRef>convengine.transport.sse.enabled=false</MethodRef> and <MethodRef>convengine.transport.stomp.enabled=false</MethodRef>.
+</Highlight>
+
+## 5. API entry and session contracts
+
+<Tabs groupId="api-session">
+  <TabItem value="api" label="API Entry Point" default>
+
+<CodeBlockToggle title="ConversationController.message" language="java" packagePath="com.github.salilvnair.convengine.api.controller" filePath="src/main/java/com/github/salilvnair/convengine/api/controller/ConversationController.java">
+{`@PostMapping("/message")
+public ConversationResponse message(@RequestBody ConversationRequest request) {
+  EngineContext engineContext = EngineContext.builder()
+      .conversationId(request.getConversationId())
+      .userText(request.getMessage())
+      .inputParams(request.getInputParams())
+      .build();
+
+  EngineResult result = engine.process(engineContext);
+  return mapToResponse(result);
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="session" label="Session API">
+
+<CodeBlockToggle title="EngineSession.java (key methods)" language="java" packagePath="com.github.salilvnair.convengine.engine.session" filePath="src/main/java/com/github/salilvnair/convengine/engine/session/EngineSession.java">
+{`// state management
+void setIntent(String intent);
+void setState(String state);
+
+// conversation memory (context json)
+Map<String, Object> contextDict();
+void putContext(String key, Object value);
+
+// persisted conversation row
+CeConversation getConversation();
+
+// stop pipeline with final result
+void setFinalResult(EngineResult result);`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## 6. Extension examples you asked for
+
+<Tabs groupId="extensions">
+  <TabItem value="hooks" label="EngineStepHook" default>
+
+<CodeBlockToggle title="Step hook with enum-safe matching" language="java" packagePath="com.acme.convengine.hooks">
+{`@Component
+public class SchemaHintHook implements EngineStepHook {
+  @Override
+  public boolean supports(EngineStep.Name stepName, EngineSession session) {
+    return EngineStep.Name.SchemaExtractionStep == stepName;
+  }
+
+  @Override
+  public void beforeStep(EngineStep.Name stepName, EngineSession session) {
+    session.putInputParam("consumer_hint", "compact");
+  }
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="task" label="Setting a Task">
+
+<CodeBlockToggle title="Set task in context" language="java" packagePath="consumer logic">
+{`session.putContext("task", "OPEN_PAYMENT_MODAL");`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="schema-json" label="Getting Extracted Data">
+
+<CodeBlockToggle title="Read schema extracted values" language="java" packagePath="consumer logic">
+{`String accountId = (String) session.contextDict().get("accountId");`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="transformers" label="Interceptors / Transformers">
+
+<CodeBlockToggle title="Interception chain" language="java" packagePath="com.acme.convengine.ext">
+{`@Component
+public class MyInterceptor implements ContainerDataInterceptor {
+  @Override
+  public Map<String, Object> intercept(Map<String, Object> inputParams) {
+    inputParams.putIfAbsent("channel", "web");
+    return inputParams;
+  }
+}
+
+@Component
+public class MyContainerTransformer implements ContainerDataTransformer {
+  @Override
+  public Object transform(Object data, EngineSession session) {
+    return data;
+  }
+}
+
+@Component
+public class MyResponseTransformer implements ResponseTransformer {
+  @Override
+  public OutputPayload transform(OutputPayload payload, EngineSession session) {
+    return payload;
+  }
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## 7. Persistence, audit and streaming tuning
+
+<DbTable
+  title="High-impact runtime knobs"
+  columns={["Area", "Config", "Effect"]}
+  rows={[
+    ["Audit dispatch", "convengine.audit.dispatch.*", "Decouples request latency from listener work"],
+    ["Queue/backpressure", "convengine.audit.dispatch.queue-capacity + rejection-policy", "Bounds memory and defines overflow behavior"],
+    ["Audit persistence mode", "convengine.audit.persistence.mode", "IMMEDIATE or DEFERRED_BULK (JDBC batch flush)"],
+    ["Stage filtering", "convengine.audit.level + include-stages/exclude-stages", "Controls emitted/saved stages"],
+    ["Broker relay", "convengine.transport.stomp.broker.mode=RELAY", "Optional external broker for STOMP scaling"],
+    ["Stream hard requirement", "@EnableConvEngine(stream=true)", "Fails startup if both SSE and STOMP are disabled"],
+  ]}
+/>
+
+<Highlight type="tip" title="Production sequence">
+Start with direct HTTP + IMMEDIATE audit. Then enable async dispatch and bounded queue. Move to DEFERRED_BULK only after validating final-step flush behavior for your trace requirements.
+</Highlight>

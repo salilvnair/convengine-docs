@@ -3,6 +3,8 @@ title: REST API
 sidebar_position: 1
 ---
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
 import { CodeBlockToggle, DbTable, Highlight, FileRef, MethodRef } from "@site/src/components/convengine";
 
 # REST API
@@ -20,7 +22,6 @@ import { CodeBlockToggle, DbTable, Highlight, FileRef, MethodRef } from "@site/s
     ["POST", "/message", "Process one turn and return payload"],
     ["GET", "/audit/{conversationId}", "Raw audit rows for conversation"],
     ["GET", "/audit/{conversationId}/trace", "Normalized step+stage timeline"],
-    ["GET", "/stream/{conversationId}", "SSE live stream of audit events"],
   ]}
 />
 
@@ -62,49 +63,62 @@ Enable with:
 <CodeBlockToggle title="application.yml (feature flag)" language="yaml">
 {`convengine:
   experimental:
-    enabled: true`}
+      enabled: true`}
 </CodeBlockToggle>
+
+<Tabs groupId="experimental-generate-sql">
+  <TabItem value="postman" label="Postman" default>
+
+<DbTable
+  title="Postman setup"
+  columns={["Field", "Value"]}
+  rows={[
+    ["Method", "POST"],
+    ["URL", "http://localhost:8080/api/v1/conversation/experimental/generate-sql"],
+    ["Headers", "Content-Type: application/json"],
+    ["Body Mode", "raw (JSON)"],
+  ]}
+/>
+
+<CodeBlockToggle title="Postman body (JSON)" language="json">
+{`{
+  "scenario": "Build disconnect electricity workflow",
+  "domain": "utilities",
+  "constraints": "Collect account number before action",
+  "includeMcp": true
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="curl" label="curl">
+
+<CodeBlockToggle title="curl request" language="bash">
+{`curl -X POST "http://localhost:8080/api/v1/conversation/experimental/generate-sql" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "scenario": "Build disconnect electricity workflow",
+    "domain": "utilities",
+    "constraints": "Collect account number before action",
+    "includeMcp": true
+  }'`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+<CodeBlockToggle title="/experimental/generate-sql success response" language="json">
+{`{
+  "success": true,
+  "sql": "INSERT INTO ce_config ...;\\nINSERT INTO ce_intent ...;",
+  "warnings": [],
+  "note": "Experimental output: review before applying in production."
+}`}
+</CodeBlockToggle>
+
+<Highlight type="info" title="Generation scope">
+`generate-sql` is designed for non-transactional configuration tables (`ce_config`, `ce_intent`, `ce_rule`, `ce_prompt_template`, `ce_response`, `ce_output_schema`, `ce_container_config`, optional MCP tables). It does not generate runtime conversation/audit data.
+</Highlight>
 
 <Highlight type="warning" title="Experimental output">
 Generated SQL should be reviewed before use. The endpoint applies safety checks but does not replace human review.
 </Highlight>
-
-## Runtime performance controls (no new endpoint)
-
-<CodeBlockToggle title="application.yml (audit + transport controls)" language="yaml">
-{`convengine:
-  audit:
-    enabled: true
-    level: ALL # ALL | STANDARD | ERROR_ONLY | NONE
-    include-stages: [] # wildcard supported e.g. STEP_*
-    exclude-stages: []
-    persistence:
-      mode: IMMEDIATE # IMMEDIATE | DEFERRED_BULK
-      jdbc-batch-size: 200
-      max-buffered-events: 5000
-      flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
-      final-step-names: PipelineEndGuardStep
-      flush-on-stop-outcome: true
-    dispatch:
-      async-enabled: false
-      worker-threads: 2
-      queue-capacity: 2000
-      rejection-policy: CALLER_RUNS # CALLER_RUNS | DROP_NEWEST | DROP_OLDEST | ABORT
-      keep-alive-seconds: 60
-    rate-limit:
-      enabled: false
-      max-events: 200
-      window-ms: 1000
-      per-conversation: true
-      per-stage: true
-      max-tracked-buckets: 20000
-
-  transport:
-    stomp:
-      enabled: true
-      broker:
-        mode: SIMPLE # SIMPLE | RELAY
-        relay-destination-prefixes: /topic,/queue
-        relay-host: localhost
-        relay-port: 61613`}
-</CodeBlockToggle>

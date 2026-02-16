@@ -39,6 +39,12 @@ const config = {
   ],
   themeConfig: ({
     image: 'img/docusaurus-social-card.jpg',
+    docs: {
+      sidebar: {
+        hideable: true,
+        autoCollapseCategories: false,
+      },
+    },
     colorMode: {
       defaultMode: 'dark',
       disableSwitch: false,
@@ -48,15 +54,17 @@ const config = {
       title: 'ConvEngine Docs',
       logo: {
         alt: 'ConvEngine',
-        src: 'img/conv.svg',
+        src: 'img/logo.png',
       },
       items: [
         { type: 'doc', docId: 'overview', position: 'left', label: 'Overview' },
         { to: '/docs/architecture', position: 'left', label: 'Architecture' },
         { to: '/docs/examples', position: 'left', label: 'Examples' },
+        { to: '/docs/version-history', position: 'left', label: 'Version History' },
         { to: '/docs/consumer', position: 'left', label: 'Consumer' },
         { to: '/docs/deep-dive', position: 'left', label: 'Deep Dive' },
         { to: '/docs/api/rest-api', position: 'left', label: 'API' },
+        // { type: 'html', position: 'right', value: '<button class="clean-btn ce-navbar-toc-btn" aria-label="Toggle table of contents" title="Show TOC"><span class="ce-navbar-toc-btn-icon">≡</span></button>' },
         { href: 'https://github.com/salilvnair/convengine', label: 'GitHub', position: 'right' },
       ],
     },

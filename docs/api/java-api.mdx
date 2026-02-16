@@ -36,10 +36,37 @@ import { CodeBlockToggle, DbTable, MethodRef } from "@site/src/components/conven
 
 <CodeBlockToggle title="EngineStepHook" language="java" packagePath="com.github.salilvnair.convengine.engine.hook">
 {`public interface EngineStepHook {
-    default boolean supports(String stepName, EngineSession session) { return true; }
-    default void beforeStep(String stepName, EngineSession session) {}
-    default void afterStep(String stepName, EngineSession session, StepResult result) {}
-    default void onStepError(String stepName, EngineSession session, Throwable error) {}
+    default boolean supports(EngineStep.Name stepName, EngineSession session) { return true; }
+    default void beforeStep(EngineStep.Name stepName, EngineSession session) {}
+    default void afterStep(EngineStep.Name stepName, EngineSession session, StepResult result) {}
+    default void onStepError(EngineStep.Name stepName, EngineSession session, Throwable error) {}
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="EngineStep.Name enum (hook-safe matching)" language="java" packagePath="com.github.salilvnair.convengine.engine.pipeline">
+{`public interface EngineStep {
+    enum Name {
+        AuditUserInputStep,
+        IntentResolutionStep,
+        AddContainerDataStep,
+        SchemaExtractionStep,
+        ResponseResolutionStep,
+        AutoAdvanceStep,
+        McpToolStep,
+        LoadOrCreateConversationStep,
+        FallbackIntentStateStep,
+        PersistConversationBootstrapStep,
+        ResetConversationStep,
+        PersistConversationStep,
+        PipelineEndGuardStep,
+        ResetResolvedIntentStep,
+        PolicyEnforcementStep,
+        RulesStep,
+        Unknown;
+
+        public static Name fromStepName(String stepName) { /* ... */ }
+        public boolean matches(String stepName) { /* ... */ }
+    }
 }`}
 </CodeBlockToggle>
 

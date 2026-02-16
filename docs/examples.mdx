@@ -5,28 +5,137 @@ sidebar_position: 3
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import { Conversation, User, Assistant, CodeBlockToggle, Highlight, DbTable, FileRef, MethodRef } from "@site/src/components/convengine";
+import { EngineDebugFlow, Conversation, User, Assistant, CodeBlockToggle, Highlight, DbTable, FileRef, MethodRef } from "@site/src/components/convengine";
 
-# Examples (Deep E2E)
+export const faqNodes = [
+  { id: "faq_api", position: { x: 20, y: 60 }, data: { label: "ConversationController.message" } },
+  { id: "faq_engine", position: { x: 290, y: 60 }, data: { label: "DefaultConversationalEngine.process" } },
+  { id: "faq_intent", position: { x: 560, y: 60 }, data: { label: "IntentResolutionStep" } },
+  { id: "faq_rules", position: { x: 830, y: 60 }, data: { label: "RulesStep" } },
+  { id: "faq_resp", position: { x: 290, y: 220 }, data: { label: "ResponseResolutionStep" } },
+  { id: "faq_persist", position: { x: 560, y: 220 }, data: { label: "PersistConversationStep" } },
+];
 
-## FAQ Example
+export const faqEdges = [
+  { id: "faq_e1", source: "faq_api", target: "faq_engine" },
+  { id: "faq_e2", source: "faq_engine", target: "faq_intent" },
+  { id: "faq_e3", source: "faq_intent", target: "faq_rules" },
+  { id: "faq_e4", source: "faq_rules", target: "faq_resp" },
+  { id: "faq_e5", source: "faq_resp", target: "faq_persist" },
+];
 
-<Conversation title="FAQ: First turn">
-  <User>Can I move my connection within Zapper?</User>
-  <Assistant>Yes. Internal transfer is supported. Use Connections -> Move Service.</Assistant>
-</Conversation>
+export const faqDetails = {
+  faq_api: { title: "API entry", file: "api/controller/ConversationController.java", method: "message(...) ", stage: "HTTP_ENTRY", summary: "Builds EngineContext and delegates to engine.", session: ["message + params normalized"], tables: ["none"] },
+  faq_engine: { title: "Engine processing", file: "engine/provider/DefaultConversationalEngine.java", method: "process(...) ", stage: "ENGINE_ENTRY", summary: "Opens session and executes pipeline.", session: ["conversation history attached"], tables: ["ce_conversation (R)"] },
+  faq_intent: { title: "Intent resolution", file: "engine/steps/IntentResolutionStep.java", method: "execute(...) ", stage: "INTENT_RESOLVED", summary: "Classifier/agent resolve FAQ.", session: ["intent=FAQ"], tables: ["ce_intent, ce_intent_classifier"] },
+  faq_rules: { title: "Rules evaluation", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_NO_MATCH", summary: "No transition, state remains.", session: ["state unchanged"], tables: ["ce_rule"] },
+  faq_resp: { title: "Response resolution", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Selects EXACT/TEXT response row.", session: ["payload ready"], tables: ["ce_response"] },
+  faq_persist: { title: "Persist", file: "engine/steps/PersistConversationStep.java", method: "execute(...) ", stage: "CONVERSATION_PERSIST", summary: "Persists final session snapshot.", session: ["context + payload stored"], tables: ["ce_conversation (W)"] },
+};
 
-<Tabs groupId="faq-example">
-  <TabItem value="flow" label="Step-by-step Flow" default>
+export const disconnectNodes = [
+  { id: "d_intent", position: { x: 20, y: 60 }, data: { label: "IntentResolutionStep" } },
+  { id: "d_schema", position: { x: 300, y: 60 }, data: { label: "SchemaExtractionStep" } },
+  { id: "d_followup", position: { x: 580, y: 60 }, data: { label: "Follow-up response" } },
+  { id: "d_turn2", position: { x: 860, y: 60 }, data: { label: "Turn 2 resume" } },
+  { id: "d_rules", position: { x: 300, y: 220 }, data: { label: "RulesStep" } },
+  { id: "d_done", position: { x: 580, y: 220 }, data: { label: "Response + Persist" } },
+];
 
-1. Control goes to <MethodRef>ConversationController.message</MethodRef> in <FileRef>api/controller/ConversationController.java</FileRef>.
+export const disconnectEdges = [
+  { id: "d_e1", source: "d_intent", target: "d_schema" },
+  { id: "d_e2", source: "d_schema", target: "d_followup" },
+  { id: "d_e3", source: "d_followup", target: "d_turn2" },
+  { id: "d_e4", source: "d_turn2", target: "d_rules" },
+  { id: "d_e5", source: "d_rules", target: "d_done" },
+];
 
-<CodeBlockToggle
-  title="Controller: message(...)"
-  language="java"
-  packagePath="com.github.salilvnair.convengine.api.controller"
-  filePath="src/main/java/com/github/salilvnair/convengine/api/controller/ConversationController.java"
->
+export const disconnectDetails = {
+  d_intent: { title: "Intent", file: "engine/steps/IntentResolutionStep.java", method: "execute(...) ", stage: "INTENT_RESOLVED", summary: "Resolves DISCONNECT_ELECTRICITY.", session: ["intent fixed"], tables: ["ce_intent"] },
+  d_schema: { title: "Schema extraction", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_INCOMPLETE", summary: "Missing fields are detected and intent is locked.", session: ["missingFields tracked"], tables: ["ce_output_schema, ce_prompt_template"] },
+  d_followup: { title: "Clarification", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Returns follow-up for missing fields.", session: ["follow-up payload"], tables: ["ce_response"] },
+  d_turn2: { title: "Session continuity", file: "engine/steps/LoadOrCreateConversationStep.java", method: "execute(...) ", stage: "SESSION_REHYDRATE", summary: "Restores same conversation context.", session: ["existing context loaded"], tables: ["ce_conversation"] },
+  d_rules: { title: "Transition", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "Applies state transition once schema complete.", session: ["state moved"], tables: ["ce_rule"] },
+  d_done: { title: "Finalization", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "CONVERSATION_PERSIST", summary: "Sends final message and persists.", session: ["final payload"], tables: ["ce_response, ce_conversation"] },
+};
+
+export const logNodes = [
+  { id: "l_intent", position: { x: 20, y: 60 }, data: { label: "IntentResolutionStep" } },
+  { id: "l_schema", position: { x: 300, y: 60 }, data: { label: "SchemaExtractionStep" } },
+  { id: "l_rules", position: { x: 580, y: 60 }, data: { label: "RulesStep (GET_SCHEMA_JSON)" } },
+  { id: "l_resp", position: { x: 860, y: 60 }, data: { label: "ResponseResolutionStep (DERIVED)" } },
+];
+
+export const logEdges = [
+  { id: "l_e1", source: "l_intent", target: "l_schema" },
+  { id: "l_e2", source: "l_schema", target: "l_rules" },
+  { id: "l_e3", source: "l_rules", target: "l_resp" },
+];
+
+export const logDetails = {
+  l_intent: { title: "Intent", file: "engine/steps/IntentResolutionStep.java", method: "execute(...) ", stage: "INTENT_RESOLVED", summary: "LOG_ANALYSIS selected.", session: ["intent=LOG_ANALYSIS"], tables: ["ce_intent"] },
+  l_schema: { title: "Extracted facts", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_EVALUATED", summary: "Extracts structured fields from logs.", session: ["schemaJson prepared"], tables: ["ce_output_schema"] },
+  l_rules: { title: "Rule action", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "GET_SCHEMA_JSON action reads extracted values.", session: ["rule context enriched"], tables: ["ce_rule"] },
+  l_resp: { title: "Derived answer", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Prompt template creates RCA summary.", session: ["derived response"], tables: ["ce_prompt_template, ce_response"] },
+};
+
+export const trackerNodes = [
+  { id: "t_intent", position: { x: 20, y: 60 }, data: { label: "IntentResolutionStep" } },
+  { id: "t_schema", position: { x: 300, y: 60 }, data: { label: "SchemaExtractionStep" } },
+  { id: "t_rules", position: { x: 580, y: 60 }, data: { label: "RulesStep (SET_TASK)" } },
+  { id: "t_resp", position: { x: 860, y: 60 }, data: { label: "ResponseResolutionStep" } },
+];
+
+export const trackerEdges = [
+  { id: "t_e1", source: "t_intent", target: "t_schema" },
+  { id: "t_e2", source: "t_schema", target: "t_rules" },
+  { id: "t_e3", source: "t_rules", target: "t_resp" },
+];
+
+export const trackerDetails = {
+  t_intent: { title: "Intent", file: "engine/steps/IntentResolutionStep.java", method: "execute(...) ", stage: "INTENT_RESOLVED", summary: "REQUEST_TRACKER selected.", session: ["intent=REQUEST_TRACKER"], tables: ["ce_intent"] },
+  t_schema: { title: "Extraction", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_EVALUATED", summary: "Extracts requestId.", session: ["requestId available"], tables: ["ce_output_schema"] },
+  t_rules: { title: "Task assignment", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "SET_TASK marks consumer work.", session: ["task set"], tables: ["ce_rule"] },
+  t_resp: { title: "Output", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Builds final status message.", session: ["payload finalized"], tables: ["ce_response"] },
+};
+
+# Examples (ReactFlow + DML + Audit)
+
+This page is the practical E2E companion to deep dive. Each example shows:
+- conversation UX
+- runtime flow graph
+- DML seed rows
+- expected audit stages
+
+## Canonical Runtime Step Set
+
+<Highlight type="info" title="Step loop behavior">
+Step loop invokes each <MethodRef>execute(session)</MethodRef>. If a step returns <MethodRef>Stop</MethodRef>, response returns immediately; otherwise loop continues.
+</Highlight>
+
+<div className="ce-step-badge-list" role="list" aria-label="Canonical runtime step set">
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">1</span><span className="ce-step-badge-label">LoadOrCreateConversationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">2</span><span className="ce-step-badge-label">ResetConversationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">3</span><span className="ce-step-badge-label">PersistConversationBootstrapStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">4</span><span className="ce-step-badge-label">AuditUserInputStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">5</span><span className="ce-step-badge-label">PolicyEnforcementStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">6</span><span className="ce-step-badge-label">IntentResolutionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">7</span><span className="ce-step-badge-label">ResetResolvedIntentStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">8</span><span className="ce-step-badge-label">FallbackIntentStateStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">9</span><span className="ce-step-badge-label">AddContainerDataStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">10</span><span className="ce-step-badge-label">McpToolStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">11</span><span className="ce-step-badge-label">SchemaExtractionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">12</span><span className="ce-step-badge-label">AutoAdvanceStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">13</span><span className="ce-step-badge-label">RulesStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">14</span><span className="ce-step-badge-label">ResponseResolutionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">15</span><span className="ce-step-badge-label">PersistConversationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">16</span><span className="ce-step-badge-label">PipelineEndGuardStep</span></div>
+</div>
+
+<details className="ce-trace-details">
+  <summary>Open full step traversal with snippets</summary>
+
+<CodeBlockToggle title="ConversationController.message" language="java" filePath="src/main/java/com/github/salilvnair/convengine/api/controller/ConversationController.java">
 {`@PostMapping("/message")
 public ConversationResponse message(@RequestBody ConversationRequest request) {
   UUID conversationId = request.getConversationId() != null
@@ -44,17 +153,11 @@ public ConversationResponse message(@RequestBody ConversationRequest request) {
       .build();
 
   EngineResult result = engine.process(engineContext);
-  // maps TextPayload/JsonPayload into API response
+  return mapToResponse(result);
 }`}
 </CodeBlockToggle>
 
-2. <MethodRef>EngineContext</MethodRef> is built and <MethodRef>engine.process</MethodRef> is called in <FileRef>engine/provider/DefaultConversationalEngine.java</FileRef>.
-
-<CodeBlockToggle
-  title="Engine: process(...)"
-  language="java"
-  filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java"
->
+<CodeBlockToggle title="DefaultConversationalEngine.process" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java">
 {`@Override
 public EngineResult process(EngineContext engineContext) {
   EngineSession session = sessionFactory.open(engineContext);
@@ -64,18 +167,12 @@ public EngineResult process(EngineContext engineContext) {
 }`}
 </CodeBlockToggle>
 
-3. New <MethodRef>EngineSession</MethodRef> is created and pipeline executes via <MethodRef>EnginePipeline.execute</MethodRef> in <FileRef>engine/pipeline/EnginePipeline.java</FileRef>.
-
-<CodeBlockToggle
-  title="Pipeline execute loop"
-  language="java"
-  filePath="src/main/java/com/github/salilvnair/convengine/engine/pipeline/EnginePipeline.java"
->
+<CodeBlockToggle title="EnginePipeline.execute" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/pipeline/EnginePipeline.java">
 {`public EngineResult execute(EngineSession session) {
   for (EngineStep step : steps) {
-    StepResult r = step.execute(session);
-    if (r instanceof StepResult.Stop(EngineResult result)) {
-      return result;
+    StepResult result = step.execute(session);
+    if (result instanceof StepResult.Stop(EngineResult finalResult)) {
+      return finalResult;
     }
   }
   if (session.getFinalResult() == null) {
@@ -85,251 +182,301 @@ public EngineResult process(EngineContext engineContext) {
 }`}
 </CodeBlockToggle>
 
-4. DAG order is precomputed in <MethodRef>EnginePipelineFactory.init/orderByDag</MethodRef> from <FileRef>engine/factory/EnginePipelineFactory.java</FileRef>.
-
-<CodeBlockToggle
-  title="Pipeline factory DAG ordering"
-  language="java"
-  filePath="src/main/java/com/github/salilvnair/convengine/engine/factory/EnginePipelineFactory.java"
->
-{`@PostConstruct
-public void init() {
-  List<EngineStep> ordered = orderByDag(discoveredSteps);
-  this.pipeline = new EnginePipeline(wrapWithTiming(ordered));
-}
-
-// Applies @MustRunAfter, @MustRunBefore, @RequiresConversationPersisted
-private List<EngineStep> orderByDag(List<EngineStep> steps) {
-  // build edges, enforce one @TerminalStep, topological sort
-}`}
-</CodeBlockToggle>
-
-5. Step loop invokes each <MethodRef>execute(session)</MethodRef>. If <MethodRef>Stop</MethodRef>, response returns immediately; else it continues.
-
-<details className="ce-trace-details">
-  <summary>Open full step traversal with snippets</summary>
-
-<CodeBlockToggle title="LoadOrCreateConversationStep.execute" language="java" filePath="engine/steps/LoadOrCreateConversationStep.java">
+<CodeBlockToggle title="LoadOrCreateConversationStep.execute" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/LoadOrCreateConversationStep.java">
 {`public StepResult execute(EngineSession session) {
-  // Loads existing ce_conversation row or creates default.
-  // Syncs intent/state/context into session.
+  CeConversation persisted = conversationRepo.findByConversationId(session.getConversationId())
+      .orElseGet(() -> conversationRepo.save(createConversation(session.getConversationId())));
+
+  session.setConversation(persisted);
+  session.setIntent(persisted.getIntentCode());
+  session.setState(persisted.getStateCode());
+  session.mergeContextJson(persisted.getContextJson());
   return new StepResult.Continue();
 }`}
 </CodeBlockToggle>
 
-<CodeBlockToggle title="ResetConversationStep.execute" language="java" filePath="engine/steps/ResetConversationStep.java">
+<CodeBlockToggle title="IntentResolutionStep.execute" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/IntentResolutionStep.java">
 {`public StepResult execute(EngineSession session) {
-  // Checks reset flags/commands and clears state/context when required.
+  if (session.isSchemaLocked() && session.hasIntent()) {
+    audit.audit("INTENT_SKIP_LOCKED", session.getConversationId(), Map.of("intent", session.getIntent()));
+    return new StepResult.Continue();
+  }
+
+  IntentResolutionTrace trace = resolver.resolveWithTrace(session.getUserText(), session.contextDict());
+  session.setIntent(trace.getIntent());
+  session.setState(trace.getState());
+
+  audit.audit("INTENT_RESOLVED", session.getConversationId(), Map.of(
+      "intent", trace.getIntent(),
+      "confidence", trace.getConfidence(),
+      "source", trace.getSource()
+  ));
   return new StepResult.Continue();
 }`}
 </CodeBlockToggle>
 
-<CodeBlockToggle title="AuditUserInputStep.execute" language="java" filePath="engine/steps/AuditUserInputStep.java">
+<CodeBlockToggle title="SchemaExtractionStep.execute" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/SchemaExtractionStep.java">
 {`public StepResult execute(EngineSession session) {
-  // Persists USER_INPUT stage to ce_audit.
+  Optional<CeOutputSchema> schemaOpt = outputSchemaRepo.findEnabled(session.getIntent(), session.getState());
+  if (schemaOpt.isEmpty()) {
+    return new StepResult.Continue();
+  }
+
+  CeOutputSchema schema = schemaOpt.get();
+  String prompt = promptRenderer.renderSchemaPrompt(session, schema);
+  String extractedJson = llmClient.generateJson(prompt, schema.getSchemaJson(), session.getContextJsonOrEmpty());
+
+  session.mergeContextJson(extractedJson);
+  MissingFieldResult missing = missingFieldEvaluator.evaluate(schema.getSchemaJson(), session.contextDict());
+  session.setMissingFields(missing.names());
+  session.setSchemaLocked(!missing.isComplete());
+
+  audit.audit("SCHEMA_EVALUATED", session.getConversationId(), Map.of("missing", missing.names()));
   return new StepResult.Continue();
 }`}
 </CodeBlockToggle>
 
-<CodeBlockToggle title="IntentResolutionStep.execute" language="java" filePath="engine/steps/IntentResolutionStep.java">
+<CodeBlockToggle title="RulesStep.execute" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/RulesStep.java">
 {`public StepResult execute(EngineSession session) {
-  // resolveWithTrace(session), apply lock checks,
-  // set intent/state and audit source.
+  int pass = 0;
+  boolean changed;
+  do {
+    changed = false;
+    pass++;
+    for (CeRule rule : ruleRepo.findEnabled(session.getIntent(), session.getState())) {
+      if (!ruleMatcher.matches(rule, session)) {
+        continue;
+      }
+      RuleOutcome outcome = actionExecutor.apply(rule, session);
+      changed = changed || outcome.mutatedIntentOrState();
+      audit.audit("RULE_MATCHED", session.getConversationId(), Map.of("ruleId", rule.getId(), "action", rule.getAction()));
+    }
+  } while (changed && pass < 4);
+
   return new StepResult.Continue();
 }`}
 </CodeBlockToggle>
 
-<CodeBlockToggle title="SchemaExtractionStep.execute" language="java" filePath="engine/steps/SchemaExtractionStep.java">
+<CodeBlockToggle title="ResponseResolutionStep.execute" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/ResponseResolutionStep.java">
 {`public StepResult execute(EngineSession session) {
-  // If schema configured: render SCHEMA_JSON prompt,
-  // llm.generateJson(...), merge context_json,
-  // compute missing fields + intent lock.
+  CeResponse row = responseRepo.resolve(session.getIntent(), session.getState())
+      .orElseThrow(() -> new ConversationEngineException(RESPONSE_NOT_FOUND));
+
+  EngineResult result = "EXACT".equalsIgnoreCase(row.getResponseType())
+      ? exactResolver.resolve(row, session)
+      : derivedResolver.resolve(row, session);
+
+  session.setFinalResult(result);
+  audit.audit("ASSISTANT_OUTPUT", session.getConversationId(), Map.of(
+      "responseType", row.getResponseType(),
+      "outputFormat", row.getOutputFormat()
+  ));
   return new StepResult.Continue();
 }`}
 </CodeBlockToggle>
 
-<CodeBlockToggle title="RulesStep.execute" language="java" filePath="engine/steps/RulesStep.java">
+<CodeBlockToggle title="PersistConversationStep.execute" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/PersistConversationStep.java">
 {`public StepResult execute(EngineSession session) {
-  // Multi-pass ce_rule evaluation with action resolvers.
-  // SET_STATE / SET_INTENT / SET_JSON / SET_TASK etc.
+  CeConversation c = session.getConversation();
+  c.setIntentCode(session.getIntent());
+  c.setStateCode(session.getState());
+  c.setContextJson(session.getContextJsonOrEmpty());
+  c.setLastAssistantJson(session.getFinalResultJson());
+  conversationRepo.save(c);
   return new StepResult.Continue();
 }`}
 </CodeBlockToggle>
 
-<CodeBlockToggle title="ResponseResolutionStep.execute" language="java" filePath="engine/steps/ResponseResolutionStep.java">
-{`public StepResult execute(EngineSession session) {
-  // resolve ce_response candidate,
-  // apply EXACT or DERIVED resolver,
-  // run ResponseTransformer,
-  // audit ASSISTANT_OUTPUT.
-  return new StepResult.Continue();
-}`}
-</CodeBlockToggle>
+</details>
 
-<CodeBlockToggle title="PersistConversationStep.execute" language="java" filePath="engine/steps/PersistConversationStep.java">
-{`public StepResult execute(EngineSession session) {
-  // Persists final intent/state/context to ce_conversation.
-  return new StepResult.Continue();
-}`}
-</CodeBlockToggle>
+## FAQ
 
-  </details>
+<Tabs groupId="example-faq">
+  <TabItem value="conversation" label="Conversation + Flow" default>
+
+<Conversation title="FAQ">
+  <User>Can I move my connection within Zapper?</User>
+  <Assistant>Yes. You can request relocation from the support portal.</Assistant>
+</Conversation>
+
+<EngineDebugFlow title="FAQ runtime flow" subtitle="Classifier-first deterministic path" nodes={faqNodes} edges={faqEdges} detailsById={faqDetails} defaultSelectedId="faq_intent" />
 
   </TabItem>
+  <TabItem value="dml" label="DML Entries">
 
-  <TabItem value="tables" label="Tables + Prompts">
+<CodeBlockToggle title="FAQ seed SQL" language="sql">
+{`insert into ce_intent(intent_code, state_code, enabled) values ('FAQ', null, true);
+insert into ce_intent_classifier(intent_code, match_pattern, priority, enabled)
+values ('FAQ', '(?i).*(office|location|address).*', 10, true);
+insert into ce_response(intent_code, state_code, response_type, output_format, exact_text, enabled)
+values ('FAQ', null, 'EXACT', 'TEXT', 'Yes. You can request relocation from the support portal.', true);
+insert into ce_config(component, config_key, config_value, enabled)
+values ('ResetConversationStep', 'RESET_COMMAND', 'RESET_SESSION', true);`}
+</CodeBlockToggle>
 
 <DbTable
-  title="FAQ table touchpoints"
-  columns={["Table", "Read/Write", "Expectation"]}
+  title="FAQ seed preview"
+  columns={["Table", "Key values"]}
   rows={[
-    ["ce_intent", "R", "FAQ intent exists and enabled=true"],
-    ["ce_intent_classifier", "R", "FAQ phrase patterns are configured"],
-    ["ce_response", "R", "EXACT response row for FAQ + state"],
-    ["ce_prompt_template", "Optional", "Only needed when response_type=DERIVED"],
-    ["ce_audit", "W", "USER_INPUT, INTENT_*, ASSISTANT_OUTPUT, ENGINE_RETURN"],
-    ["ce_conversation", "R/W", "Conversation state and context persistence"],
+    ["ce_intent", "intent_code=FAQ"],
+    ["ce_intent_classifier", "pattern=(?i).*(office|location|address).*"] ,
+    ["ce_response", "response_type=EXACT, output_format=TEXT"],
+    ["ce_config", "RESET_COMMAND=RESET_SESSION"],
   ]}
 />
 
-<CodeBlockToggle title="FAQ exact response row" language="sql" packagePath="ce_response" filePath="response_type=EXACT">
-{`INSERT INTO ce_response
-(intent_code, state_code, response_type, output_format, exact_text, enabled, priority)
-VALUES
-('FAQ', 'ANY', 'EXACT', 'TEXT',
- 'Yes. Internal transfer is supported. Use Connections -> Move Service.', true, 1);`}
+  </TabItem>
+  <TabItem value="audit" label="Audit Trail">
+
+<DbTable
+  title="FAQ expected ce_audit trail"
+  columns={["Stage", "Meaning"]}
+  rows={[
+    ["USER_INPUT", "Incoming user message captured"],
+    ["INTENT_RESOLVED", "FAQ selected"],
+    ["RULE_NO_MATCH", "No transition rule needed"],
+    ["ASSISTANT_OUTPUT", "EXACT response emitted"],
+    ["CONVERSATION_PERSIST", "Session snapshot saved"],
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+
+## DISCONNECT_ELECTRICITY
+
+<Tabs groupId="example-disconnect">
+  <TabItem value="conversation" label="Conversation + Flow" default>
+
+<Conversation title="DISCONNECT_ELECTRICITY">
+  <User>Disconnect electricity for account 10004567.</User>
+  <Assistant>Please share disconnect date and reason.</Assistant>
+  <User>Date is 2026-03-31, reason moving out.</User>
+  <Assistant>Done. Request submitted.</Assistant>
+</Conversation>
+
+<EngineDebugFlow title="Disconnect flow" subtitle="Incomplete schema -> follow-up -> complete -> finalize" nodes={disconnectNodes} edges={disconnectEdges} detailsById={disconnectDetails} defaultSelectedId="d_schema" />
+
+  </TabItem>
+  <TabItem value="dml" label="DML Entries">
+
+<CodeBlockToggle title="DISCONNECT_ELECTRICITY seed SQL" language="sql">
+{`insert into ce_intent(intent_code, enabled) values ('DISCONNECT_ELECTRICITY', true);
+insert into ce_output_schema(intent_code, schema_json, enabled)
+values ('DISCONNECT_ELECTRICITY',
+'{"type":"object","properties":{"accountId":{"type":"string"},"disconnectDate":{"type":"string"},"reason":{"type":"string"}},"required":["accountId","disconnectDate","reason"]}',
+true);
+insert into ce_prompt_template(intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED', 'TEXT', 'Collect missing disconnect fields.', 'Ask only for missing disconnect fields from: {{user_input}}', true);
+insert into ce_response(intent_code, state_code, response_type, output_format, enabled)
+values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED', 'DERIVED', 'TEXT', true);`}
 </CodeBlockToggle>
 
   </TabItem>
+  <TabItem value="audit" label="Audit Trail">
 
-  <TabItem value="audit" label="Audit Sequence">
-<CodeBlockToggle title="Expected stage order" language="text" filePath="ce_audit.stage">
-{`STEP_ENTER(LoadOrCreateConversationStep)
-STEP_EXIT(LoadOrCreateConversationStep)
-USER_INPUT
-INTENT_RESOLVE_START
-INTENT_RESOLVED_BY_CLASSIFIER or INTENT_RESOLVED_BY_AGENT
-RULE_MATCHED / RULE_NO_MATCH
-ASSISTANT_OUTPUT
-ENGINE_RETURN`}
-</CodeBlockToggle>
-  </TabItem>
-</Tabs>
-
-<Highlight type="info" title="Intervene points">
-Use <MethodRef>EngineStepHook.beforeStep/afterStep</MethodRef> around <MethodRef>IntentResolutionStep</MethodRef> or <MethodRef>RulesStep</MethodRef> to debug or inject hints in runtime.
-</Highlight>
-
-## DISCONNECT_ELECTRICITY Example
-
-<Conversation title="Turn 1">
-  <User>I need to disconnect electricity for account 10004567.</User>
-  <Assistant>Please share final service date and disconnection reason.</Assistant>
-</Conversation>
-
-Engine asks follow-up because schema is incomplete (<MethodRef>finalDate</MethodRef>, <MethodRef>reason</MethodRef> missing).
-
-<Conversation title="Turn 2">
-  <User>Final date is 2026-03-31 and reason is moving out.</User>
-  <Assistant>Your request is submitted. Ticket DR-22991 is created.</Assistant>
-</Conversation>
-
-<Tabs groupId="disconnect-example">
-  <TabItem value="flow" label="Flow" default>
-
-<ul>
-  <li><code>SchemaExtractionStep.execute</code> picks schema from <FileRef>ce_output_schema</FileRef>.</li>
-  <li>Prompt is resolved from <FileRef>ce_prompt_template</FileRef> (<code>response_type=SCHEMA_JSON</code>).</li>
-  <li><code>llm.generateJson(...)</code> extracts fields and merges into <code>context_json</code>.</li>
-  <li><code>session.lockIntent("SCHEMA_INCOMPLETE")</code> protects intent until required fields are complete.</li>
-  <li><code>RulesStep.execute</code> can move state to submission-ready.</li>
-  <li><code>ResponseResolutionStep.execute</code> returns clarification or success response.</li>
-</ul>
-
-  </TabItem>
-  <TabItem value="tables" label="Tables">
 <DbTable
-  title="Disconnect table touchpoints"
-  columns={["Table", "Expected data"]}
+  title="DISCONNECT_ELECTRICITY expected ce_audit trail"
+  columns={["Stage", "Meaning"]}
   rows={[
-    ["ce_output_schema", "required: accountId, finalDate, reason"],
-    ["ce_prompt_template", "SCHEMA_JSON extraction template"],
-    ["ce_rule", "state transitions for missing-fields and submit"],
-    ["ce_response", "clarification + submission confirmation"],
-    ["ce_audit", "SCHEMA_EXTRACTION_*, SCHEMA_STATUS"],
+    ["INTENT_RESOLVED", "Intent selected"],
+    ["SCHEMA_INCOMPLETE", "Missing fields detected"],
+    ["ASSISTANT_OUTPUT", "Follow-up asked"],
+    ["SCHEMA_COMPLETE", "All required fields present"],
+    ["RULE_MATCHED", "State transition executed"],
+    ["CONVERSATION_PERSIST", "Final state stored"],
   ]}
 />
+
   </TabItem>
 </Tabs>
 
-## LOG_ANALYSIS Example
+## LOG_ANALYSIS
 
-<Conversation title="Turn 1">
-  <User>Analyze timeout logs for order flow.</User>
-  <Assistant>Please share correlation id or request id.</Assistant>
+<Tabs groupId="example-log">
+  <TabItem value="conversation" label="Conversation + Flow" default>
+
+<Conversation title="LOG_ANALYSIS">
+  <User>Analyze timeout logs and tell root cause.</User>
+  <Assistant>Root cause is DB connection pool saturation from 11:02 to 11:07 UTC.</Assistant>
 </Conversation>
 
-After identifier is collected, tool-assisted path can run.
+<EngineDebugFlow title="Log analysis flow" subtitle="GET_SCHEMA_JSON rule and DERIVED output" nodes={logNodes} edges={logEdges} detailsById={logDetails} defaultSelectedId="l_rules" />
 
-<Conversation title="Turn 2">
-  <User>Correlation id is 8fe6d9c9-2f7a.</User>
-  <Assistant>Root cause: DB pool saturation from 11:02 to 11:07 UTC.</Assistant>
-</Conversation>
-
-<Tabs groupId="log-example">
-  <TabItem value="flow" label="Flow" default>
-<ul>
-  <li><code>SchemaExtractionStep</code> extracts <code>correlationId</code>.</li>
-  <li><code>McpToolStep.execute</code> plans tool call from MCP config.</li>
-  <li>Tool result is merged under <code>context_json.mcp</code>.</li>
-  <li><code>ResponseResolutionStep</code> generates final RCA output.</li>
-</ul>
   </TabItem>
-  <TabItem value="tables" label="Tables">
+  <TabItem value="dml" label="DML Entries">
+
 <DbTable
-  title="Log analysis table touchpoints"
-  columns={["Table", "Role"]}
+  title="LOG_ANALYSIS seed preview"
+  columns={["Table", "Key values"]}
   rows={[
-    ["ce_mcp_tool", "Tool registry for planner"],
-    ["ce_mcp_db_tool", "DB-backed tool metadata"],
-    ["ce_config", "MCP planner prompt keys"],
-    ["ce_prompt_template", "derived response template"],
-    ["ce_audit", "MCP_PLAN_*, MCP_TOOL_*, MCP_FINAL_ANSWER"],
+    ["ce_intent", "intent_code=LOG_ANALYSIS"],
+    ["ce_output_schema", "fields=errorCode,component,severity"],
+    ["ce_rule", "action=GET_SCHEMA_JSON"],
+    ["ce_response", "response_type=DERIVED"],
   ]}
 />
+
+  </TabItem>
+  <TabItem value="audit" label="Audit Trail">
+
+<DbTable
+  title="LOG_ANALYSIS expected ce_audit trail"
+  columns={["Stage", "Meaning"]}
+  rows={[
+    ["INTENT_RESOLVED", "LOG_ANALYSIS selected"],
+    ["SCHEMA_EVALUATED", "Structured facts extracted"],
+    ["RULE_MATCHED", "GET_SCHEMA_JSON evaluated"],
+    ["ASSISTANT_OUTPUT", "Derived explanation produced"],
+  ]}
+/>
+
   </TabItem>
 </Tabs>
 
-## REQUEST_TRACKER Example
+## REQUEST_TRACKER
 
-<Conversation title="Single turn tracker">
+<Tabs groupId="example-tracker">
+  <TabItem value="conversation" label="Conversation + Flow" default>
+
+<Conversation title="REQUEST_TRACKER">
   <User>Track request REQ-778102.</User>
-  <Assistant>Request REQ-778102 is IN_REVIEW and assigned to Queue-3.</Assistant>
+  <Assistant>REQ-778102 is IN_REVIEW and assigned to Queue-3.</Assistant>
 </Conversation>
 
-<Tabs groupId="tracker-example">
-  <TabItem value="flow" label="Flow" default>
-<ul>
-  <li><code>IntentResolutionStep.execute</code> resolves <code>REQUEST_TRACKER</code>.</li>
-  <li><code>SchemaExtractionStep.execute</code> extracts request id.</li>
-  <li><code>RulesStep.execute</code> sets tracking-ready state.</li>
-  <li><code>ResponseResolutionStep.resolveResponse</code> selects mapping and emits output.</li>
-</ul>
+<EngineDebugFlow title="Tracker flow" subtitle="SET_TASK driven state path" nodes={trackerNodes} edges={trackerEdges} detailsById={trackerDetails} defaultSelectedId="t_rules" />
+
   </TabItem>
-  <TabItem value="tables" label="Tables">
+  <TabItem value="dml" label="DML Entries">
+
 <DbTable
-  title="Request tracker table touchpoints"
-  columns={["Table", "Expected row"]}
+  title="REQUEST_TRACKER seed preview"
+  columns={["Table", "Key values"]}
   rows={[
-    ["ce_output_schema", "requestId extraction schema"],
-    ["ce_rule", "state transition to TRACK_READY"],
-    ["ce_response", "status message mapping"],
-    ["ce_audit", "intent + state + output trace"],
+    ["ce_intent", "intent_code=REQUEST_TRACKER"],
+    ["ce_output_schema", "field=requestId"],
+    ["ce_rule", "action=SET_TASK"],
+    ["ce_response", "response_type=DERIVED"],
   ]}
 />
+
+  </TabItem>
+  <TabItem value="audit" label="Audit Trail">
+
+<DbTable
+  title="REQUEST_TRACKER expected ce_audit trail"
+  columns={["Stage", "Meaning"]}
+  rows={[
+    ["INTENT_RESOLVED", "REQUEST_TRACKER selected"],
+    ["RULE_MATCHED", "SET_TASK applied"],
+    ["ASSISTANT_OUTPUT", "Status response emitted"],
+    ["CONVERSATION_PERSIST", "Turn persisted"],
+  ]}
+/>
+
   </TabItem>
 </Tabs>
 
-<Highlight type="success" title="Fast debug routine">
-For every example run: call <FileRef>/audit/{'{conversationId}'}</FileRef> for stage timeline, then <FileRef>/audit/{'{conversationId}'}/trace</FileRef> for step spans and source references.
+<Highlight type="tip" title="Fast validation">
+For each example run, inspect both <FileRef>/api/v1/conversation/audit/{'{conversationId}'}</FileRef> and <FileRef>/api/v1/conversation/audit/{'{conversationId}'}/trace</FileRef>.
 </Highlight>

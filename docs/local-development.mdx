@@ -24,6 +24,9 @@ import { CodeBlockToggle, Highlight, FileRef, MethodRef } from "@site/src/compon
 {`@EnableConvEngine
 @SpringBootApplication
 public class MyApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(MyApplication.class, args);
+  }
 }`}
 </CodeBlockToggle>
 
@@ -44,13 +47,13 @@ public class MyApplication {
 
 <CodeBlockToggle title="application.yml" language="yaml">
 {`server:
-  port: 8080
+    port: 8080
 
 spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/convengine
-    username: convengine_user
-    password: convengine_pwd
+    datasource:
+      url: jdbc:postgresql://localhost:5432/convengine
+      username: convengine_user
+      password: convengine_pwd
 
 convengine:
   demo:
@@ -116,7 +119,7 @@ convengine:
       max-tracked-buckets: 20000
 
   experimental:
-    enabled: false`}
+      enabled: false`}
 </CodeBlockToggle>
 
 <Highlight type="warning" title="When enabling STOMP">
@@ -131,6 +134,9 @@ Keep SSE enabled initially. Use STOMP only when your client architecture needs b
 @EnableConvEngineStompBrokerRelay
 @SpringBootApplication
 public class MyApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(MyApplication.class, args);
+  }
 }`}
 </CodeBlockToggle>
 

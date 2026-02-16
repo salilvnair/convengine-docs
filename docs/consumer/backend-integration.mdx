@@ -79,13 +79,13 @@ public class ConvEngineConfig {
   filePath="convengine-demo/src/main/resources/application.yml"
 >
 {`server:
-  port: 8080
+    port: 8080
 
 spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/convengine
-    username: convengine_user
-    password: convengine_pwd
+    datasource:
+      url: jdbc:postgresql://localhost:5432/convengine
+      username: convengine_user
+      password: convengine_pwd
 
 convengine:
   demo:
@@ -238,21 +238,24 @@ public class ConvEngineTransportStartupLogger {
 {`@Component
 @RequiredArgsConstructor
 public class DemoEngineStepHook implements EngineStepHook {
-  private static final Set<String> TRACKED_STEPS = Set.of(
-    "IntentResolutionStep", "SchemaExtractionStep", "RulesStep", "ResponseResolutionStep"
+  private static final Set<EngineStep.Name> TRACKED_STEPS = Set.of(
+    EngineStep.Name.IntentResolutionStep,
+    EngineStep.Name.SchemaExtractionStep,
+    EngineStep.Name.RulesStep,
+    EngineStep.Name.ResponseResolutionStep
   );
 
   @Override
-  public boolean supports(String stepName, EngineSession session) {
+  public boolean supports(EngineStep.Name stepName, EngineSession session) {
     return demoTransportProperties.getStepHook().isEnabled() && TRACKED_STEPS.contains(stepName);
   }
 
   @Override
-  public void beforeStep(String stepName, EngineSession session) { /* logs */ }
+  public void beforeStep(EngineStep.Name stepName, EngineSession session) { /* logs */ }
   @Override
-  public void afterStep(String stepName, EngineSession session, StepResult result) { /* logs */ }
+  public void afterStep(EngineStep.Name stepName, EngineSession session, StepResult result) { /* logs */ }
   @Override
-  public void onStepError(String stepName, EngineSession session, Throwable error) { /* logs */ }
+  public void onStepError(EngineStep.Name stepName, EngineSession session, Throwable error) { /* logs */ }
 }`}
 </CodeBlockToggle>
 

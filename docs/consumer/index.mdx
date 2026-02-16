@@ -3,36 +3,143 @@ title: Consumer Guide
 sidebar_position: 1
 ---
 
-import { Highlight, FlowStep, FileRef, MethodRef } from "@site/src/components/convengine";
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { Highlight, FlowStep, FileRef, MethodRef, CodeBlockToggle, DbTable } from "@site/src/components/convengine";
 
 # Consumer Guide
 
-This section is for teams integrating ConvEngine inside domain applications (utility ops, support workflows, request tracking, diagnostics).
+ConvEngine consumer integration is about wiring three things correctly:
+- framework bootstrapping (`@EnableConvEngine`)
+- LLM adapter (`LlmClient`)
+- DB-driven behavior (`ce_*` control-plane rows)
 
-## Integration checklist
+## 10-Minute Starter
 
 <FlowStep step="1" title="Enable framework">
-Use <MethodRef>@EnableConvEngine</MethodRef> in your Spring Boot app.
+Use <MethodRef>@EnableConvEngine</MethodRef> on your Spring Boot entry point.
 </FlowStep>
 
 <FlowStep step="2" title="Provide LlmClient">
-Register concrete <MethodRef>LlmClient</MethodRef> bean used by intent/schema/derived/MCP flows.
+Register a concrete <MethodRef>LlmClient</MethodRef> bean for intent/schema/derived flows.
 </FlowStep>
 
 <FlowStep step="3" title="Apply ce_* schema">
-Apply DDL and seed minimal rows: intent, classifier, response, prompt template.
+Apply DDL and seed minimum rows in <FileRef>ce_intent</FileRef>, <FileRef>ce_intent_classifier</FileRef>, <FileRef>ce_response</FileRef>, <FileRef>ce_prompt_template</FileRef>.
 </FlowStep>
 
 <FlowStep step="4" title="Validate with audit trace">
-Use <FileRef>/audit/{'{conversationId}'}</FileRef> and <FileRef>/audit/{'{conversationId}'}/trace</FileRef> for every integration test.
+Run a real turn and validate with <FileRef>/api/v1/conversation/audit/{'{conversationId}'}</FileRef> and <FileRef>/api/v1/conversation/audit/{'{conversationId}'}/trace</FileRef>.
 </FlowStep>
 
-## Suggested rollout
+## Core Contracts
 
-- Phase A: exact responses, deterministic rule path
-- Phase B: schema extraction + intent collision flow
-- Phase C: MCP tool planning + derived outputs
+<DbTable
+  title="Consumer-side contracts"
+  columns={["Contract", "Why it matters", "Where it plugs in"]}
+  rows={[
+    ["@EnableConvEngine", "Bootstraps engine + pipeline + transport wiring", "Spring Boot application class"],
+    ["LlmClient", "Provides text/json generation backend", "Consumer config bean"],
+    ["ce_* tables", "Defines behavior as data, not hardcoded Java", "Consumer database"],
+    ["EngineStepHook", "Allows pre/post step intervention", "Consumer extension bean"],
+    ["ResponseTransformer", "Last-mile payload normalization", "Consumer extension bean"],
+  ]}
+/>
 
-<Highlight type="success" title="Production practice">
-Treat <FileRef>ce_audit</FileRef> as mandatory observability. Never deploy new DB behavior without reviewing a full multi-turn trace.
+<Tabs groupId="consumer-setup">
+  <TabItem value="boot" label="Bootstrapping" default>
+
+<CodeBlockToggle title="Spring Boot entry point" language="java" packagePath="com.acme.demo" filePath="src/main/java/com/acme/demo/DemoApplication.java">
+{`@SpringBootApplication
+@EnableConvEngine(stream = true)
+public class DemoApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(DemoApplication.class, args);
+  }
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="LlmClient bean" language="java" packagePath="com.acme.demo.config" filePath="src/main/java/com/acme/demo/config/LlmConfig.java">
+{`@Configuration
+public class LlmConfig {
+  @Bean
+  public LlmClient llmClient(OpenAiClient openAiClient) {
+    return new OpenAiLlmClient(openAiClient);
+  }
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="seed" label="Minimum Seed SQL">
+
+<CodeBlockToggle title="Minimum FAQ seed (consumer DB)" language="sql">
+{`insert into ce_intent(intent_code, enabled)
+values ('FAQ', true);
+
+insert into ce_intent_classifier(intent_code, match_pattern, priority, enabled)
+values ('FAQ', '(?i).*(office|location|address).*', 10, true);
+
+insert into ce_response(intent_code, state_code, response_type, output_format, exact_text, enabled)
+values ('FAQ', null, 'EXACT', 'TEXT', 'Yes. You can request relocation from the support portal.', true);
+
+insert into ce_prompt_template(intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+values (
+  'FAQ',
+  null,
+  'TEXT',
+  'You are a support assistant. Keep answers concise and clear.',
+  'User asked: {{user_input}}. Answer as FAQ in 1-2 lines.',
+  true
+);`}
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="intervene" label="Intervention Points">
+
+<CodeBlockToggle title="EngineStepHook (typed step matching)" language="java" packagePath="com.acme.demo.hooks" filePath="src/main/java/com/acme/demo/hooks/SchemaHintHook.java">
+{`@Component
+public class SchemaHintHook implements EngineStepHook {
+  @Override
+  public boolean supports(EngineStep.Name stepName, EngineSession session) {
+    return EngineStep.Name.SchemaExtractionStep == stepName
+        && "DISCONNECT_ELECTRICITY".equalsIgnoreCase(session.getIntent());
+  }
+
+  @Override
+  public void beforeStep(EngineStep.Name stepName, EngineSession session) {
+    session.putInputParam("consumer_hint", "compact");
+  }
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="ResponseTransformer (last-mile output shaping)" language="java" packagePath="com.acme.demo.transform" filePath="src/main/java/com/acme/demo/transform/ApiResponseTransformer.java">
+{`@Component
+public class ApiResponseTransformer implements ResponseTransformer {
+  @Override
+  public EngineResult transform(EngineResult result, EngineSession session) {
+    // Example: add consumer-side envelope metadata
+    return result.withMeta(Map.of("conversationId", session.getConversationId()));
+  }
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## Rollout Plan
+
+<DbTable
+  title="Recommended rollout path"
+  columns={["Phase", "Scope", "Exit criteria"]}
+  rows={[
+    ["Phase A", "EXACT responses + deterministic rules", "No unresolved intent collisions in audit"],
+    ["Phase B", "Schema extraction + clarification flow", "Missing-field loop converges in <= 2 turns"],
+    ["Phase C", "MCP + DERIVED output", "Stable tool-call traces and bounded token usage"],
+  ]}
+/>
+
+<Highlight type="warning" title="Do not skip audit validation">
+Treat <FileRef>ce_audit</FileRef> as mandatory observability. Promote behavior changes only after reviewing multi-turn traces for each key intent.
 </Highlight>

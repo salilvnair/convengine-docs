@@ -53,3 +53,8 @@ You can evolve behavior by updating `ce_*` rows instead of re-releasing Java cod
 - `ce_prompt_template` is intent/state/response template content.
 - `ce_config` is class-keyed runtime config (thresholds/system prompts/component behavior).
 </Highlight>
+
+<Highlight type="tip" title="Prohibited Pattern Handling">
+Use `ce_policy` to block prohibited request patterns with a fixed response.  
+Use `ce_prompt_template` + `ce_response` for response shapes like `SCHEMA_JSON` or `TEXT` with explicit system/user prompts.
+</Highlight>
