@@ -38,7 +38,7 @@ You can evolve behavior by updating `ce_*` rows instead of re-releasing Java cod
     ["ce_output_schema", "Schema contract for structured data extraction by intent/state.", "Required fields: accountId, serviceAddress"],
     ["ce_prompt_template", "System/user prompt templates for schema extraction and derived outputs.", "response_type=SCHEMA_JSON or TEXT with system/user prompt"],
     ["ce_response", "Maps intent/state to EXACT or DERIVED output behavior.", "intent=FAQ, state=IDLE, response_type=EXACT"],
-    ["ce_rule", "State machine transitions and context actions.", "JSON_PATH match -> SET_STATE=AWAITING_ACCOUNT_ID"],
+    ["ce_rule", "State machine transitions and context actions with execution phase control.", "phase=PIPELINE_RULES, JSON_PATH -> SET_STATE=AWAITING_ACCOUNT_ID"],
     ["ce_policy", "Early safety blocks (contains/regex/etc.).", "Block prohibited request patterns with fixed response"],
     ["ce_mcp_tool", "Tool registry visible to MCP planner.", "postgres.schema, postgres.query"],
     ["ce_mcp_db_tool", "SQL templates and safety limits for DB tools.", "sql_template with param_schema and max_rows"],

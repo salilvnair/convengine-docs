@@ -3,7 +3,7 @@ title: Extensions
 sidebar_position: 3
 ---
 
-import { CodeBlockToggle, Highlight, FlowStep, DbTable, MethodRef, FileRef } from "@site/src/components/convengine";
+import { CodeBlockToggle, Highlight, FlowStep, DbTable, MethodRef, FileRef, DocTermPopup } from "@site/src/components/convengine";
 
 # Extension Points and Intervention Scenarios
 
@@ -91,6 +91,10 @@ After Execute:
 
 These actions execute inside <MethodRef>RulesStep.execute(...)</MethodRef> and mutate the live <MethodRef>EngineSession</MethodRef>.
 
+Set <MethodRef>ce_rule.phase</MethodRef> based on where you want the action to run:
+- <MethodRef>PIPELINE_RULES</MethodRef>: normal <MethodRef>RulesStep</MethodRef> pass.
+- <MethodRef>AGENT_POST_INTENT</MethodRef>: post-intent pass inside <MethodRef>AgentIntentResolver</MethodRef>.
+
 <DbTable
   title="Action value format (exact runtime behavior)"
   columns={["Action", "action_value format", "Engine behavior"]}
@@ -112,9 +116,9 @@ Set <MethodRef>ce_rule.action</MethodRef> to <MethodRef>SET_TASK</MethodRef> and
 
 <CodeBlockToggle title="SET_TASK rule example (SQL)" language="sql">
 {`INSERT INTO ce_rule
-  (intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('REQUEST_TRACKER', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus,attachEta', 10, true,
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus,attachEta', 10, true,
    'Load tracker status + ETA from consumer service');`}
 </CodeBlockToggle>
 
@@ -154,9 +158,9 @@ Use this to extract one value from runtime session JSON into a flat prompt var.
 
 <CodeBlockToggle title="SET_JSON rule example (SQL)" language="sql">
 {`INSERT INTO ce_rule
-  (intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('LOG_ANALYSIS', 'JSON_PATH', '$.schemaJson.errorCode != null', 'SET_JSON', 'error_code:$.schemaJson.errorCode', 20, true,
+  ('PIPELINE_RULES', 'LOG_ANALYSIS', 'JSON_PATH', '$.schemaJson.errorCode != null', 'SET_JSON', 'error_code:$.schemaJson.errorCode', 20, true,
    'Expose extracted errorCode as prompt var');`}
 </CodeBlockToggle>
 
@@ -171,9 +175,9 @@ Use this when prompt templates or tasks need full context as a single variable.
 
 <CodeBlockToggle title="GET_CONTEXT rule example (SQL)" language="sql">
 {`INSERT INTO ce_rule
-  (intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('REQUEST_TRACKER', 'REGEX', '(?i).*status.*', 'GET_CONTEXT', 'ctx_snapshot', 30, true,
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'REGEX', '(?i).*status.*', 'GET_CONTEXT', 'ctx_snapshot', 30, true,
    'Expose full context to prompt/task layer');`}
 </CodeBlockToggle>
 
@@ -185,9 +189,9 @@ Use this for advanced derived responses that need runtime flags (`schemaComplete
 
 <CodeBlockToggle title="GET_SESSION rule example (SQL)" language="sql">
 {`INSERT INTO ce_rule
-  (intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('DISCONNECT_ELECTRICITY', 'JSON_PATH', '$.schemaComplete == false', 'GET_SESSION', 'session_snapshot', 40, true,
+  ('PIPELINE_RULES', 'DISCONNECT_ELECTRICITY', 'JSON_PATH', '$.schemaComplete == false', 'GET_SESSION', 'session_snapshot', 40, true,
    'Expose full runtime session facts for follow-up prompt decisions');`}
 </CodeBlockToggle>
 
@@ -267,14 +271,14 @@ Set <MethodRef>ce_rule.action</MethodRef> to your custom token (case-insensitive
 
 <CodeBlockToggle title="ce_rule row for custom action" language="sql">
 {`INSERT INTO ce_rule
-  (intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('REQUEST_TRACKER', 'REGEX', '(?i).*vip.*', 'ENRICH_TIER', 'customerTier:PREMIUM', 5, true,
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'REGEX', '(?i).*vip.*', 'ENRICH_TIER', 'customerTier:PREMIUM', 5, true,
    'Mark VIP tier for downstream response logic');`}
 </CodeBlockToggle>
 
 <Highlight type="tip" title="Auto-registration behavior">
-No manual factory config is needed. <MethodRef>RuleActionResolverFactory</MethodRef> auto-discovers all Spring beans implementing <MethodRef>RuleActionResolver</MethodRef> and maps by <MethodRef>action().toUpperCase()</MethodRef>.
+No manual factory config is needed. <DocTermPopup term="Auto-registration behavior">RuleActionResolverFactory auto-registration behavior</DocTermPopup> auto-discovers all Spring beans implementing <MethodRef>RuleActionResolver</MethodRef> and maps by <MethodRef>action().toUpperCase()</MethodRef>.
 </Highlight>
 
 </div>

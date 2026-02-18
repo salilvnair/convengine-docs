@@ -1,0 +1,171 @@
+---
+title: New Consumer Onboarding
+sidebar_position: 2
+hide_table_of_contents: true
+---
+
+import { DbTable, Highlight, CodeBlockToggle, FlowStep, FileRef, MethodRef } from "@site/src/components/convengine";
+
+# New Consumer Onboarding
+
+This is the practical playbook for teams integrating ConvEngine for the first time. Follow this sequence to avoid the common mistakes: wrong data routing, stale intent carry-over, unsafe prompt exposure, and concurrency drift.
+
+## What a new consumer must decide first
+
+<DbTable
+  title="Day-0 decisions"
+  columns={["Decision", "Why it matters", "Recommended default"]}
+  rows={[
+    ["Transport", "Determines runtime event delivery and operational complexity.", "Start with SSE only; enable STOMP relay later."],
+    ["Intent continuity", "Controls whether intent re-resolves each turn.", "Start with `STICKY_INTENT=true`, but add explicit switch UX."],
+    ["Response mode", "Defines determinism vs model flexibility.", "Start with `EXACT` for critical intents; add `DERIVED` gradually."],
+    ["Concurrency policy", "Prevents same-conversation race corruption.", "Serialize by `conversationId` at API layer from day one."],
+    ["Prompt exposure policy", "Controls data leakage and prompt contamination risk.", "Use allowlist of prompt vars; do not expose raw input maps."],
+  ]}
+/>
+
+## Step-by-step onboarding
+
+<FlowStep step="1" title="Bootstrap framework and LLM adapter">
+Enable <MethodRef>@EnableConvEngine</MethodRef>, provide one production-grade <MethodRef>LlmClient</MethodRef> bean with strict timeout and retry policy.
+</FlowStep>
+
+<FlowStep step="2" title="Create baseline control-plane data">
+Seed minimum rows for intents, classifiers, responses, prompt templates, and required `ce_config` flags.
+</FlowStep>
+
+<FlowStep step="3" title="Lock down safety defaults">
+Apply conservative defaults for reset behavior, sticky-intent, rule phases, MCP safety, and prompt-variable exposure.
+</FlowStep>
+
+<FlowStep step="4" title="Run correctness tests before UI rollout">
+Validate multi-turn transitions, reset continuity, missing-field loops, and same-conversation concurrency behavior.
+</FlowStep>
+
+<FlowStep step="5" title="Promote with release gates">
+Move from non-prod to prod only after all correctness/security/scalability gates pass.
+</FlowStep>
+
+## Minimum integration checklist
+
+<DbTable
+  title="Must-have implementation tasks"
+  columns={["Area", "Task", "Done when"]}
+  rows={[
+    ["Spring wiring", "Enable ConvEngine + define `LlmClient` bean.", "`/message` works and returns payload for seeded FAQ intent."],
+    ["Schema", "Apply DDL and create indexes from ConvEngine schema.", "All `ce_*` tables present and writable."],
+    ["Seed data", "Insert minimal rows for one end-to-end intent.", "One deterministic turn passes with expected intent/state."],
+    ["Audit usage", "Wire audit API/stream into debugging workflow.", "Every test case is verified against trace timeline."],
+    ["Concurrency guard", "Prevent parallel writes for same conversation.", "Load test shows no state drift under concurrent same-ID requests."],
+    ["Prompt hygiene", "Allowlist exposed template vars.", "No sensitive/internal keys appear in rendered prompts."],
+  ]}
+/>
+
+## Recommended baseline config (new consumers)
+
+<CodeBlockToggle title="Safe starter config (ConvEngine + CCF mappings)" language="yaml">
+{`convengine:
+  transport:
+    sse:
+      enabled: true
+    stomp:
+      enabled: false
+
+  audit:
+    enabled: true
+    level: STANDARD
+    dispatch:
+      async-enabled: false
+
+  # ConvEngine dynamic table mapping
+  tables:
+    AUDIT: CE_AUDIT
+    CONTAINER_CONFIG: CE_CONTAINER_CONFIG
+    CONVERSATION: CE_CONVERSATION
+    INTENT: CE_INTENT
+    INTENT_CLASSIFIER: CE_INTENT_CLASSIFIER
+    LLM_CALL_LOG: CE_LLM_CALL_LOG
+    MCP_DB_TOOL: CE_MCP_DB_TOOL
+    MCP_TOOL: CE_MCP_TOOL
+    OUTPUT_SCHEMA: CE_OUTPUT_SCHEMA
+    PROMPT_TEMPLATE: CE_PROMPT_TEMPLATE
+    RESPONSE: CE_RESPONSE
+    RULE: CE_RULE
+    VALIDATION_SNAPSHOT: CE_VALIDATION_SNAPSHOT
+
+ccf:
+  core:
+    # CCF Core dynamic table mapping
+    tables:
+      PAGE_COMMON_QUERY: ZP_PAGE_COMMON_QUERY
+      SECTION_INFO: ZP_SECTION_INFO
+      CONTAINER_INFO: ZP_CONTAINER_INFO
+      CONTAINER_FIELD_INFO: ZP_CONTAINER_FIELD_INFO
+      CONTAINER_QUERY_INFO: ZP_CONTAINER_QUERY_INFO
+
+# In ce_config
+# IntentResolutionStep.STICKY_INTENT=true
+# ResetResolvedIntentStep.RESET_INTENT_CODES=RESET_SESSION,START_OVER
+# AgentIntentResolver.MIN_CONFIDENCE=0.60`}
+</CodeBlockToggle>
+
+<Highlight type="warning" title="Do not start with max flexibility">
+Do not begin with broad MCP usage, many DERIVED intents, and aggressive rule chains together. Start deterministic, then expand one capability at a time.
+</Highlight>
+
+## Correctness-focused test pack (required)
+
+<DbTable
+  title="Pre-production test scenarios"
+  columns={["Scenario", "What to verify", "Failure signal"]}
+  rows={[
+    ["Sticky intent shift", "New-topic user input triggers expected re-resolution/switch behavior.", "Repeated wrong-intent responses with skip stages."],
+    ["Reset semantics", "All reset paths clear context/intent/state consistently.", "Old fields survive after reset turn."],
+    ["Rule collisions", "Only intended rule wins for same turn.", "Unexpected multi-pass intent/state mutation."],
+    ["Schema loop", "Missing fields converge in bounded turns.", "Infinite clarification or inconsistent required field set."],
+    ["Concurrent same ID", "No last-write-wins drift under parallel requests.", "Contradictory final state for same conversation timeline."],
+    ["Model bad JSON", "Invalid model output fails safely and deterministically.", "Silent state corruption or unbounded fallback noise."],
+  ]}
+/>
+
+## Production readiness gates
+
+<DbTable
+  title="Go-live gates"
+  columns={["Gate", "Requirement"]}
+  rows={[
+    ["Data correctness", "Illegal intent/state transitions are blocked or quarantined."],
+    ["Security", "Prompt var allowlist and secret redaction enabled."],
+    ["Concurrency", "Same-conversation serialization or optimistic locking in place."],
+    ["Observability", "Team can reconstruct one bad turn end-to-end from trace."],
+    ["Scalability", "P95 stable under target QPS with production-like config volume."],
+    ["Rollback", "Config rollback procedure tested for bad rule/prompt deployment."],
+  ]}
+/>
+
+## New intent rollout template (repeatable)
+
+1. Add `ce_intent` and classifiers for the new intent.
+2. Add response mapping (`EXACT` first).
+3. Add schema + prompt template only if extraction is needed.
+4. Add minimal rules with explicit phase and priority.
+5. Run scenario tests for this intent (normal, reset, switch, collision, concurrent).
+6. Promote with rollback snapshot.
+
+## Common new-consumer mistakes
+
+<DbTable
+  title="Avoid these early mistakes"
+  columns={["Mistake", "Impact", "Fix"]}
+  rows={[
+    ["Using DERIVED everywhere from day one", "Higher variance and harder debugging.", "Use EXACT for critical flows first."],
+    ["No conversation-level concurrency control", "State drift and non-deterministic results.", "Serialize by conversation ID or add optimistic locking."],
+    ["Treating prompt vars as free-form", "Data leakage and unintended model behavior.", "Explicit prompt-var allowlist and validation."],
+    ["Shipping config changes without tests", "Production regressions from rule/template misconfig.", "Introduce lint + fixture tests + staged promotion."],
+    ["Skipping trace review", "Root cause unclear when output is wrong.", "Make trace review mandatory in QA signoff."],
+  ]}
+/>
+
+<Highlight type="info" title="Where to read next">
+After this page, continue with [Configuration](/docs/consumer/configuration) for table-level setup, [Annotations Reference](/docs/consumer/annotations-reference) for all annotation usage, and [Improvement Backlog](/docs/deep-dive/improvement-backlog) for implementation roadmap.
+</Highlight>

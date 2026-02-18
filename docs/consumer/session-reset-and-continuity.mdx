@@ -26,6 +26,26 @@ Intent lock is used for incomplete schema collection to avoid drift.
 - intent resolver skip logic respects lock
 - lock removed when schema is complete or schema path is absent
 
+## Sticky intent lifecycle (`ce_config`)
+
+Even after schema lock is released, you can keep intent stable across turns with `IntentResolutionStep.STICKY_INTENT`.
+
+- when enabled, `IntentResolutionStep` skips re-resolution if current `intent/state` are already resolved
+- skip emits audit stage: `INTENT_RESOLVE_SKIPPED_STICKY_INTENT`
+- re-resolution still runs for explicit switch/reset/force signals
+
+<CodeBlockToggle title="Sticky intent config" language="sql">
+{`INSERT INTO ce_config (config_type, config_key, config_value, enabled)
+VALUES ('IntentResolutionStep', 'STICKY_INTENT', 'true', true);`}
+</CodeBlockToggle>
+
+Force re-resolution signals:
+
+- reset commands: `reset`, `restart`, `/reset`, `/restart`
+- switch phrases: `switch to ...`, `switch intent`, `change intent/flow/mode`
+- input params: `force_intent_resolution=true`, `resolve_intent=true`, `switch_intent=true`, `switch_flow=true`, `switch_mode=true`
+- active clarification flow
+
 ## Reset triggers
 
 - request body `reset=true`

@@ -183,6 +183,7 @@ CREATE INDEX idx_ce_response_lookup ON ce_response USING btree (state_code, enab
 
 CREATE TABLE ce_rule (
     rule_id bigserial NOT NULL,
+    phase text DEFAULT 'PIPELINE_RULES' NOT NULL,
     intent_code text NULL,
     rule_type text NOT NULL,
     match_pattern text NOT NULL,
@@ -193,7 +194,7 @@ CREATE TABLE ce_rule (
     created_at timestamptz DEFAULT now() NOT NULL,
     CONSTRAINT ce_rule_pkey PRIMARY KEY (rule_id)
 );
-CREATE INDEX idx_ce_rule_priority ON ce_rule USING btree (enabled, priority);
+CREATE INDEX idx_ce_rule_priority ON ce_rule USING btree (enabled, phase, priority);
 
 CREATE TABLE ce_audit (
     audit_id bigserial NOT NULL,
@@ -470,9 +471,9 @@ public class SchemaHintHook implements EngineStepHook {
 
 <CodeBlockToggle title="SET_TASK via ce_rule" language="sql" packagePath="consumer DB">
 {`INSERT INTO ce_rule
-  (intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('REQUEST_TRACKER', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus', 10, true,
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus', 10, true,
    'Invoke consumer task bean');`}
 </CodeBlockToggle>
 

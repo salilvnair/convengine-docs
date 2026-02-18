@@ -7,6 +7,194 @@ import { DbTable, CodeBlockToggle, Highlight } from "@site/src/components/conven
 
 # Configuration Deep Guide
 
+## Table mapping in `application.yml` (ConvEngine + CCF Core)
+
+Use this when your physical table names differ from defaults. ConvEngine reads `convengine.tables.*`; CCF Core reads `ccf.core.tables.*`.
+
+<CodeBlockToggle title="application.yml table mappings" language="yaml">
+  {`
+    ccf:
+      core:
+        tables:
+          PAGE_COMMON_QUERY: ZP_PAGE_COMMON_QUERY
+          SECTION_INFO: ZP_SECTION_INFO
+          CONTAINER_INFO: ZP_CONTAINER_INFO
+          CONTAINER_FIELD_INFO: ZP_CONTAINER_FIELD_INFO
+          CONTAINER_QUERY_INFO: ZP_CONTAINER_QUERY_INFO
+    convengine:
+      tables:
+        AUDIT: CE_AUDIT
+        CONFIG: CE_CONFIG
+        CONTAINER_CONFIG: CE_CONTAINER_CONFIG
+        CONVERSATION: CE_CONVERSATION
+        INTENT: CE_INTENT
+        INTENT_CLASSIFIER: CE_INTENT_CLASSIFIER
+        LLM_CALL_LOG: CE_LLM_CALL_LOG
+        MCP_DB_TOOL: CE_MCP_DB_TOOL
+        MCP_TOOL: CE_MCP_TOOL
+        OUTPUT_SCHEMA: CE_OUTPUT_SCHEMA
+        POLICY: CE_POLICY
+        PROMPT_TEMPLATE: CE_PROMPT_TEMPLATE
+        RESPONSE: CE_RESPONSE
+        RULE: CE_RULE
+        VALIDATION_SNAPSHOT: CE_VALIDATION_SNAPSHOT`}
+</CodeBlockToggle>
+
+<Highlight type="info" title="Important">
+If you override table names, keep mappings consistent across environments and apply the same naming strategy in JPA config.
+</Highlight>
+
+## Complete `application.yml` reference (demo + full ConvEngine options)
+
+This is a complete starter reference combining `convengine-demo` style settings and all configurable `convengine.*` properties currently present in the framework.
+
+<CodeBlockToggle title="Complete application.yml reference" language="yaml" defaultOpen={true} >
+{`server:
+    port: 8080
+
+spring:
+    application:
+      name: convengine
+
+    datasource:
+      url: jdbc:postgresql://localhost:5432/convengine
+      username: convengine_user
+      password: convengine_pwd
+      driver-class-name: org.postgresql.Driver
+
+    jpa:
+      open-in-view: false
+      hibernate:
+        ddl-auto: none
+        naming:
+          # Use the physical strategy your app needs (demo uses CCF strategy)
+          physical-strategy: com.github.salilvnair.ccf.config.hibernate.CcfPhysicalNamingStrategy
+      show-sql: true
+      properties:
+        hibernate:
+          format_sql: true
+          jdbc:
+            lob:
+              non_contextual_creation: true
+
+logging:
+    level:
+      root: INFO
+      org.hibernate.SQL: DEBUG
+      org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+convengine:
+    # Demo app-only block (optional, not framework-required)
+    demo:
+      stream-mode: SSE   # SSE | STOMP | BOTH
+      step-hook:
+        enabled: true
+
+    # Framework flags
+    experimental:
+      enabled: false
+
+    # Dynamic table mapping for CE_* entities
+    tables:
+      AUDIT: CE_AUDIT
+      CONFIG: CE_CONFIG
+      CONTAINER_CONFIG: CE_CONTAINER_CONFIG
+      CONVERSATION: CE_CONVERSATION
+      INTENT: CE_INTENT
+      INTENT_CLASSIFIER: CE_INTENT_CLASSIFIER
+      LLM_CALL_LOG: CE_LLM_CALL_LOG
+      MCP_DB_TOOL: CE_MCP_DB_TOOL
+      MCP_TOOL: CE_MCP_TOOL
+      OUTPUT_SCHEMA: CE_OUTPUT_SCHEMA
+      POLICY: CE_POLICY
+      PROMPT_TEMPLATE: CE_PROMPT_TEMPLATE
+      RESPONSE: CE_RESPONSE
+      RULE: CE_RULE
+      VALIDATION_SNAPSHOT: CE_VALIDATION_SNAPSHOT
+
+    transport:
+      sse:
+        enabled: true
+        emitter-timeout-ms: 1800000
+
+      stomp:
+        enabled: false
+        endpoint: /ws-convengine
+        app-destination-prefix: /app
+        topic-prefix: /topic
+        audit-destination-base: /topic/convengine/audit
+        allowed-origin-pattern: "*"
+        sock-js: true
+        broker:
+          mode: SIMPLE   # SIMPLE | RELAY
+          relay-destination-prefixes: /topic,/queue
+          relay-host: localhost
+          relay-port: 61613
+          client-login: ""
+          client-passcode: ""
+          system-login: ""
+          system-passcode: ""
+          virtual-host: ""
+          system-heartbeat-send-interval-ms: 10000
+          system-heartbeat-receive-interval-ms: 10000
+
+    audit:
+      enabled: true
+      level: ALL          # ALL | STANDARD | ERROR_ONLY | NONE
+      include-stages: []
+      exclude-stages: []
+
+      persistence:
+        mode: IMMEDIATE   # IMMEDIATE | DEFERRED_BULK
+        jdbc-batch-size: 200
+        max-buffered-events: 5000
+        flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
+        final-step-names: PipelineEndGuardStep
+        flush-on-stop-outcome: true
+
+      dispatch:
+        async-enabled: false
+        worker-threads: 2
+        queue-capacity: 2000
+        rejection-policy: CALLER_RUNS  # CALLER_RUNS | DROP_NEWEST | DROP_OLDEST | ABORT
+        keep-alive-seconds: 60
+
+      rate-limit:
+        enabled: false
+        max-events: 200
+        window-ms: 1000
+        per-conversation: true
+        per-stage: true
+        max-tracked-buckets: 20000
+
+  # Example consumer-specific LLM block (optional, used by demo-style adapters)
+  # llm:
+  #   provider: openai
+  #   temperature: 0.3
+  #   openai:
+  #     api-key: \${OPENAI_API_KEY}
+  #     model: gpt-4.1
+  #     base-url: https://api.openai.com
+  #   lmstudio:
+  #     api-key: \${LMSTUDIO_API_KEY}
+  #     model: openai/gpt-oss-20b
+  #     base-url: http://localhost:1234
+
+ccf:
+    core:
+      tables:
+        PAGE_COMMON_QUERY: ZP_PAGE_COMMON_QUERY
+        SECTION_INFO: ZP_SECTION_INFO
+        CONTAINER_INFO: ZP_CONTAINER_INFO
+        CONTAINER_FIELD_INFO: ZP_CONTAINER_FIELD_INFO
+        CONTAINER_QUERY_INFO: ZP_CONTAINER_QUERY_INFO`}
+</CodeBlockToggle>
+
+<Highlight type="tip" title="Stream enablement note">
+`@EnableConvEngine(stream = true|false)` is annotation-driven. It is not a YAML property; keep transport flags aligned with the annotation mode.
+</Highlight>
+
+
 ## `ce_prompt_template` in detail
 
 `ce_prompt_template` holds reusable prompt text for both schema extraction and derived response generation.
@@ -50,12 +238,14 @@ Common keys:
 - `McpPlanner.SYSTEM_PROMPT`
 - `McpPlanner.USER_PROMPT`
 - `ResetResolvedIntentStep.RESET_INTENT_CODES`
+- `IntentResolutionStep.STICKY_INTENT`
 
 <CodeBlockToggle title="Example ce_config rows" language="sql">
 {`INSERT INTO ce_config (config_type, config_key, config_value, enabled) VALUES
 ('AgentIntentResolver', 'MIN_CONFIDENCE', '0.60', true),
 ('AgentIntentResolver', 'COLLISION_GAP_THRESHOLD', '0.15', true),
 ('ResetResolvedIntentStep', 'RESET_INTENT_CODES', 'RESET_SESSION,START_OVER', true),
+('IntentResolutionStep', 'STICKY_INTENT', 'true', true),
 ('McpPlanner', 'SYSTEM_PROMPT', 'You are an MCP planner. Prefer safe calls and minimal arguments.', true),
 ('McpPlanner', 'USER_PROMPT', 'User: {{user_input}}\nTools: {{mcp_tools}}\nContext: {{context}}', true);`}
 </CodeBlockToggle>
@@ -67,6 +257,7 @@ Common keys:
     ["ce_response.response_type", "EXACT, DERIVED", "EXACT bypasses LLM generation"],
     ["ce_response.output_format", "TEXT, JSON", "Used by output format resolver"],
     ["ce_rule.rule_type", "EXACT, REGEX, JSON_PATH", "Must match installed rule type resolvers"],
+    ["ce_rule.phase", "PIPELINE_RULES, AGENT_POST_INTENT", "Controls whether rule runs in RulesStep or AgentIntentResolver post-intent pass"],
     ["ce_rule.action", "SET_INTENT, SET_STATE, SET_JSON, GET_CONTEXT, GET_SCHEMA_JSON, GET_SESSION, SET_TASK", "Must match installed action resolvers"],
   ]}
 />
@@ -153,38 +344,71 @@ VALUES
 `ce_rule` is the conditional transition/action layer executed in `RulesStep`.
 
 - `rule_type`: `EXACT`, `REGEX`, `JSON_PATH`
+- `phase`: `PIPELINE_RULES`, `AGENT_POST_INTENT`
 - `action`: `SET_INTENT`, `SET_STATE`, `SET_JSON`, `GET_CONTEXT`, `GET_SCHEMA_JSON`, `GET_SESSION`, `SET_TASK`
 
 <CodeBlockToggle title="ce_rule shape (DDL-style)" language="sql">
 {`CREATE TABLE ce_rule (
     rule_id BIGSERIAL PRIMARY KEY,
-    intent_code TEXT NOT NULL,
-    state_code TEXT NOT NULL,
-    stage TEXT NOT NULL,
+    phase TEXT NOT NULL DEFAULT 'PIPELINE_RULES',
+    intent_code TEXT NULL,
     rule_type TEXT NOT NULL,
-    condition_expr TEXT,
+    match_pattern TEXT NOT NULL,
     action TEXT NOT NULL,
-    action_payload JSONB,
+    action_value TEXT NULL,
     priority INT NOT NULL DEFAULT 100,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    description TEXT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );`}
 </CodeBlockToggle>
 
 <CodeBlockToggle title="Example ce_rule rows" language="sql">
 {`-- If user says reset keywords, set reset intent
 INSERT INTO ce_rule
-(intent_code, state_code, stage, rule_type, condition_expr, action, action_payload, priority, enabled)
+(phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-('FAQ', 'IDLE', 'PRE_RESPONSE', 'REGEX', '(?i)^(reset|restart)$', 'SET_INTENT', '{"intent":"RESET_SESSION"}'::jsonb, 10, true);
+('PIPELINE_RULES', 'FAQ', 'REGEX', '(?i)^(reset|restart)$', 'SET_INTENT', 'RESET_SESSION', 10, true, 'Reset intent switch');
 
--- Pull context snapshot into payload path
+-- Agent post-intent bootstrap
 INSERT INTO ce_rule
-(intent_code, state_code, stage, rule_type, condition_expr, action, action_payload, priority, enabled)
+(phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-('REQUEST_TRACKER', 'IDLE', 'PRE_RESPONSE', 'EXACT', 'true', 'GET_CONTEXT', '{"target":"payload.context"}'::jsonb, 50, true);`}
+('AGENT_POST_INTENT', 'MAPPING_STUDIO', 'JSON_PATH',
+ '$[?(@.intent == ''MAPPING_STUDIO'' && (@.state == ''UNKNOWN'' || @.state == ''IDLE''))]',
+ 'SET_STATE', 'COLLECT_INPUTS', 5, true, 'Bootstrap mapping state during post-intent pass');`}
 </CodeBlockToggle>
+
+### `ce_rule.phase` execution semantics
+
+Use `phase` to control where a rule executes.
+
+<DbTable
+  title="Rule Phase Execution Matrix"
+  columns={["phase", "Executed by", "When it runs", "Typical usage"]}
+  rows={[
+    ["PIPELINE_RULES", "RulesStep", "Normal pipeline pass after schema/auto-advance", "Business transitions, context actions, SET_TASK in standard flow"],
+    ["AGENT_POST_INTENT", "AgentIntentResolver post-intent pass", "Immediately after agent accepts intent", "Bootstrap state from UNKNOWN/IDLE based on resolved intent"],
+  ]}
+/>
+
+<CodeBlockToggle title="Phase-targeted bootstrap example" language="sql">
+{`INSERT INTO ce_rule
+  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('AGENT_POST_INTENT', 'MAPPING_STUDIO', 'JSON_PATH',
+   '$[?(@.intent == ''MAPPING_STUDIO'' && (@.state == ''UNKNOWN'' || @.state == ''IDLE''))]',
+   'SET_STATE', 'COLLECT_INPUTS', 5, true,
+   'Bootstrap Mapping Studio state right after agent intent resolution');`}
+</CodeBlockToggle>
+
+<Highlight type="info" title="Runtime metadata exposed during rule execution">
+EngineSession/inputParams include phase metadata:
+- `postIntentRule` / `post_intent_rule`
+- `rule_phase`
+- `rule_execution_source`
+- `rule_execution_origin`
+</Highlight>
 
 ## Prompt variable guidance
 
@@ -197,8 +421,8 @@ Common variables used in templates:
 - `{{conversation_history}}`
 - schema helpers: `{{missing_fields}}`, `{{missing_field_options}}`, `{{schema_description}}`
 
-<Highlight type="warning" title="Prompt variable safety">
-Engine now controls prompt variable exposure and blocks unsafe system-derived keys from being unintentionally injected into prompt templates.
+<Highlight type="warning" title="Prompt variable exposure">
+Prompt template `extra` now includes all keys present in `inputParams`, including runtime/system-derived keys written through `session.putInputParam(...)`. Keep key naming and values controlled in consumer task/rule code.
 </Highlight>
 
 ## Runtime transport/audit properties
@@ -206,46 +430,46 @@ Engine now controls prompt variable exposure and blocks unsafe system-derived ke
 <CodeBlockToggle title="application.yml (feature toggles)" language="yaml">
 {`convengine:
   transport:
-    stomp:
-      enabled: true
-      broker:
-        mode: SIMPLE # SIMPLE | RELAY
-        relay-destination-prefixes: /topic,/queue
-        relay-host: localhost
-        relay-port: 61613
-        client-login: ""
-        client-passcode: ""
-        system-login: ""
-        system-passcode: ""
-        virtual-host: ""
-        system-heartbeat-send-interval-ms: 10000
-        system-heartbeat-receive-interval-ms: 10000
+      stomp:
+        enabled: true
+        broker:
+          mode: SIMPLE # SIMPLE | RELAY
+          relay-destination-prefixes: /topic,/queue
+          relay-host: localhost
+          relay-port: 61613
+          client-login: ""
+          client-passcode: ""
+          system-login: ""
+          system-passcode: ""
+          virtual-host: ""
+          system-heartbeat-send-interval-ms: 10000
+          system-heartbeat-receive-interval-ms: 10000
 
-  audit:
-    enabled: true
-    level: ALL # ALL | STANDARD | ERROR_ONLY | NONE
-    include-stages: []
-    exclude-stages: []
-    persistence:
-      mode: IMMEDIATE # IMMEDIATE | DEFERRED_BULK
-      jdbc-batch-size: 200
-      max-buffered-events: 5000
-      flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
-      final-step-names: PipelineEndGuardStep
-      flush-on-stop-outcome: true
-    dispatch:
-      async-enabled: false
-      worker-threads: 2
-      queue-capacity: 2000
-      rejection-policy: CALLER_RUNS # CALLER_RUNS | DROP_NEWEST | DROP_OLDEST | ABORT
-      keep-alive-seconds: 60
-    rate-limit:
-      enabled: false
-      max-events: 200
-      window-ms: 1000
-      per-conversation: true
-      per-stage: true
-      max-tracked-buckets: 20000`}
+    audit:
+      enabled: true
+      level: ALL # ALL | STANDARD | ERROR_ONLY | NONE
+      include-stages: []
+      exclude-stages: []
+      persistence:
+        mode: IMMEDIATE # IMMEDIATE | DEFERRED_BULK
+        jdbc-batch-size: 200
+        max-buffered-events: 5000
+        flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
+        final-step-names: PipelineEndGuardStep
+        flush-on-stop-outcome: true
+      dispatch:
+        async-enabled: false
+        worker-threads: 2
+        queue-capacity: 2000
+        rejection-policy: CALLER_RUNS # CALLER_RUNS | DROP_NEWEST | DROP_OLDEST | ABORT
+        keep-alive-seconds: 60
+      rate-limit:
+        enabled: false
+        max-events: 200
+        window-ms: 1000
+        per-conversation: true
+        per-stage: true
+        max-tracked-buckets: 20000`}
 </CodeBlockToggle>
 
 <CodeBlockToggle title="Optional annotations" language="java">
@@ -286,24 +510,24 @@ public class MyApplication {
 <CodeBlockToggle title="application-rabbitmq-relay.yml" language="yaml">
 {`convengine:
   transport:
-    stomp:
-      enabled: true
-      endpoint: /ws-convengine
-      app-destination-prefix: /app
-      topic-prefix: /topic
-      audit-destination-base: /topic/convengine/audit
-      broker:
-        mode: RELAY
-        relay-destination-prefixes: /topic,/queue
-        relay-host: localhost
-        relay-port: 61613
-        client-login: guest
-        client-passcode: guest
-        system-login: guest
-        system-passcode: guest
-        virtual-host: /
-        system-heartbeat-send-interval-ms: 10000
-        system-heartbeat-receive-interval-ms: 10000`}
+      stomp:
+        enabled: true
+        endpoint: /ws-convengine
+        app-destination-prefix: /app
+        topic-prefix: /topic
+        audit-destination-base: /topic/convengine/audit
+        broker:
+          mode: RELAY
+          relay-destination-prefixes: /topic,/queue
+          relay-host: localhost
+          relay-port: 61613
+          client-login: guest
+          client-passcode: guest
+          system-login: guest
+          system-passcode: guest
+          virtual-host: /
+          system-heartbeat-send-interval-ms: 10000
+          system-heartbeat-receive-interval-ms: 10000`}
 </CodeBlockToggle>
 
 ## Redis example (via STOMP gateway/bridge)
@@ -315,16 +539,16 @@ ConvEngine STOMP relay requires a STOMP-compatible broker endpoint. Redis alone 
 <CodeBlockToggle title="application-redis-bridge-relay.yml" language="yaml">
 {`convengine:
   transport:
-    stomp:
-      enabled: true
-      broker:
-        mode: RELAY
-        relay-destination-prefixes: /topic,/queue
-        relay-host: redis-stomp-bridge.local
-        relay-port: 61613
-        client-login: ""
-        client-passcode: ""
-        system-login: ""
-        system-passcode: ""
-        virtual-host: ""`}
+      stomp:
+        enabled: true
+        broker:
+          mode: RELAY
+          relay-destination-prefixes: /topic,/queue
+          relay-host: redis-stomp-bridge.local
+          relay-port: 61613
+          client-login: ""
+          client-passcode: ""
+          system-login: ""
+          system-passcode: ""
+          virtual-host: ""`}
 </CodeBlockToggle>

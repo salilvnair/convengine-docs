@@ -4,6 +4,8 @@ import { MantineProvider, createTheme } from '@mantine/core';
 
 // Important: Import Mantine styles
 import '@mantine/core/styles.css';
+import DocsCommandPalette from '@site/src/components/search/DocsCommandPalette';
+import GlobalTermLookup from '@site/src/components/search/GlobalTermLookup';
 
 const theme = createTheme({
   /** Your custom theme overrides **/
@@ -63,6 +65,8 @@ export default function Root({ children }) {
   return (
     <MantineProvider theme={theme}>
       {children}
+      <DocsCommandPalette />
+      <GlobalTermLookup />
     </MantineProvider>
   );
 }

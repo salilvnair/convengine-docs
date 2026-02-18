@@ -10,4 +10,5 @@ export { ChatBubble, ChatContainer } from "./ChatBubble";
 export { CodeWindow } from "./CodeWindow";
 export { EngineDebugFlow } from "./EngineDebugFlow";
 export { CePopup } from "./CePopup";
+export { DocTermPopup } from "../search/DocTermPopup";
 export { PipelineStepList, CANONICAL_PIPELINE_STEPS } from "./PipelineStepList";

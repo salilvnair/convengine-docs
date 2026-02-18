@@ -1,0 +1,147 @@
+---
+title: Annotations Reference
+sidebar_position: 6
+hide_table_of_contents: true
+---
+
+import { DbTable, CodeBlockToggle, Highlight, MethodRef } from "@site/src/components/convengine";
+
+# Annotations Reference
+
+This page lists all annotation types currently present in ConvEngine and how consumers should use them.
+
+## Consumer entry annotations
+
+<DbTable
+  title="Use these in your consumer app"
+  columns={["Annotation", "Target", "Purpose", "Typical usage"]}
+  rows={[
+    ["`@EnableConvEngine(stream = true|false)`", "Spring Boot app class", "Bootstraps ConvEngine auto-configuration and stream setting.", "Always required to activate framework."],
+    ["`@EnableConvEngineAsyncAuditDispatch`", "Spring config/app class", "Forces async audit dispatch marker mode.", "Use when you intentionally want async listener dispatch."],
+    ["`@EnableConvEngineStompBrokerRelay`", "Spring config/app class", "Forces STOMP broker relay marker mode.", "Use when deploying with external STOMP broker relay."],
+  ]}
+/>
+
+<CodeBlockToggle title="Basic enablement" language="java">
+{`@SpringBootApplication
+@EnableConvEngine(stream = true)
+public class MyApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(MyApplication.class, args);
+  }
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Optional relay + async markers" language="java">
+{`@Configuration
+@EnableConvEngineAsyncAuditDispatch
+@EnableConvEngineStompBrokerRelay
+public class ConvEngineFeatureFlags {
+}`}
+</CodeBlockToggle>
+
+<Highlight type="info" title="How stream mode works">
+`stream` is an annotation parameter on `@EnableConvEngine`, not a YAML key. Keep it aligned with `convengine.transport.sse.enabled` and `convengine.transport.stomp.enabled`.
+</Highlight>
+
+## Extension annotations (consumer customization)
+
+<DbTable
+  title="Extension points"
+  columns={["Annotation", "Must implement", "Purpose", "Key parameters"]}
+  rows={[
+    ["`@ResponseTransformer`", "`ResponseTransformerHandler`", "Last-mile payload shaping by intent/state.", "`intent`, `state`"],
+    ["`@ContainerDataTransformer`", "`ContainerDataTransformerHandler`", "Transforms CCF container data before session attach.", "`intent`, `state`"],
+    ["`@ContainerDataInterceptor`", "`ContainerDataRequestInterceptor` and/or `ContainerDataResponseInterceptor`", "Intercepts CCF request/response around execution.", "`intent`, `state`, `order`"],  ]}
+/>
+
+<CodeBlockToggle title="Response transformer example" language="java">
+{`@Component
+@ResponseTransformer(intent = "REQUEST_TRACKER", state = "IDLE")
+public class TrackerResponseTransformer implements ResponseTransformerHandler {
+  @Override
+  public OutputPayload transform(OutputPayload responsePayload,
+                                 EngineSession session,
+                                 Map<String, Object> inputParams) {
+    return responsePayload;
+  }
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Container transformer example" language="java">
+{`@Component
+@ContainerDataTransformer(intent = "DISCONNECT_ELECTRICITY", state = "COLLECTING")
+public class DisconnectContainerTransformer implements ContainerDataTransformerHandler {
+  @Override
+  public Map<String, Object> transform(ContainerComponentResponse response,
+                                       EngineSession session,
+                                       Map<String, Object> inputParams) {
+    return Map.of("normalized", response);
+  }
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Container interceptor example" language="java">
+{`@Component
+@ContainerDataInterceptor(intent = "*", state = "*", order = 10)
+public class TraceContainerInterceptor
+    implements ContainerDataRequestInterceptor, ContainerDataResponseInterceptor {
+
+  @Override
+  public void intercept(ContainerComponentRequest request, EngineSession session) {
+    // mutate request if needed
+  }
+
+  @Override
+  public ContainerComponentResponse intercept(ContainerComponentResponse response, EngineSession session) {
+    return response;
+  }
+}`}
+</CodeBlockToggle>
+
+<Highlight type="warning" title="Transformer/interceptor registration rules">
+If a class uses `@ResponseTransformer` or `@ContainerDataTransformer` but does not implement the required handler interface, startup fails.
+</Highlight>
+
+## Internal pipeline annotations (advanced / framework contributors)
+
+<DbTable
+  title="Engine DAG annotations"
+  columns={["Annotation", "Role", "Who should use it"]}
+  rows={[
+    ["`@MustRunAfter(...)`", "Declares DAG dependency: step runs after listed steps.", "Framework contributors adding new `EngineStep` beans."],
+    ["`@MustRunBefore(...)`", "Declares DAG dependency: step runs before listed steps.", "Framework contributors adding new `EngineStep` beans."],
+    ["`@RequiresConversationPersisted`", "Forces ordering after bootstrap persistence step.", "Framework/internal step authors."],
+    ["`@ConversationBootstrapStep`", "Marks the single bootstrap step in pipeline.", "Framework internals only."],
+    ["`@TerminalStep`", "Marks the single terminal step in pipeline.", "Framework internals only."],
+    ["`@PromptVar`", "Maps fields in internal prompt context models to template aliases.", "Framework internals only; not for consumer app classes."],
+  ]}
+/>
+
+<CodeBlockToggle title="Custom step with ordering" language="java">
+{`@Component
+@RequiresConversationPersisted
+@MustRunAfter(IntentResolutionStep.class)
+@MustRunBefore(ResponseResolutionStep.class)
+public class CustomValidationStep implements EngineStep {
+  @Override
+  public StepResult execute(EngineSession session) {
+    return new StepResult.Continue();
+  }
+}`}
+</CodeBlockToggle>
+
+<Highlight type="warning" title="Important constraints">
+Pipeline requires exactly one `@ConversationBootstrapStep` and one `@TerminalStep`. Misuse can break startup DAG validation.
+</Highlight>
+
+## Quick recommendations for consumers
+
+1. Use only `@EnableConvEngine` initially.
+2. Add `@ResponseTransformer` or container annotations only when you have a concrete customization need.
+3. Avoid pipeline DAG annotations unless you are intentionally adding custom engine steps and can test full ordering.
+4. Keep annotation usage paired with integration tests for one real conversation flow.
+
+<Highlight type="info" title="Related pages">
+See [Consumer Guide](/docs/consumer/), [New Consumer Onboarding](/docs/consumer/new-consumer-onboarding), and [Extensions](/docs/consumer/extensions) for end-to-end integration context.
+</Highlight>

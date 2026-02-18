@@ -1,0 +1,247 @@
+---
+title: Data Correctness Gotchas
+sidebar_position: 8
+hide_table_of_contents: true
+---
+
+import { DbTable, Highlight } from "@site/src/components/convengine";
+
+# Data Correctness Gotchas
+
+This page documents where ConvEngine can produce **incorrect, stale, or misleading output** without necessarily crashing. It also lists framework constraints and a concrete roadmap to make the system safer, easier to operate, and more scalable.
+
+## High-risk improper data scenarios
+
+<DbTable
+  title="Top correctness failure modes"
+  columns={[
+    "Gotcha",
+    "Trigger",
+    "Bad output pattern",
+    "Fast detection",
+    "Practical mitigation"
+  ]}
+  rows={[
+    [
+      "LLM JSON overrides engine intent/state",
+      "Response JSON includes `intent` or `state`; resolver applies those fields directly.",
+      "Flow silently jumps to wrong state/intent on next turn.",
+      "Compare pre/post state around `RESOLVE_RESPONSE_LLM_OUTPUT` and final persisted conversation row.",
+      "Allowlist transitions, reject unknown states, and gate model-driven state changes behind validator hooks."
+    ],
+    [
+      "Sticky intent routes new question to old flow",
+      "`STICKY_INTENT=true` + no explicit switch/reset signal.",
+      "User asks new intent but gets response from previous intent templates/rules.",
+      "Frequent `INTENT_RESOLVE_SKIPPED_STICKY_INTENT` on semantically new user text.",
+      "Force re-resolve on low confidence turns, topic-shift heuristics, and explicit UI switch-intent controls."
+    ],
+    [
+      "Rule chain side effects create wrong final state",
+      "Multiple matching rules mutate intent/state across passes.",
+      "Technically valid response, semantically wrong transition path.",
+      "Inspect ordered `RULE_MATCHED`/`RULE_APPLIED` events by pass and phase.",
+      "Constrain rule ownership, cap cross-intent actions, and add collision regression tests for rule priority."
+    ],
+    [
+      "Context merge preserves stale fields",
+      "Schema extraction merges partial JSON into existing context and does not clear incompatible prior fields.",
+      "Old values leak into later prompts and responses.",
+      "Diff context pre/post schema extraction and check unchanged keys across intent/state changes.",
+      "Add per-intent field reset policy and explicit stale-key eviction on transition boundaries."
+    ],
+    [
+      "Concurrent writes race on same conversation",
+      "Parallel requests share same `conversationId` with no optimistic version check.",
+      "Last-write-wins overwrites can produce drifted context/intent/state.",
+      "Look for overlapping timestamps and contradictory stage order for one conversation.",
+      "Serialize by conversation key at API boundary or add optimistic locking (`@Version`)."
+    ]
+  ]}
+/>
+
+## Additional correctness traps
+
+<DbTable
+  title="Less obvious but important"
+  columns={["Area", "What happens", "Why it matters", "Recommended guardrail"]}
+  rows={[
+    [
+      "Prompt variable exposure",
+      "All `inputParams` are exposed as prompt vars (`promptTemplateVars` path).",
+      "Unexpected/sensitive params can influence model behavior or leak into prompts.",
+      "Move to explicit allowlist of exposable keys and redact secret-like fields."
+    ],
+    [
+      "LLM invocation ThreadLocal lifecycle",
+      "`LlmInvocationContext.set(...)` is used in several flows without matching clear in same path.",
+      "Pooled-thread reuse can cause wrong attribution/context bleed in custom `LlmClient` logging.",
+      "Wrap set/clear in `try/finally` in every LLM call site."
+    ],
+    [
+      "Silent exception swallowing",
+      "Several context/container merge failures are ignored to keep pipeline running.",
+      "Turn completes with partial enrichment, giving plausible but incorrect output.",
+      "Emit warning stages with structured reason and defaulted fields when fallback path is taken."
+    ],
+    [
+      "History reconstruction quality",
+      "Conversation history is reconstructed from audit stages (not canonical turn table).",
+      "Missing or filtered audit events can distort LLM context history.",
+      "Persist normalized user/assistant turn table and use that as primary history source."
+    ],
+    [
+      "MCP tool safety assumptions",
+      "`safe_mode` exists on DB tool config but execution path does not enforce separate safe-mode logic.",
+      "Risk of over-trusting tool configuration for sensitive data queries.",
+      "Enforce explicit read-only policy, SQL allowlist checks, and per-tool security policy validation."
+    ]
+  ]}
+/>
+
+## Framework limitations (current behavior)
+
+<DbTable
+  title="Design constraints to plan around"
+  columns={["Limitation", "Current behavior", "Consumer impact", "Better direction"]}
+  rows={[
+    [
+      "No full-turn ACID boundary",
+      "Turn state is updated across multiple independent saves/steps.",
+      "Partial turn artifacts can persist after mid-pipeline failures.",
+      "Introduce transactional turn boundary or compensating state machine."
+    ],
+    [
+      "No built-in optimistic concurrency for conversation row",
+      "`ce_conversation` entity has no versioned conflict detection.",
+      "Racing requests overwrite each other nondeterministically.",
+      "Add version column + conflict retry/merge strategy."
+    ],
+    [
+      "Heavy dynamic config with mixed refresh model",
+      "Some configs are read at startup; others queried per turn from DB.",
+      "Operational behavior can be hard to reason about after config updates.",
+      "Document refresh semantics per config and add explicit reload controls."
+    ],
+    [
+      "In-memory scan selection paths",
+      "`findAll().stream()` used in response/template/schema selection in hot path.",
+      "Larger config tables increase latency and raise variability.",
+      "Replace with indexed targeted queries + bounded caches."
+    ],
+    [
+      "Single-process assumptions for ordering",
+      "Conversation ordering and mutation safety are mostly local-process concerns.",
+      "Horizontal scale can amplify race and ordering ambiguity.",
+      "Adopt distributed per-conversation lock/queue semantics."
+    ]
+  ]}
+/>
+
+## Improvement roadmap
+
+### Phase 1: Correctness hardening (highest priority)
+
+<DbTable
+  title="Immediate improvements"
+  columns={["Change", "Value", "Effort", "Notes"]}
+  rows={[
+    [
+      "Add response state-transition validator",
+      "Prevents invalid model-driven intent/state jumps.",
+      "Low-Medium",
+      "Apply before `PersistConversationStep`; reject or quarantine invalid transitions."
+    ],
+    [
+      "Add optimistic locking on `ce_conversation`",
+      "Eliminates silent last-write-wins corruption.",
+      "Medium",
+      "Introduce `version` field + retry policy for conflict cases."
+    ],
+    [
+      "Guarantee `LlmInvocationContext.clear()`",
+      "Prevents cross-request attribution bleed.",
+      "Low",
+      "Wrap all LLM call sites with `try/finally`."
+    ],
+    [
+      "Prompt-var allowlist + redaction",
+      "Reduces prompt contamination and secret leakage risk.",
+      "Low-Medium",
+      "Replace current expose-all behavior with explicit allowlist."
+    ],
+    [
+      "Emit structured fallback warnings",
+      "Makes silent degradations diagnosable.",
+      "Low",
+      "When a catch-ignore path is hit, emit a dedicated stage with cause metadata."
+    ]
+  ]}
+/>
+
+### Phase 2: Convenience and developer experience
+
+<DbTable
+  title="Make ConvEngine easier to run"
+  columns={["Enhancement", "Why it helps", "Suggested shape"]}
+  rows={[
+    [
+      "Config lint + dry-run validator",
+      "Catches broken rules/templates before production impact.",
+      "CLI/admin endpoint validating response mappings, rule loops, unresolved template vars, and MCP tool safety."
+    ],
+    [
+      "State transition map visualization",
+      "Helps teams reason about intent/state flows and side effects.",
+      "Generate graph from rules + responses + schema transitions with dead-end and collision markers."
+    ],
+    [
+      "Deterministic replay mode",
+      "Simplifies debugging wrong-output incidents.",
+      "Replay one conversation against snapshot config and compare expected vs actual transitions."
+    ],
+    [
+      "Scenario test harness",
+      "Moves quality from ad-hoc manual checks to repeatable tests.",
+      "YAML/JSON test fixtures for input turn sequences, expected intent/state, payload assertions."
+    ]
+  ]}
+/>
+
+### Phase 3: Scalability and throughput
+
+<DbTable
+  title="Scale safely"
+  columns={["Scalability upgrade", "Benefit", "Implementation direction"]}
+  rows={[
+    [
+      "Targeted repository queries",
+      "Cuts CPU and DB transfer overhead in hot path.",
+      "Replace `findAll().stream()` with indexed query methods for intent/state/priority."
+    ],
+    [
+      "Hot config cache with version invalidation",
+      "Stabilizes latency under high QPS.",
+      "Cache rules/templates/schemas per intent-state; invalidate on config change event."
+    ],
+    [
+      "Per-conversation serialized execution",
+      "Removes race conditions while scaling horizontally.",
+      "Route by conversation key to queue/partition; process one active turn per key."
+    ],
+    [
+      "Async/parallelizable non-critical enrichments",
+      "Reduces end-to-end response time.",
+      "Move optional container/MCP enrichments off critical path with explicit timeout budget."
+    ],
+    [
+      "Canonical turn store",
+      "Improves history quality and replay reliability.",
+      "Persist normalized user/assistant turns instead of reconstructing from audit stream."
+    ]
+  ]}
+/>
+
+<Highlight type="info" title="Confirmed vs inferred">
+Confirmed from repository code: state overrides from JSON output, sticky-intent skip behavior, rule pass mutation loops, context merge semantics, broad prompt-var exposure, no optimistic lock field on conversation entity, and `findAll()` hot-path scans. Inferred (consumer-dependent): ingress concurrency controls, infra-level ordering guarantees, and custom `LlmClient` timeout/retry strategy.
+</Highlight>

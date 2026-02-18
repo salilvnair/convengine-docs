@@ -66,6 +66,7 @@ const config = {
         { to: '/docs/deep-dive', position: 'left', label: 'Deep Dive' },
         { to: '/docs/api/rest-api', position: 'left', label: 'API' },
         // { type: 'html', position: 'right', value: '<button class="clean-btn ce-navbar-toc-btn" aria-label="Toggle table of contents" title="Show TOC"><span class="ce-navbar-toc-btn-icon">≡</span></button>' },
+        { type: 'html', position: 'right', value: '<button class="clean-btn ce-navbar-search-trigger" aria-label="Open global search" title="Open global search"><span class="ce-navbar-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="16.65" y1="16.65" x2="21" y2="21"></line></svg></span><span class="ce-navbar-search-text">Seach</span><span class="ce-navbar-search-kbd">Cmd/Ctrl + K</span></button>' },
         { href: 'https://github.com/salilvnair/convengine', label: 'GitHub', position: 'right' },
       ],
     },

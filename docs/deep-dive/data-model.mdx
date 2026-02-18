@@ -18,7 +18,7 @@ ConvEngine is configuration-driven. Behavior is defined in the following tables.
   rows={[
     ["ce_intent", "Defines business intents", "intent_code, description, enabled"],
     ["ce_intent_classifier", "Regex patterns for intents", "match_pattern, priority"],
-    ["ce_rule", "Logic & State Transitions", "rule_type, action, match_pattern"],
+    ["ce_rule", "Logic & State Transitions", "phase, rule_type, action, match_pattern"],
     ["ce_response", "Output mapping", "response_type, output_format, exact_text"],
     ["ce_output_schema", "Data extraction definition", "json_schema, priority"],
     ["ce_prompt_template", "LLM Prompts", "system_prompt, user_prompt"],
@@ -71,9 +71,9 @@ Configure `ce_rule.action=SET_TASK` and map `action_value` to a Spring task bean
 
 <CodeBlockToggle title="SET_TASK rule row" language="sql" packagePath="consumer DB">
 {`INSERT INTO ce_rule
-  (intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('REQUEST_TRACKER', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus', 10, true,
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus', 10, true,
    'Invoke consumer task bean during rule execution');`}
 </CodeBlockToggle>
 

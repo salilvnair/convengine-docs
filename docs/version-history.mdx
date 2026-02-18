@@ -9,7 +9,7 @@ import { Highlight, DbTable, MethodRef } from "@site/src/components/convengine";
 
 <Highlight type="info" title="Important note on sequence">
 There is a non-linear period (`1.0.3 -> 1.0.2 -> 1.0.3`) visible in raw commit history, which typically happens during branch merges/backports.  
-Current published artifact in `pom.xml` is <MethodRef>1.0.9</MethodRef>.
+Current published artifact in `pom.xml` is <MethodRef>1.0.10</MethodRef>.
 </Highlight>
 
 ## Artifact Version Bumps (`pom.xml`)
@@ -30,12 +30,38 @@ Current published artifact in `pom.xml` is <MethodRef>1.0.9</MethodRef>.
     ["2026-02-13", "05f9077", "1.0.5 -> 1.0.7", "Schema handling + agent resolver controls"],
     ["2026-02-14", "a2daeec", "1.0.7 -> 1.0.8", "Audit listener model + SSE/STOMP transport + reset flow"],
     ["2026-02-16", "695ef79", "1.0.8 -> 1.0.9", "Experimental SQL generation zip export + SQL-by-table response model"],
+    ["2026-02-17", "working-tree", "1.0.9 -> 1.0.10", "Rule phase model + sticky intent continuity + stream validator hardening"],
   ]}
 />
 
 ## Release Notes By Version
 
-### 1.0.9 (Current in `pom.xml`)
+### 1.0.10 (Current in `pom.xml`)
+
+What changed:
+- Added `ce_rule.phase` execution model:
+  - `PIPELINE_RULES`
+  - `AGENT_POST_INTENT`
+- Added runtime rule-phase filtering so:
+  - `RulesStep` executes only `PIPELINE_RULES`
+  - `AgentIntentResolver` post-intent pass executes only `AGENT_POST_INTENT`
+- Added session/input metadata for rule-source awareness:
+  - `postIntentRule`, `post_intent_rule`
+  - `rule_phase`
+  - `rule_execution_source`, `rule_execution_origin`
+- Added post-intent rule invocation after accepted agent intent.
+- Added sticky intent continuity controls:
+  - `IntentResolutionStep.STICKY_INTENT` (`ce_config`, default `true`)
+  - skip intent re-resolution when intent/state are already resolved
+  - added audit stage `INTENT_RESOLVE_SKIPPED_STICKY_INTENT`
+  - explicit reset/switch/force signals still allow re-resolution
+- Updated prompt variable exposure:
+  - prompt `extra` now receives all `inputParams` keys
+  - includes runtime/system-derived keys set via `session.putInputParam(...)`
+- Hardened stream startup validation and condition timing behavior to avoid false-positive startup failures.
+- Updated SQL generation docs/prompts to include `ce_rule.phase` contract.
+
+### 1.0.9
 
 Commit: `695ef79`
 
@@ -136,10 +162,11 @@ What changed:
   title="Current library status"
   columns={["Signal", "Value"]}
   rows={[
-    ["Artifact version (`pom.xml`)", "1.0.9"],
+    ["Artifact version (`pom.xml`)", "1.0.10"],
     ["Engine extension style", "Typed step hooks via EngineStep.Name"],
     ["Streaming", "REST + SSE + STOMP/WebSocket"],
     ["Audit model", "Immediate or deferred bulk persistence with async dispatch options"],
     ["Schema rule action", "GET_SCHEMA_JSON"],
+    ["Rule phase contract", "PIPELINE_RULES + AGENT_POST_INTENT"],
   ]}
 />
