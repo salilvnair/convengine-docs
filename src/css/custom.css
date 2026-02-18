@@ -120,8 +120,11 @@ body {
 
 .navbar__link--active,
 .navbar__link--active:visited {
-  color: #0f172a;
-  font-weight: 700;
+  color: #1e3a8a;
+  font-weight: 600;
+  background: rgba(59, 130, 246, 0.16);
+  border-radius: 8px;
+  padding: 0.28rem 0.55rem;
 }
 
 [data-theme='dark'] .navbar,
@@ -151,7 +154,14 @@ body {
 
 [data-theme='dark'] .navbar__link:hover,
 [data-theme='dark'] .navbar__link--active {
-  color: #eaf2ff;
+  color: #dbeafe;
+}
+
+[data-theme='dark'] .navbar__link--active,
+[data-theme='dark'] .navbar__link--active:visited {
+  background: rgba(59, 130, 246, 0.24);
+  border-radius: 8px;
+  padding: 0.28rem 0.55rem;
 }
 
 /* Navbar light/dark toggle visibility */
