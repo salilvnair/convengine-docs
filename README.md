@@ -4,7 +4,7 @@ Documentation site for ConvEngine (Java).
 
 ## Version Alignment
 
-- Current ConvEngine artifact documented here: `1.0.12`
+- Current ConvEngine artifact documented here: `1.0.15`
 
 ## Sections
 
@@ -31,4 +31,4 @@ npm run build
 
 ## Notes
 
-This docs content is aligned to the latest ConvEngine runtime code (pipeline hooks, reset behavior, audit trace DTOs, intent-lock schema flow, cross-database persistence hardening, scoped sticky intent behavior, and audit metadata split between `inputParams` and `userInputParams`).
+This docs content is aligned to the latest ConvEngine runtime code (pipeline hooks, reset behavior, audit trace DTOs, intent-lock schema flow, cross-database persistence hardening, scoped sticky intent behavior, audit metadata split between `inputParams` and `userInputParams`, schema resolver provider refactor, centralized audit stages, and centralized payload/input-param keys).

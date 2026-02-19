@@ -9,7 +9,7 @@ import { Highlight, DbTable, MethodRef } from "@site/src/components/convengine";
 
 <Highlight type="info" title="Important note on sequence">
 There is a non-linear period (`1.0.3 -> 1.0.2 -> 1.0.3`) visible in raw commit history, which typically happens during branch merges/backports.  
-Current published artifact in `pom.xml` is <MethodRef>1.0.13</MethodRef>.
+Current published artifact in `pom.xml` is <MethodRef>1.0.15</MethodRef>.
 </Highlight>
 
 ## Artifact Version Bumps (`pom.xml`)
@@ -35,10 +35,28 @@ Current published artifact in `pom.xml` is <MethodRef>1.0.13</MethodRef>.
     ["2026-02-19", "working-tree", "1.0.11 -> 1.0.12", "Audit metadata enrichment (`inputParams` vs `userInputParams`)"],
     ["2026-02-19", "working-tree", "1.0.12 -> 1.0.13", "Audit persistence strategy split + sync conversation history table"],
     ["2026-02-19", "working-tree", "1.0.13 -> 1.0.14", "Added `ce_rule.state_code` rule scoping support"],
+    ["2026-02-19", "working-tree", "1.0.14 -> 1.0.15", "Schema resolver provider refactor + centralized audit/payload/input-param keys"],
   ]}
 />
 
 ## Release Notes By Version
+
+### 1.0.15 (Current in `pom.xml`)
+
+What changed:
+- Refactored `SchemaExtractionStep` into orchestration-only flow and moved schema-heavy calculation into provider contract.
+- Added provider computation model:
+  - `ConvEngineSchemaComputation`
+  - `ConvEngineSchemaResolver#compute(...)`
+  - `ConvEngineSchemaResolver#sanitizeExtractedJson(...)`
+  - `ConvEngineSchemaResolver#mergeContextJson(...)`
+- `DefaultConvEngineSchemaResolver` now owns sanitize/merge/completeness/missing-fields/missing-options behavior.
+- Clean provider override model for consumers:
+  - consumers can register their own `ConvEngineSchemaResolver` bean
+  - selection honors higher precedence via Spring `@Order`.
+- Centralized runtime input-param keys into `ConvEngineInputParamKey`.
+- Centralized fixed audit stages into `ConvEngineAuditStage`.
+- Centralized payload map keys into `ConvEnginePayloadKey`.
 
 ### 1.0.14
 
@@ -49,7 +67,7 @@ What changed:
   - `ANY` -> applies to all states
   - exact value -> applies only when session state matches (case-insensitive)
 
-### 1.0.13 (Current in `pom.xml`)
+### 1.0.13
 
 What changed:
 - Split audit DB persistence into strategy classes (`IMMEDIATE` and `DEFERRED_BULK`) selected by factory at runtime.
@@ -207,7 +225,7 @@ What changed:
   title="Current library status"
   columns={["Signal", "Value"]}
   rows={[
-    ["Artifact version (`pom.xml`)", "1.0.13"],
+    ["Artifact version (`pom.xml`)", "1.0.15"],
     ["Engine extension style", "Typed step hooks via EngineStep.Name"],
     ["Streaming", "REST + SSE + STOMP/WebSocket"],
     ["Audit model", "Immediate or deferred bulk persistence with async dispatch options"],
