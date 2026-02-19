@@ -34,10 +34,20 @@ Current published artifact in `pom.xml` is <MethodRef>1.0.13</MethodRef>.
     ["2026-02-18", "working-tree", "1.0.10 -> 1.0.11", "Cross-database persistence hardening + sticky intent refinement"],
     ["2026-02-19", "working-tree", "1.0.11 -> 1.0.12", "Audit metadata enrichment (`inputParams` vs `userInputParams`)"],
     ["2026-02-19", "working-tree", "1.0.12 -> 1.0.13", "Audit persistence strategy split + sync conversation history table"],
+    ["2026-02-19", "working-tree", "1.0.13 -> 1.0.14", "Added `ce_rule.state_code` rule scoping support"],
   ]}
 />
 
 ## Release Notes By Version
+
+### 1.0.14
+
+What changed:
+- Added optional `ce_rule.state_code` to scope rule execution by state.
+- Runtime matching contract:
+  - `NULL` -> applies to all states
+  - `ANY` -> applies to all states
+  - exact value -> applies only when session state matches (case-insensitive)
 
 ### 1.0.13 (Current in `pom.xml`)
 
