@@ -261,6 +261,7 @@ Common keys:
     ["ce_response.output_format", "TEXT, JSON", "Used by output format resolver"],
     ["ce_rule.rule_type", "EXACT, REGEX, JSON_PATH", "Must match installed rule type resolvers"],
     ["ce_rule.phase", "PIPELINE_RULES, AGENT_POST_INTENT", "Controls whether rule runs in RulesStep or AgentIntentResolver post-intent pass"],
+    ["ce_rule.state_code", "NULL, ANY, specific state code", "NULL/ANY apply across states; specific value scopes execution to that state"],
     ["ce_rule.action", "SET_INTENT, SET_STATE, SET_JSON, GET_CONTEXT, GET_SCHEMA_JSON, GET_SESSION, SET_TASK", "Must match installed action resolvers"],
   ]}
 />
@@ -348,6 +349,7 @@ VALUES
 
 - `rule_type`: `EXACT`, `REGEX`, `JSON_PATH`
 - `phase`: `PIPELINE_RULES`, `AGENT_POST_INTENT`
+- `state_code`: `NULL` (all states), `ANY` (all states), or specific state code
 - `action`: `SET_INTENT`, `SET_STATE`, `SET_JSON`, `GET_CONTEXT`, `GET_SCHEMA_JSON`, `GET_SESSION`, `SET_TASK`
 
 <CodeBlockToggle title="ce_rule shape (DDL-style)" language="sql">
@@ -355,6 +357,7 @@ VALUES
     rule_id BIGSERIAL PRIMARY KEY,
     phase TEXT NOT NULL DEFAULT 'PIPELINE_RULES',
     intent_code TEXT NULL,
+    state_code TEXT NULL,
     rule_type TEXT NOT NULL,
     match_pattern TEXT NOT NULL,
     action TEXT NOT NULL,
@@ -369,15 +372,15 @@ VALUES
 <CodeBlockToggle title="Example ce_rule rows" language="sql">
 {`-- If user says reset keywords, set reset intent
 INSERT INTO ce_rule
-(phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+(phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-('PIPELINE_RULES', 'FAQ', 'REGEX', '(?i)^(reset|restart)$', 'SET_INTENT', 'RESET_SESSION', 10, true, 'Reset intent switch');
+('PIPELINE_RULES', 'FAQ', 'ANY', 'REGEX', '(?i)^(reset|restart)$', 'SET_INTENT', 'RESET_SESSION', 10, true, 'Reset intent switch');
 
 -- Agent post-intent bootstrap
 INSERT INTO ce_rule
-(phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+(phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-('AGENT_POST_INTENT', 'MAPPING_STUDIO', 'JSON_PATH',
+('AGENT_POST_INTENT', 'MAPPING_STUDIO', 'ANY', 'JSON_PATH',
  '$[?(@.intent == ''MAPPING_STUDIO'' && (@.state == ''UNKNOWN'' || @.state == ''IDLE''))]',
  'SET_STATE', 'COLLECT_INPUTS', 5, true, 'Bootstrap mapping state during post-intent pass');`}
 </CodeBlockToggle>
@@ -395,11 +398,25 @@ Use `phase` to control where a rule executes.
   ]}
 />
 
+### `ce_rule.state_code` execution semantics
+
+Use `state_code` to reduce unnecessary rule evaluations:
+
+<DbTable
+  title="Rule State Scope Matrix"
+  columns={["state_code value", "Runtime behavior"]}
+  rows={[
+    ["NULL", "Rule is eligible in all states"],
+    ["ANY", "Rule is eligible in all states"],
+    ["Specific state (for example COLLECT_INPUTS)", "Rule is eligible only when session.state matches (case-insensitive)"],
+  ]}
+/>
+
 <CodeBlockToggle title="Phase-targeted bootstrap example" language="sql">
 {`INSERT INTO ce_rule
-  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('AGENT_POST_INTENT', 'MAPPING_STUDIO', 'JSON_PATH',
+  ('AGENT_POST_INTENT', 'MAPPING_STUDIO', 'ANY', 'JSON_PATH',
    '$[?(@.intent == ''MAPPING_STUDIO'' && (@.state == ''UNKNOWN'' || @.state == ''IDLE''))]',
    'SET_STATE', 'COLLECT_INPUTS', 5, true,
    'Bootstrap Mapping Studio state right after agent intent resolution');`}

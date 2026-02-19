@@ -116,9 +116,9 @@ Set <MethodRef>ce_rule.action</MethodRef> to <MethodRef>SET_TASK</MethodRef> and
 
 <CodeBlockToggle title="SET_TASK rule example (SQL)" language="sql">
 {`INSERT INTO ce_rule
-  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus,attachEta', 10, true,
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'ANY', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus,attachEta', 10, true,
    'Load tracker status + ETA from consumer service');`}
 </CodeBlockToggle>
 
@@ -158,9 +158,9 @@ Use this to extract one value from runtime session JSON into a flat prompt var.
 
 <CodeBlockToggle title="SET_JSON rule example (SQL)" language="sql">
 {`INSERT INTO ce_rule
-  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('PIPELINE_RULES', 'LOG_ANALYSIS', 'JSON_PATH', '$.schemaJson.errorCode != null', 'SET_JSON', 'error_code:$.schemaJson.errorCode', 20, true,
+  ('PIPELINE_RULES', 'LOG_ANALYSIS', 'ANY', 'JSON_PATH', '$.schemaJson.errorCode != null', 'SET_JSON', 'error_code:$.schemaJson.errorCode', 20, true,
    'Expose extracted errorCode as prompt var');`}
 </CodeBlockToggle>
 
@@ -175,9 +175,9 @@ Use this when prompt templates or tasks need full context as a single variable.
 
 <CodeBlockToggle title="GET_CONTEXT rule example (SQL)" language="sql">
 {`INSERT INTO ce_rule
-  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'REGEX', '(?i).*status.*', 'GET_CONTEXT', 'ctx_snapshot', 30, true,
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'ANY', 'REGEX', '(?i).*status.*', 'GET_CONTEXT', 'ctx_snapshot', 30, true,
    'Expose full context to prompt/task layer');`}
 </CodeBlockToggle>
 
@@ -189,9 +189,9 @@ Use this for advanced derived responses that need runtime flags (`schemaComplete
 
 <CodeBlockToggle title="GET_SESSION rule example (SQL)" language="sql">
 {`INSERT INTO ce_rule
-  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
-  ('PIPELINE_RULES', 'DISCONNECT_ELECTRICITY', 'JSON_PATH', '$.schemaComplete == false', 'GET_SESSION', 'session_snapshot', 40, true,
+  ('PIPELINE_RULES', 'DISCONNECT_ELECTRICITY', 'ANY', 'JSON_PATH', '$.schemaComplete == false', 'GET_SESSION', 'session_snapshot', 40, true,
    'Expose full runtime session facts for follow-up prompt decisions');`}
 </CodeBlockToggle>
 
