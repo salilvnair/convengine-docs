@@ -31,7 +31,7 @@ import { CodeBlockToggle, Highlight, DbTable } from "@site/src/components/conven
   title="IntentResolutionStep keys"
   columns={["config_key", "Purpose", "Example"]}
   rows={[
-    ["STICKY_INTENT", "Keep resolved intent/state stable across turns and skip unnecessary re-resolution", "true"],
+    ["STICKY_INTENT", "Keep intent/state stable only during active incomplete schema collection", "true"],
   ]}
 />
 
@@ -70,7 +70,7 @@ When schema is incomplete:
 When schema becomes complete:
 
 - lock is released
-- if `STICKY_INTENT=true`, resolver can still skip and retain existing intent/state
+- if `STICKY_INTENT=true`, resolver can skip and retain existing intent/state only while schema collection remains incomplete
 - explicit switch/reset/force signals still allow re-resolution
 
 <Highlight type="success" title="Why this matters">

@@ -31,7 +31,7 @@ This page documents where ConvEngine can produce **incorrect, stale, or misleadi
     ],
     [
       "Sticky intent routes new question to old flow",
-      "`STICKY_INTENT=true` + no explicit switch/reset signal.",
+      "`STICKY_INTENT=true` + active incomplete schema collection + no explicit switch/reset signal.",
       "User asks new intent but gets response from previous intent templates/rules.",
       "Frequent `INTENT_RESOLVE_SKIPPED_STICKY_INTENT` on semantically new user text.",
       "Force re-resolve on low confidence turns, topic-shift heuristics, and explicit UI switch-intent controls."

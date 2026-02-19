@@ -5,6 +5,8 @@ hide_table_of_contents: true
 ---
 
 import { DbTable, Highlight, CodeBlockToggle, FlowStep, FileRef, MethodRef } from "@site/src/components/convengine";
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
 
 # New Consumer Onboarding
 
@@ -60,6 +62,18 @@ Move from non-prod to prod only after all correctness/security/scalability gates
     ["Prompt hygiene", "Allowlist exposed template vars.", "No sensitive/internal keys appear in rendered prompts."],
   ]}
 />
+
+<Tabs groupId="consumer-ddl-dialect">
+  <TabItem value="postgres" label="Postgres" default>
+    Apply <FileRef>src/main/resources/sql/ddl_postgres.sql</FileRef> (legacy: <FileRef>src/main/resources/sql/ddl.sql</FileRef>).
+  </TabItem>
+  <TabItem value="oracle" label="Oracle">
+    Apply <FileRef>src/main/resources/sql/ddl_oracle.sql</FileRef>.
+  </TabItem>
+  <TabItem value="sqlite" label="SQLite">
+    Apply <FileRef>src/main/resources/sql/ddl_sqlite.sql</FileRef>.
+  </TabItem>
+</Tabs>
 
 ## Recommended baseline config (new consumers)
 

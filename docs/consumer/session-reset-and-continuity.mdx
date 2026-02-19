@@ -28,11 +28,11 @@ Intent lock is used for incomplete schema collection to avoid drift.
 
 ## Sticky intent lifecycle (`ce_config`)
 
-Even after schema lock is released, you can keep intent stable across turns with `IntentResolutionStep.STICKY_INTENT`.
+`IntentResolutionStep.STICKY_INTENT` applies during active incomplete schema collection to keep intent stable while required fields are still missing.
 
-- when enabled, `IntentResolutionStep` skips re-resolution if current `intent/state` are already resolved
+- when enabled, `IntentResolutionStep` skips re-resolution only while incomplete schema collection is active
 - skip emits audit stage: `INTENT_RESOLVE_SKIPPED_STICKY_INTENT`
-- re-resolution still runs for explicit switch/reset/force signals
+- re-resolution runs once schema collection is complete, and still runs for explicit switch/reset/force signals
 
 <CodeBlockToggle title="Sticky intent config" language="sql">
 {`INSERT INTO ce_config (config_type, config_key, config_value, enabled)

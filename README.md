@@ -2,6 +2,10 @@
 
 Documentation site for ConvEngine (Java).
 
+## Version Alignment
+
+- Current ConvEngine artifact documented here: `1.0.11`
+
 ## Sections
 
 - Overview
@@ -27,4 +31,4 @@ npm run build
 
 ## Notes
 
-This docs content is aligned to the latest ConvEngine runtime code (pipeline hooks, reset behavior, audit trace DTOs, intent-lock schema flow).
+This docs content is aligned to the latest ConvEngine runtime code (pipeline hooks, reset behavior, audit trace DTOs, intent-lock schema flow, cross-database persistence hardening, and scoped sticky intent behavior).

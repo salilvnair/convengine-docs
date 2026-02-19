@@ -9,7 +9,7 @@ import { Highlight, DbTable, MethodRef } from "@site/src/components/convengine";
 
 <Highlight type="info" title="Important note on sequence">
 There is a non-linear period (`1.0.3 -> 1.0.2 -> 1.0.3`) visible in raw commit history, which typically happens during branch merges/backports.  
-Current published artifact in `pom.xml` is <MethodRef>1.0.10</MethodRef>.
+Current published artifact in `pom.xml` is <MethodRef>1.0.11</MethodRef>.
 </Highlight>
 
 ## Artifact Version Bumps (`pom.xml`)
@@ -31,12 +31,26 @@ Current published artifact in `pom.xml` is <MethodRef>1.0.10</MethodRef>.
     ["2026-02-14", "a2daeec", "1.0.7 -> 1.0.8", "Audit listener model + SSE/STOMP transport + reset flow"],
     ["2026-02-16", "695ef79", "1.0.8 -> 1.0.9", "Experimental SQL generation zip export + SQL-by-table response model"],
     ["2026-02-17", "working-tree", "1.0.9 -> 1.0.10", "Rule phase model + sticky intent continuity + stream validator hardening"],
+    ["2026-02-18", "working-tree", "1.0.10 -> 1.0.11", "Cross-database persistence hardening + sticky intent refinement"],
   ]}
 />
 
 ## Release Notes By Version
 
-### 1.0.10 (Current in `pom.xml`)
+### 1.0.11 (Current in `pom.xml`)
+
+What changed:
+- Added cross-database persistence hardening across SQLite, Postgres, and Oracle:
+  - JSON column binding now uses Hibernate JSON JDBC typing for `jsonb` paths
+  - audit persistence now uses dialect-aware JSON/timestamp JDBC binding
+- Added SQLite legacy runtime normalization at startup:
+  - normalizes epoch timestamp text rows into parse-safe datetime text
+  - normalizes legacy BLOB `conversation_id` rows into canonical UUID text
+- Refined sticky intent semantics:
+  - sticky skip now applies only during active incomplete-schema collection
+  - outside schema collection, intent can re-resolve for semantically new turns
+
+### 1.0.10
 
 What changed:
 - Added `ce_rule.phase` execution model:
@@ -162,7 +176,7 @@ What changed:
   title="Current library status"
   columns={["Signal", "Value"]}
   rows={[
-    ["Artifact version (`pom.xml`)", "1.0.10"],
+    ["Artifact version (`pom.xml`)", "1.0.11"],
     ["Engine extension style", "Typed step hooks via EngineStep.Name"],
     ["Streaming", "REST + SSE + STOMP/WebSocket"],
     ["Audit model", "Immediate or deferred bulk persistence with async dispatch options"],

@@ -72,7 +72,7 @@ This page is the full implementation starter for consumers integrating ConvEngin
   <dependency>
     <groupId>com.github.salilvnair</groupId>
     <artifactId>convengine</artifactId>
-    <version>1.0.9</version>
+    <version>1.0.11</version>
   </dependency>`}
     </CodeBlockToggle>
 
@@ -80,7 +80,7 @@ This page is the full implementation starter for consumers integrating ConvEngin
   <TabItem value="gradle" label="build.gradle.kts">
 
     <CodeBlockToggle title="Gradle dependency" language="kotlin" packagePath="project build">
-    {`implementation("com.github.salilvnair:convengine:1.0.9")`}
+    {`implementation("com.github.salilvnair:convengine:1.0.11")`}
     </CodeBlockToggle>
 
   </TabItem>
@@ -101,116 +101,33 @@ This page is the full implementation starter for consumers integrating ConvEngin
 
 ## 2. Required schema (DDL)
 
-<CodeBlockToggle title="Core tables + indexes" language="sql" packagePath="db" defaultOpen={true}>
-{`CREATE TABLE ce_config (
-    config_id int4 NOT NULL,
-    config_type text NOT NULL,
-    config_key text NOT NULL,
-    config_value text NOT NULL,
-    enabled bool DEFAULT true NOT NULL,
-    created_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT ce_config_pkey PRIMARY KEY (config_id)
-);
-CREATE UNIQUE INDEX ux_ce_config_type_key ON ce_config USING btree (config_type, config_key);
-
-CREATE TABLE ce_conversation (
-    conversation_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-    status text NOT NULL,
-    intent_code text NULL,
-    state_code text NOT NULL,
-    context_json jsonb DEFAULT '{}'::jsonb NOT NULL,
-    input_params_json jsonb DEFAULT '{}'::jsonb NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz DEFAULT now() NOT NULL,
-    CONSTRAINT ce_conversation_pkey PRIMARY KEY (conversation_id)
-);
-CREATE INDEX idx_ce_conversation_status ON ce_conversation USING btree (status);
-CREATE INDEX idx_ce_conversation_updated ON ce_conversation USING btree (updated_at);
-
-CREATE TABLE ce_intent (
-    intent_code text NOT NULL,
-    description text NOT NULL,
-    priority int4 DEFAULT 100 NOT NULL,
-    enabled bool DEFAULT true NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    display_name text NULL,
-    llm_hint text NULL,
-    CONSTRAINT ce_intent_pkey PRIMARY KEY (intent_code)
-);
-CREATE INDEX ix_ce_intent_enabled_priority ON ce_intent USING btree (enabled, priority, intent_code);
-
-CREATE TABLE ce_output_schema (
-    schema_id bigserial NOT NULL,
-    intent_code text NOT NULL,
-    state_code text NOT NULL,
-    json_schema jsonb NOT NULL,
-    enabled bool DEFAULT true NULL,
-    priority int4 NOT NULL,
-    CONSTRAINT ce_output_schema_pkey PRIMARY KEY (schema_id)
-);
-CREATE INDEX idx_ce_output_schema_lookup ON ce_output_schema USING btree (intent_code, state_code, enabled, priority);
-
-CREATE TABLE ce_prompt_template (
-    template_id bigserial NOT NULL,
-    intent_code text NULL,
-    state_code text NULL,
-    response_type text NOT NULL,
-    system_prompt text NOT NULL,
-    user_prompt text NOT NULL,
-    temperature numeric(3,2) DEFAULT 0.0 NOT NULL,
-    enabled bool DEFAULT true NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    CONSTRAINT ce_prompt_template_pkey PRIMARY KEY (template_id)
-);
-CREATE INDEX idx_ce_prompt_template_lookup ON ce_prompt_template USING btree (response_type, intent_code, state_code, enabled);
-
-CREATE TABLE ce_response (
-    response_id bigserial NOT NULL,
-    intent_code text NULL,
-    state_code text NOT NULL,
-    output_format text NOT NULL,
-    response_type text NOT NULL,
-    exact_text text NULL,
-    derivation_hint text NULL,
-    json_schema jsonb NULL,
-    priority int4 DEFAULT 100 NOT NULL,
-    enabled bool DEFAULT true NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    CONSTRAINT ce_response_pkey PRIMARY KEY (response_id)
-);
-CREATE INDEX idx_ce_response_intent_state ON ce_response USING btree (intent_code, state_code, enabled, priority);
-CREATE INDEX idx_ce_response_lookup ON ce_response USING btree (state_code, enabled, priority);
-
-CREATE TABLE ce_rule (
-    rule_id bigserial NOT NULL,
-    phase text DEFAULT 'PIPELINE_RULES' NOT NULL,
-    intent_code text NULL,
-    rule_type text NOT NULL,
-    match_pattern text NOT NULL,
-    action text NOT NULL,
-    action_value text NULL,
-    priority int4 DEFAULT 100 NOT NULL,
-    enabled bool DEFAULT true NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    CONSTRAINT ce_rule_pkey PRIMARY KEY (rule_id)
-);
-CREATE INDEX idx_ce_rule_priority ON ce_rule USING btree (enabled, phase, priority);
-
-CREATE TABLE ce_audit (
-    audit_id bigserial NOT NULL,
-    conversation_id uuid NOT NULL,
-    stage text NOT NULL,
-    payload_json jsonb NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    CONSTRAINT ce_audit_pkey PRIMARY KEY (audit_id),
-    CONSTRAINT ce_audit_conversation_id_fkey
-      FOREIGN KEY (conversation_id) REFERENCES ce_conversation(conversation_id) ON DELETE CASCADE
-);
-CREATE INDEX idx_ce_audit_conversation ON ce_audit USING btree (conversation_id, created_at DESC);`}
-</CodeBlockToggle>
+<Tabs groupId="ce-ddl-dialect">
+  <TabItem value="postgres" label="Postgres" default>
+    <CodeBlockToggle title="Postgres DDL source" language="sql" packagePath="src/main/resources/sql">
+    {`-- Use full script from:
+-- src/main/resources/sql/ddl_postgres.sql
+-- (legacy path still available: src/main/resources/sql/ddl.sql)`}
+    </CodeBlockToggle>
+  </TabItem>
+  <TabItem value="oracle" label="Oracle">
+    <CodeBlockToggle title="Oracle DDL source" language="sql" packagePath="src/main/resources/sql">
+    {`-- Use full script from:
+-- src/main/resources/sql/ddl_oracle.sql`}
+    </CodeBlockToggle>
+  </TabItem>
+  <TabItem value="sqlite" label="SQLite">
+    <CodeBlockToggle title="SQLite DDL source" language="sql" packagePath="src/main/resources/sql">
+    {`-- Use full script from:
+-- src/main/resources/sql/ddl_sqlite.sql`}
+    </CodeBlockToggle>
+  </TabItem>
+</Tabs>
 
 <Highlight type="info" title="Source of truth">
-Run the complete DDL from <FileRef>src/main/resources/sql/ddl.sql</FileRef> in the ConvEngine library. The snippet above is onboarding-focused.
+Use the dialect-specific DDL file from ConvEngine:
+- <FileRef>src/main/resources/sql/ddl_postgres.sql</FileRef> (or legacy <FileRef>src/main/resources/sql/ddl.sql</FileRef>)
+- <FileRef>src/main/resources/sql/ddl_oracle.sql</FileRef>
+- <FileRef>src/main/resources/sql/ddl_sqlite.sql</FileRef>
 </Highlight>
 
 ## 3. Minimal DML for FAQ scenario
