@@ -42,6 +42,8 @@ Use this when your physical table names differ from defaults. ConvEngine reads `
 
 <Highlight type="info" title="Important">
 If you override table names, keep mappings consistent across environments and apply the same naming strategy in JPA config.
+
+ConvEngine does not ship default `application.yml` values; consumers must provide `convengine.*` properties.
 </Highlight>
 
 ## Complete `application.yml` reference (demo + full ConvEngine options)
@@ -140,6 +142,7 @@ convengine:
 
     audit:
       enabled: true
+      persist-meta: true
       level: ALL          # ALL | STANDARD | ERROR_ONLY | NONE
       include-stages: []
       exclude-stages: []

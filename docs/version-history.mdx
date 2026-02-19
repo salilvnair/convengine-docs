@@ -9,7 +9,7 @@ import { Highlight, DbTable, MethodRef } from "@site/src/components/convengine";
 
 <Highlight type="info" title="Important note on sequence">
 There is a non-linear period (`1.0.3 -> 1.0.2 -> 1.0.3`) visible in raw commit history, which typically happens during branch merges/backports.  
-Current published artifact in `pom.xml` is <MethodRef>1.0.11</MethodRef>.
+Current published artifact in `pom.xml` is <MethodRef>1.0.13</MethodRef>.
 </Highlight>
 
 ## Artifact Version Bumps (`pom.xml`)
@@ -32,12 +32,33 @@ Current published artifact in `pom.xml` is <MethodRef>1.0.11</MethodRef>.
     ["2026-02-16", "695ef79", "1.0.8 -> 1.0.9", "Experimental SQL generation zip export + SQL-by-table response model"],
     ["2026-02-17", "working-tree", "1.0.9 -> 1.0.10", "Rule phase model + sticky intent continuity + stream validator hardening"],
     ["2026-02-18", "working-tree", "1.0.10 -> 1.0.11", "Cross-database persistence hardening + sticky intent refinement"],
+    ["2026-02-19", "working-tree", "1.0.11 -> 1.0.12", "Audit metadata enrichment (`inputParams` vs `userInputParams`)"],
+    ["2026-02-19", "working-tree", "1.0.12 -> 1.0.13", "Audit persistence strategy split + sync conversation history table"],
   ]}
 />
 
 ## Release Notes By Version
 
-### 1.0.11 (Current in `pom.xml`)
+### 1.0.13 (Current in `pom.xml`)
+
+What changed:
+- Split audit DB persistence into strategy classes (`IMMEDIATE` and `DEFERRED_BULK`) selected by factory at runtime.
+- Kept `ce_conversation_history` persistence synchronous on every eligible stage to keep prompt `{{conversation_history}}` deterministic.
+- Allowed `ce_audit` to run deferred-bulk while preserving conversation history availability.
+- Added `_meta` persistence toggle via `convengine.audit.persist-meta`.
+- Removed framework-bundled default `application.yaml`; consumer now owns `convengine.*` config.
+
+### 1.0.12
+
+What changed:
+- Added audit metadata enrichment for every stage:
+  - `_meta.inputParams`: runtime/session-mutated parameter view
+  - `_meta.userInputParams`: API-origin parameter snapshot
+- Added controller-ingress deep-copy isolation for `userInputParams` so nested request objects are immutable from later runtime mutations.
+- Extracted deep-copy logic into a reusable engine helper:
+  - `com.github.salilvnair.convengine.engine.helper.InputParamsHelper`
+
+### 1.0.11
 
 What changed:
 - Added cross-database persistence hardening across SQLite, Postgres, and Oracle:
@@ -176,7 +197,7 @@ What changed:
   title="Current library status"
   columns={["Signal", "Value"]}
   rows={[
-    ["Artifact version (`pom.xml`)", "1.0.11"],
+    ["Artifact version (`pom.xml`)", "1.0.13"],
     ["Engine extension style", "Typed step hooks via EngineStep.Name"],
     ["Streaming", "REST + SSE + STOMP/WebSocket"],
     ["Audit model", "Immediate or deferred bulk persistence with async dispatch options"],
