@@ -35,7 +35,7 @@ Current published artifact in `pom.xml` is <MethodRef>1.0.15</MethodRef>.
     ["2026-02-19", "working-tree", "1.0.11 -> 1.0.12", "Audit metadata enrichment (`inputParams` vs `userInputParams`)"],
     ["2026-02-19", "working-tree", "1.0.12 -> 1.0.13", "Audit persistence strategy split + sync conversation history table"],
     ["2026-02-19", "working-tree", "1.0.13 -> 1.0.14", "Added `ce_rule.state_code` rule scoping support"],
-    ["2026-02-19", "working-tree", "1.0.14 -> 1.0.15", "Schema resolver provider refactor + centralized audit/payload/input-param keys"],
+    ["2026-02-19", "c820cf6", "1.0.14 -> 1.0.15", "Schema resolver provider refactor + centralized audit/payload/input-param keys"],
   ]}
 />
 
@@ -56,6 +56,8 @@ What changed:
   - selection honors higher precedence via Spring `@Order`.
 - Centralized runtime input-param keys into `ConvEngineInputParamKey`.
 - Centralized fixed audit stages into `ConvEngineAuditStage`.
+- Added dynamic audit-stage helper for resolved-intent source:
+  - `ConvEngineAuditStage.intentResolvedBy(...)`
 - Centralized payload map keys into `ConvEnginePayloadKey`.
 
 ### 1.0.14
