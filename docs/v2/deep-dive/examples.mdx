@@ -282,3 +282,230 @@ If user says "yes" but flow loops back to confirmation, check in order:
 
   </TabItem>
 </Tabs>
+
+## Example 3: ORDER_CANCELLATION (multi-turn with interaction policy)
+
+<Tabs groupId="v2-cancel-deep">
+  <TabItem value="chat" label="Chat Transcript" default>
+
+<Conversation title="Protected Order Cancellation">
+  <User>Cancel my shoe order.</User>
+  <Assistant>I can help you cancel your order. What is your order number?</Assistant>
+  <User>It's 48392.</User>
+  <Assistant>Are you sure you want to cancel order 48392? This action is irreversible.</Assistant>
+  <User>Yes please do that.</User>
+  <Assistant>Order 48392 has been completely cancelled.</Assistant>
+</Conversation>
+
+  </TabItem>
+
+  <TabItem value="trace" label="Per-turn Step Trace">
+
+<DbTable
+  title="Action Policy Trace"
+  columns={["Turn", "Pipeline Step", "Internal Engine Action"]}
+  rows={[
+    ["Turn 1", "SchemaExtractionStep", "Detects `CANCEL_ORDER`. Fails to extract `orderNumber`. State remains `IDLE`."],
+    ["Turn 1", "ResponseResolutionStep", "Outputs IDLE message asking for order number."],
+    ["Turn 2", "SchemaExtractionStep", "Engine extracts `orderNumber: 48392`. Flags `schemaComplete=true`."],
+    ["Turn 2", "RulesStep", "Auto-advance rule fires, transitioning state to `CONFIRM_CANCEL`."],
+    ["Turn 2", "ActionLifecycleStep", "Stages `stripeCancelTask` into `pending_action_runtime` context with `OPEN` status."],
+    ["Turn 2", "ResponseResolutionStep", "Generates derived string parsing the memory context `orderNumber`."],
+    ["Turn 3", "DialogueActStep", "User says 'Yes'. Act classifier marks input as `AFFIRM`."],
+    ["Turn 3", "InteractionPolicyStep", "Matrix outputs `EXECUTE_PENDING_ACTION`. Locks classifier logic."],
+    ["Turn 3", "GuardrailStep", "Checks patterns for malicious prompt. Trace output: `GUARDRAIL_ALLOW`."],
+    ["Turn 3", "PendingActionStep", "Execution triggered. External API drops order. Status updated to `EXECUTED`."],
+    ["Turn 3", "RulesStep", "Rule sees `EXECUTED` task status and triggers state transition to `CANCELLED`."],
+    ["Turn 3", "ResponseResolutionStep", "Resolves final derived string using historical `orderNumber`."]
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="db" label="Required ce_* Rows">
+
+<CodeBlockToggle title="Dynamic Slot & Task DML" language="sql" defaultOpen={true}>
+{`INSERT INTO ce_intent (intent_code, enabled) VALUES ('CANCEL_ORDER', true);
+
+INSERT INTO ce_output_schema (intent_code, format_type, schema_json, enabled)
+VALUES ('CANCEL_ORDER', 'JSON', '{"type":"object","properties":{"orderNumber":{"type":"string"}},"required":["orderNumber"]}', true);
+
+INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, enabled)
+VALUES ('CANCEL_ORDER', 'SCHEMA_COLLECTION', 'Extract JSON schema fields.', true);
+
+INSERT INTO ce_rule (phase, intent_code, rule_type, action, priority, enabled)
+VALUES ('POST_EVAL', 'CANCEL_ORDER', 'CONDITION', 'TRANSITION_STATE:CONFIRM_CANCEL', 10, true);
+
+INSERT INTO ce_response (intent_code, state_code, response_type, exact_text, enabled)
+VALUES ('CANCEL_ORDER', 'IDLE', 'EXACT', 'I can help you cancel your order. What is your order number?', true);
+
+INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, user_prompt, template_id, enabled)
+VALUES ('CANCEL_ORDER', 'DERIVED', 'Format order number cleanly.', 'Are you sure you want to cancel order {{context.orderNumber}}? This action is irreversible.', 'tmpl_confirm_cancel', true);
+
+INSERT INTO ce_response (intent_code, state_code, response_type, template_id, enabled)
+VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'DERIVED', 'tmpl_confirm_cancel', true);
+
+INSERT INTO ce_pending_action (intent_code, state_code, action_name, expiration_turns, priority, enabled)
+VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'stripeCancelTask', 3, 10, true);
+
+INSERT INTO ce_rule (phase, intent_code, rule_type, action, priority, enabled)
+VALUES ('POST_EVAL', 'CANCEL_ORDER', 'CONDITION', 'TRANSITION_STATE:CANCELLED', 10, true);
+
+INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, user_prompt, template_id, enabled)
+VALUES ('CANCEL_ORDER', 'DERIVED', 'Format cleanly.', 'Order {{context.orderNumber}} has been completely cancelled.', 'tmpl_cancelled', true);
+
+INSERT INTO ce_response (intent_code, state_code, response_type, template_id, enabled)
+VALUES ('CANCEL_ORDER', 'CANCELLED', 'DERIVED', 'tmpl_cancelled', true);`}
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="audit" label="Audit + Payload Postmortem">
+
+<DbTable
+  title="Confirmation turn audit chain"
+  columns={["Order", "Stage", "Must contain"]}
+  rows={[
+    ["1", "DIALOGUE_ACT_CLASSIFIED", "dialogueAct=AFFIRM"],
+    ["2", "INTERACTION_POLICY_DECIDED", "policyDecision=EXECUTE_PENDING_ACTION"],
+    ["3", "GUARDRAIL_ALLOW", "result=ALLOW"],
+    ["4", "PENDING_ACTION_EXECUTED", "pendingActionResult=EXECUTED"],
+    ["5", "RULE_APPLIED", "state transition to CANCELLED"],
+    ["6", "ASSISTANT_OUTPUT", "final response"]
+  ]}
+/>
+
+<CodeBlockToggle title="Audit payload checkpoint: PENDING_ACTION_EXECUTED" language="json">
+{`{
+  "_meta": { "stage": "PENDING_ACTION_EXECUTED" },
+  "policyDecision": "EXECUTE_PENDING_ACTION",
+  "pendingActionRef": "stripeCancelTask",
+  "pendingActionResult": "EXECUTED",
+  "intent": "CANCEL_ORDER",
+  "state": "CONFIRM_CANCEL"
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## Example 4: INVENTORY_LOOKUP (Tool Orchestration)
+
+<Tabs groupId="v2-inventory-deep">
+  <TabItem value="chat" label="Chat Transcript" default>
+
+<Conversation title="DB Orchestration Flow">
+  <User>How many running shoes are left in warehouse B?</User>
+  <Assistant>Checking the inventory database...</Assistant>
+  <User>*[System delay executing Tool]*</User>
+  <Assistant>We currently have 421 units of running shoes allocated to warehouse B.</Assistant>
+</Conversation>
+
+  </TabItem>
+  <TabItem value="trace" label="Per-turn Step Trace">
+
+<DbTable
+  title="Tool Dispatch Trace"
+  columns={["Pipeline Step", "Internal Engine Action"]}
+  rows={[
+    ["IntentResolutionStep", "Detects `DATABASE_QUERY` intent. State=`IDLE`."],
+    ["ToolOrchestrationStep", "Identifies `INVENTORY_DB` mapping. Routes payload to connected Java component adapting `McpToolExecutor`."],
+    ["Tool Execution (Java Adapter)", "Adapter processes input, runs `SELECT count FROM inventory`. Returns JSON payload `{'count': 421}`."],
+    ["ToolOrchestrationStep", "Writes returned JSON into engine session variable `tool_result.dbList`. Traces `TOOL_ORCHESTRATION_RESULT`."],
+    ["RulesStep", "Evaluates optional `TOOL_POST_EXECUTION` rules."],
+    ["ResponseResolutionStep", "Injects the `421` count into the derived template context and calls LLM."]
+  ]}
+/>
+
+  </TabItem>
+  <TabItem value="db" label="Required ce_* Rows">
+
+<CodeBlockToggle title="Tool Orchestration DML" language="sql" defaultOpen={true}>
+{`INSERT INTO ce_intent (intent_code, enabled) VALUES ('DATABASE_QUERY', true);
+
+INSERT INTO ce_mcp_tool (intent_code, tool_group, required_params_json, execution_timeout_ms, enabled)
+VALUES ('DATABASE_QUERY', 'INVENTORY_DB', '["itemType", "warehouseId"]', 5000, true);
+
+INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, user_prompt, template_id, enabled)
+VALUES ('DATABASE_QUERY', 'DERIVED', 'You are an inventory assistant.', 'Answer from these database results: {{tool_result.dbList}}', 'tmpl_inventory_gen', true);
+
+INSERT INTO ce_response (intent_code, state_code, response_type, template_id, priority, enabled)
+VALUES ('DATABASE_QUERY', 'IDLE', 'DERIVED', 'tmpl_inventory_gen', 10, true);`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="audit" label="Audit + Payload Postmortem">
+
+<DbTable
+  title="Tool Orchestration Checkpoints"
+  columns={["Order", "Stage", "Payload details"]}
+  rows={[
+    ["1", "TOOL_ORCHESTRATION_DISPATCH", "toolGroup=INVENTORY_DB, toolParams"],
+    ["2", "TOOL_ORCHESTRATION_RESULT", "toolResult={'count': 421}, executionMs"],
+    ["3", "ASSISTANT_OUTPUT", "final response interpolation"]
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+
+## Example 5: SUPPORT_DIAGNOSTIC (Memory Summarization)
+
+<Tabs groupId="v2-support-deep">
+  <TabItem value="chat" label="Chat Transcript" default>
+
+<Conversation title="Long Context Support Thread">
+  <User>My router is broken.</User>
+  <Assistant>Let's check the lights. Are they green?</Assistant>
+  <User>*[12 more dialogue turns testing different cables and lights]*</User>
+  <Assistant>I suggest performing a factory reset via http://router.local/admin_reset with PIN 1234.</Assistant>
+  <User>*[User is quiet for minutes]*</User>
+  <User>[Turn 15]: Wait, what link did you tell me to use for the firmware reset again?</User>
+  <Assistant>Based on our previous troubleshooting, you should use http://router.local/admin_reset with the default PIN 1234.</Assistant>
+</Conversation>
+
+  </TabItem>
+  <TabItem value="trace" label="Per-turn Step Trace">
+
+<DbTable
+  title="Memory Compression Trace (Turn 15)"
+  columns={["Pipeline Step", "Internal Engine Action"]}
+  rows={[
+    ["MemoryStep (Background)", "Fetches raw history and asks LLM to re-summarize it into a tight timeline snapshot. Persists to `ce_memory`."],
+    ["DialogueActStep", "User asks 'what link did you tell me to use?'. Abstracted act=`QUESTION`."],
+    ["MemoryStep (Injection)", "Injects the compressed `memory.session_summary` variable directly into current Turn 15 context."],
+    ["IntentResolutionStep", "Resolves exact `SUPPORT_DIAGNOSTIC` intent leveraging memory context."],
+    ["ResponseResolutionStep", "Template retrieves the exact `http://router.local` string generated 10 turns ago."]
+  ]}
+/>
+
+  </TabItem>
+  <TabItem value="db" label="Required Configuration">
+
+<CodeBlockToggle title="Memory Auto-Summarization Config" language="yaml" defaultOpen={true}>
+{`convengine:
+  flow:
+    memory:
+      enabled: true
+      # Max token size for the compressed summary string
+      summary-max-chars: 1200
+      # Number of turns to trigger a new summary compression cycle
+      recent-turns-for-summary: 3`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="audit" label="Audit + Payload Postmortem">
+
+<DbTable
+  title="Memory Checkpoints"
+  columns={["Order", "Stage", "Payload details"]}
+  rows={[
+    ["1", "MEMORY_EVALUATED", "evaluatedTurns, previousSummaryLen"],
+    ["2", "MEMORY_UPDATED", "newSummary generated and injected"],
+    ["3", "INTENT_RESOLVED", "context aware resolution"]
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+

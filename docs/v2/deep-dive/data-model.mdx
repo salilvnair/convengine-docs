@@ -3,7 +3,9 @@ title: Data Model
 sidebar_position: 4
 ---
 
-# Data Model (v2)
+# Data Model
+
+ConvEngine relies entirely on configuration over code. State, relationships, and execution boundaries are encoded in the schema.
 
 ## Control-plane tables
 
@@ -18,7 +20,7 @@ sidebar_position: 4
 - `ce_policy`
 - `ce_mcp_tool`
 - `ce_mcp_db_tool`
-- `ce_pending_action` (new in v2)
+- `ce_pending_action`
 
 ## Runtime tables
 
@@ -26,9 +28,10 @@ sidebar_position: 4
 - `ce_audit`
 - `ce_conversation_history`
 - `ce_llm_call_log`
-- `ce_validation_snapshot`
 
-## `ce_pending_action` (v2)
+## `ce_pending_action`
+
+Introduced for confirm-before-run logic and unambiguous multi-action resolution.
 
 Purpose:
 
@@ -58,8 +61,11 @@ Important:
 
 ## Rule phase compatibility
 
-`ce_rule.phase` includes v2 phases:
+`ce_rule.phase` includes phases:
 
+- `PRE_EVAL`
+- `EVAL`
+- `POST_EVAL`
 - `PIPELINE_RULES`
 - `AGENT_POST_INTENT`
 - `MCP_POST_LLM`

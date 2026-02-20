@@ -10,7 +10,7 @@ import TabItem from "@theme/TabItem";
 
 # New Consumer Onboarding
 
-This is the practical playbook for teams integrating ConvEngine for the first time. Follow this sequence to avoid the common mistakes: wrong data routing, stale intent carry-over, unsafe prompt exposure, and concurrency drift.
+This is the practical playbook for teams integrating ConvEngine for the first time. The framework introduces a completely revamped interaction pipeline featuring Dialogue Act detection, orchestration graphs, internal guardrails, and automated pending-action pipelines.
 
 ## What a new consumer must decide first
 
@@ -19,8 +19,8 @@ This is the practical playbook for teams integrating ConvEngine for the first ti
   columns={["Decision", "Why it matters", "Recommended default"]}
   rows={[
     ["Transport", "Determines runtime event delivery and operational complexity.", "Start with SSE only; enable STOMP relay later."],
-    ["Intent continuity", "Controls whether intent re-resolves each turn.", "Start with `STICKY_INTENT=true`, but add explicit switch UX."],
-    ["Response mode", "Defines determinism vs model flexibility.", "Start with `EXACT` for critical intents; add `DERIVED` gradually."],
+    ["Intent continuity", "Controls whether intent re-resolves each turn.", "The engine manages intent lifecycle fluidly; enable `convengine.flow.state-graph` to build strict path boundaries."],
+    ["Action Orchestration", "Safely execute programmatic actions vs pure dialogue.", "Leverage `convengine.flow.action-lifecycle` and `PENDING_ACTION` states for secure operations."],
     ["Concurrency policy", "Prevents same-conversation race corruption.", "Serialize by `conversationId` at API layer from day one."],
     ["Prompt exposure policy", "Controls data leakage and prompt contamination risk.", "Use allowlist of prompt vars; do not expose raw input maps."],
   ]}
@@ -29,19 +29,19 @@ This is the practical playbook for teams integrating ConvEngine for the first ti
 ## Step-by-step onboarding
 
 <FlowStep step="1" title="Bootstrap framework and LLM adapter">
-Enable <MethodRef>@EnableConvEngine</MethodRef>, provide one production-grade <MethodRef>LlmClient</MethodRef> bean with strict timeout and retry policy.
+Add ConvEngine `2.0.0` dependencies. Enable <MethodRef>@EnableConvEngine</MethodRef> and provide one production-grade <MethodRef>LlmClient</MethodRef> bean with strict timeout and retry policy.
 </FlowStep>
 
 <FlowStep step="2" title="Create baseline control-plane data">
-Seed minimum rows for intents, classifiers, responses, prompt templates, and required `ce_config` flags.
+Seed minimum rows for intents, classifiers, responses, prompt templates, schemas, and pending tasks.
 </FlowStep>
 
 <FlowStep step="3" title="Lock down safety defaults">
-Apply conservative defaults for reset behavior, sticky-intent, rule phases, MCP safety, and prompt-variable exposure.
+Apply conservative defaults for reset behavior, rules logic, MCP safety, and enable Guardrails via `convengine.flow.guardrail.enabled: true`.
 </FlowStep>
 
 <FlowStep step="4" title="Run correctness tests before UI rollout">
-Validate multi-turn transitions, reset continuity, missing-field loops, and same-conversation concurrency behavior.
+Validate multi-turn transitions, pending action `AFFIRM`/`NEGATE` semantics, tool invocation, and missing-field loops.
 </FlowStep>
 
 <FlowStep step="5" title="Promote with release gates">
@@ -54,7 +54,7 @@ Move from non-prod to prod only after all correctness/security/scalability gates
   title="Must-have implementation tasks"
   columns={["Area", "Task", "Done when"]}
   rows={[
-    ["Spring wiring", "Enable ConvEngine + define `LlmClient` bean.", "`/message` works and returns payload for seeded FAQ intent."],
+    ["Spring wiring", "Add POM Dependency, Enable ConvEngine + define `LlmClient` bean.", "`/message` works and returns payload for seeded FAQ intent."],
     ["Schema", "Apply DDL and create indexes from ConvEngine schema.", "All `ce_*` tables present and writable."],
     ["Seed data", "Insert minimal rows for one end-to-end intent.", "One deterministic turn passes with expected intent/state."],
     ["Audit usage", "Wire audit API/stream into debugging workflow.", "Every test case is verified against trace timeline."],
@@ -63,22 +63,76 @@ Move from non-prod to prod only after all correctness/security/scalability gates
   ]}
 />
 
-<Tabs groupId="consumer-ddl-dialect">
-  <TabItem value="postgres" label="Postgres" default>
-    Apply <FileRef>src/main/resources/sql/ddl_postgres.sql</FileRef> (legacy: <FileRef>src/main/resources/sql/ddl.sql</FileRef>).
+## 1. Start a Spring Boot project (v2.0.0)
+
+<Tabs groupId="bootstrap">
+  <TabItem value="maven" label="pom.xml" default>
+
+    <CodeBlockToggle title="Maven dependency" language="xml" packagePath="project build">
+    {`
+  <dependency>
+    <groupId>com.github.salilvnair</groupId>
+    <artifactId>convengine</artifactId>
+    <version>2.0.0</version>
+  </dependency>`}
+    </CodeBlockToggle>
+
   </TabItem>
-  <TabItem value="oracle" label="Oracle">
-    Apply <FileRef>src/main/resources/sql/ddl_oracle.sql</FileRef>.
+  <TabItem value="gradle" label="build.gradle.kts">
+
+    <CodeBlockToggle title="Gradle dependency" language="kotlin" packagePath="project build">
+    {`implementation("com.github.salilvnair:convengine:2.0.0")`}
+    </CodeBlockToggle>
+
   </TabItem>
-  <TabItem value="sqlite" label="SQLite">
-    Apply <FileRef>src/main/resources/sql/ddl_sqlite.sql</FileRef>.
+  <TabItem value="app" label="Application class">
+
+    <CodeBlockToggle title="Enable ConvEngine" language="java" packagePath="com.zapper.demo" filePath="src/main/java/com/acme/demo/DemoApplication.java">
+    {`@SpringBootApplication
+    @EnableConvEngine(stream = true)
+    public class DemoApplication {
+      public static void main(String[] args) {
+        SpringApplication.run(DemoApplication.class, args);
+      }
+    }`}
+    </CodeBlockToggle>
+
   </TabItem>
 </Tabs>
 
 ## Recommended baseline config (new consumers)
 
-<CodeBlockToggle title="Safe starter config (ConvEngine + CCF mappings)" language="yaml">
-{`convengine:
+<CodeBlockToggle title="Safe starter config (convengine.flow.*)" language="yaml">
+{`
+convengine:
+  # Flow tuning
+  flow:
+    dialogue-act:
+      resolute: REGEX_THEN_LLM
+      llm-threshold: 0.90
+    interaction-policy:
+      execute-pending-on-affirm: true
+      reject-pending-on-negate: true
+      fill-pending-slot-on-non-new-request: true
+      require-resolved-intent-and-state: true
+      matrix:
+        "PENDING_ACTION:AFFIRM": EXECUTE_PENDING_ACTION
+        "PENDING_ACTION:NEGATE": REJECT_PENDING_ACTION
+        "PENDING_SLOT:QUESTION": FILL_PENDING_SLOT
+    action-lifecycle:
+      enabled: true
+      ttl-turns: 3
+      ttl-minutes: 30
+    guardrail:
+      enabled: true
+      sanitize-input: true
+      require-approval-for-sensitive-actions: false
+      approval-gate-fail-closed: true
+      sensitive-patterns: []
+    state-graph:
+      enabled: true
+      soft-block-on-violation: false
+
   transport:
     sse:
       enabled: true
@@ -87,11 +141,9 @@ Move from non-prod to prod only after all correctness/security/scalability gates
 
   audit:
     enabled: true
-    level: STANDARD
-    dispatch:
-      async-enabled: false
+    persist-meta: true
+    level: ALL
 
-  # ConvEngine dynamic table mapping
   tables:
     AUDIT: CE_AUDIT
     CONTAINER_CONFIG: CE_CONTAINER_CONFIG
@@ -105,27 +157,9 @@ Move from non-prod to prod only after all correctness/security/scalability gates
     PROMPT_TEMPLATE: CE_PROMPT_TEMPLATE
     RESPONSE: CE_RESPONSE
     RULE: CE_RULE
-    VALIDATION_SNAPSHOT: CE_VALIDATION_SNAPSHOT
 
-ccf:
-  core:
-    # CCF Core dynamic table mapping
-    tables:
-      PAGE_COMMON_QUERY: ZP_PAGE_COMMON_QUERY
-      SECTION_INFO: ZP_SECTION_INFO
-      CONTAINER_INFO: ZP_CONTAINER_INFO
-      CONTAINER_FIELD_INFO: ZP_CONTAINER_FIELD_INFO
-      CONTAINER_QUERY_INFO: ZP_CONTAINER_QUERY_INFO
-
-# In ce_config
-# IntentResolutionStep.STICKY_INTENT=true
-# ResetResolvedIntentStep.RESET_INTENT_CODES=RESET_SESSION,START_OVER
-# AgentIntentResolver.MIN_CONFIDENCE=0.60`}
+`}
 </CodeBlockToggle>
-
-<Highlight type="warning" title="Do not start with max flexibility">
-Do not begin with broad MCP usage, many DERIVED intents, and aggressive rule chains together. Start deterministic, then expand one capability at a time.
-</Highlight>
 
 ## Correctness-focused test pack (required)
 
@@ -133,38 +167,13 @@ Do not begin with broad MCP usage, many DERIVED intents, and aggressive rule cha
   title="Pre-production test scenarios"
   columns={["Scenario", "What to verify", "Failure signal"]}
   rows={[
+    ["Pending action semantics", "System properly executes mapped tasks or cancels when the user affirms or negates.", "State gets stuck, or action executes prematurely without active confirmation."],
     ["Sticky intent shift", "New-topic user input triggers expected re-resolution/switch behavior.", "Repeated wrong-intent responses with skip stages."],
-    ["Reset semantics", "All reset paths clear context/intent/state consistently.", "Old fields survive after reset turn."],
-    ["Rule collisions", "Only intended rule wins for same turn.", "Unexpected multi-pass intent/state mutation."],
+    ["Guardrail bounds", "Malicious or off-topic prompts fallback gracefully and log the event.", "Engine returns out-of-bounds topic data or leaked configuration."],
     ["Schema loop", "Missing fields converge in bounded turns.", "Infinite clarification or inconsistent required field set."],
     ["Concurrent same ID", "No last-write-wins drift under parallel requests.", "Contradictory final state for same conversation timeline."],
-    ["Model bad JSON", "Invalid model output fails safely and deterministically.", "Silent state corruption or unbounded fallback noise."],
   ]}
 />
-
-## Production readiness gates
-
-<DbTable
-  title="Go-live gates"
-  columns={["Gate", "Requirement"]}
-  rows={[
-    ["Data correctness", "Illegal intent/state transitions are blocked or quarantined."],
-    ["Security", "Prompt var allowlist and secret redaction enabled."],
-    ["Concurrency", "Same-conversation serialization or optimistic locking in place."],
-    ["Observability", "Team can reconstruct one bad turn end-to-end from trace."],
-    ["Scalability", "P95 stable under target QPS with production-like config volume."],
-    ["Rollback", "Config rollback procedure tested for bad rule/prompt deployment."],
-  ]}
-/>
-
-## New intent rollout template (repeatable)
-
-1. Add `ce_intent` and classifiers for the new intent.
-2. Add response mapping (`EXACT` first).
-3. Add schema + prompt template only if extraction is needed.
-4. Add minimal rules with explicit phase and priority.
-5. Run scenario tests for this intent (normal, reset, switch, collision, concurrent).
-6. Promote with rollback snapshot.
 
 ## Common new-consumer mistakes
 
@@ -172,14 +181,13 @@ Do not begin with broad MCP usage, many DERIVED intents, and aggressive rule cha
   title="Avoid these early mistakes"
   columns={["Mistake", "Impact", "Fix"]}
   rows={[
-    ["Using DERIVED everywhere from day one", "Higher variance and harder debugging.", "Use EXACT for critical flows first."],
+    ["Disabling interaction policies", "Losing all built-in logic for handling 'yes', 'no', and slot-filling inputs.", "Leave \`convengine.flow.interaction-policy\` active and matrix populated."],
     ["No conversation-level concurrency control", "State drift and non-deterministic results.", "Serialize by conversation ID or add optimistic locking."],
-    ["Treating prompt vars as free-form", "Data leakage and unintended model behavior.", "Explicit prompt-var allowlist and validation."],
+    ["Relying purely on LLM Dialogue Acts", "Expensive token usage and slow intent determination.", "Always implement \`REGEX_THEN_LLM\` resolutes for core deterministic paths."],
     ["Shipping config changes without tests", "Production regressions from rule/template misconfig.", "Introduce lint + fixture tests + staged promotion."],
-    ["Skipping trace review", "Root cause unclear when output is wrong.", "Make trace review mandatory in QA signoff."],
   ]}
 />
 
 <Highlight type="info" title="Where to read next">
-After this page, continue with [Configuration](/docs/v2/consumer/configuration) for table-level setup, [Annotations Reference](/docs/v2/consumer/annotations-reference) for all annotation usage, and [Improvement Backlog](/docs/v2/deep-dive/improvement-backlog) for implementation roadmap.
+After this page, continue with [Configuration](/docs/v2/consumer/configuration) for a complete table-level breakdown of the Flow setup, and dive into the [Developer Guide](/docs/v2/deep-dive/developer-guide) for extension integration.
 </Highlight>

@@ -2587,7 +2587,7 @@ body.docs-doc-page {
   line-height: 1.4;
   min-height: 2rem;
   margin: 0.08rem 0;
-  white-space: normal;
+  white-space: normal !important;
   max-width: 100%;
   word-break: break-word;
 }

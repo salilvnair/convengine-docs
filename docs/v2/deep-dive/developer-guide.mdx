@@ -1,47 +1,154 @@
 ---
 title: Developer Guide
 sidebar_position: 5
+hide_table_of_contents: true
 ---
 
-# Developer Guide (v2)
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { EngineDebugFlow, CodeBlockToggle, Highlight, DbTable, FileRef, MethodRef } from "@site/src/components/convengine";
+
+export const v2ExtNodes = [
+  { id: "v2x1", position: { x: 20, y: 60 }, data: { label: "DialogueActStep" } },
+  { id: "v2x2", position: { x: 260, y: 60 }, data: { label: "InteractionPolicyStep" } },
+  { id: "v2x3", position: { x: 500, y: 60 }, data: { label: "PendingActionStep" } },
+  { id: "v2x4", position: { x: 740, y: 60 }, data: { label: "ToolOrchestrationStep" } },
+  { id: "v2x5", position: { x: 20, y: 230 }, data: { label: "GuardrailStep" } },
+  { id: "v2x6", position: { x: 260, y: 230 }, data: { label: "StateGraphStep" } },
+  { id: "v2x7", position: { x: 500, y: 230 }, data: { label: "DisambiguationStep" } },
+  { id: "v2x8", position: { x: 740, y: 230 }, data: { label: "CeTaskExecutor" } },
+];
+
+export const v2ExtEdges = [
+  { id: "v2xe1", source: "v2x1", target: "v2x2" },
+  { id: "v2xe2", source: "v2x2", target: "v2x3" },
+  { id: "v2xe3", source: "v2x3", target: "v2x4" },
+  { id: "v2xe4", source: "v2x4", target: "v2x5" },
+  { id: "v2xe5", source: "v2x5", target: "v2x6" },
+  { id: "v2xe6", source: "v2x6", target: "v2x7" },
+  { id: "v2xe7", source: "v2x7", target: "v2x8" },
+];
+
+export const v2ExtDetails = {
+  v2x1: { title: "Dialogue Act", file: "engine/steps/DialogueActStep.java", method: "execute(...) ", stage: "DIALOGUE_ACT_RESOLVED", summary: "Resolves abstract acts like AFFIRM, NEGATE, EDIT.", session: ["dialogueAct attached to session"], tables: ["none"] },
+  v2x2: { title: "Policy Engine", file: "engine/steps/InteractionPolicyStep.java", method: "execute(...) ", stage: "POLICY_APPLIED", summary: "Maps dialogue acts to system functions using interaction matrix.", session: ["systemAction triggered (e.g. EXECUTE_PENDING_ACTION)"], tables: ["none"] },
+  v2x3: { title: "Pending Actions", file: "engine/steps/PendingActionStep.java", method: "execute(...) ", stage: "ACTION_LIFECYCLE", summary: "Runs deferred confirmation tasks via CeTaskExecutor.", session: ["task result stored"], tables: ["ce_pending_action"] },
+  v2x4: { title: "Tool Runner", file: "engine/steps/ToolOrchestrationStep.java", method: "execute(...) ", stage: "TOOL_EXECUTED", summary: "Calls external downstream logic.", session: ["tool_status and result merged"], tables: ["ce_mcp_tool, ce_mcp_db_tool"] },
+  v2x5: { title: "Guardrails", file: "engine/steps/GuardrailStep.java", method: "execute(...) ", stage: "GUARDRAIL_VIOLATION", summary: "Proactively redacts or fails-closed unsafe user text.", session: ["redacted input / pipeline stop"], tables: ["none"] },
+  v2x6: { title: "State Graph", file: "engine/steps/StateGraphStep.java", method: "execute(...) ", stage: "INVALID_STATE_TRANSITION", summary: "Enforces statically bounded turn transitions.", session: ["state transition audited"], tables: ["none"] },
+  v2x7: { title: "Disambiguation", file: "engine/steps/DisambiguationStep.java", method: "execute(...) ", stage: "CLARIFICATION_REQUIRED", summary: "Detects intent collisions and asks user to choose.", session: ["clarification list prepped"], tables: ["none"] },
+  v2x8: { title: "Task Extension", file: "api/tasks/CeTaskExecutor.java", method: "executeTask(...) ", stage: "TASK_RUNNING", summary: "Consumer-injected Java component logic.", session: ["consumer mutates map state"], tables: ["none"] },
+};
+
+# Developer Guide
+
+This page is the full implementation starter for consumers building flows on top of ConvEngine.
+
+<EngineDebugFlow
+  title="Pipeline Extension Map"
+  subtitle="Click each node to inspect the components."
+  nodes={v2ExtNodes}
+  edges={v2ExtEdges}
+  detailsById={v2ExtDetails}
+  defaultSelectedId="v2x2"
+/>
 
 ## Build order for a new flow
 
-1. define intent/state and response rows
-2. define schema row (if slot collection needed)
-3. define rule transitions by phase
-4. define pending actions in `ce_pending_action` for confirmation flows
-5. configure `convengine.flow.*`
-6. add tool rows and adapters if external execution is needed
-7. replay test with expected intent/state assertions
+1. Define intent/state and response rows in `ce_intent` and `ce_response`.
+2. Define schema row (if slot collection needed).
+3. Define rule transitions by phase (`ce_rule`).
+4. Define pending actions in `ce_pending_action` for explicit AFFIRM/NEGATE confirmation flows.
+5. Configure `convengine.flow.*` namespaces (e.g. state graph restrictions, disambiguation limits).
+6. Add tool rows and adapters to the orchestration library if external execution is needed via `McpToolExecutor`.
+7. Replay test with expected intent/state/dialogue-act assertions.
 
-## `convengine.flow.*` checklist
+## Review: `convengine.flow.*` features
 
-- `dialogue-act.*`
-- `interaction-policy.*`
-- `action-lifecycle.*`
-- `disambiguation.*`
-- `guardrail.*`
-- `state-graph.*`
-- `tool-orchestration.*`
-- `memory.*`
+Use your `application.yml` to tune the pipeline without writing Java extension components.
+
+<DbTable
+  title="Flow Features"
+  columns={["Subsystem", "Purpose", "Example Property"]}
+  rows={[
+    ["dialogue-act.*", "Detect foundational speech acts (AFFIRM, NEGATE) instead of strict intents.", "resolute: REGEX_THEN_LLM"],
+    ["interaction-policy.*", "Map acts to system outcomes like EXECUTE_PENDING_ACTION.", "matrix: PENDING_ACTION:AFFIRM -> EXECUTE"],
+    ["action-lifecycle.*", "Evict old confirmations out of memory.", "ttl-turns: 3"],
+    ["disambiguation.*", "Ask the user to clarify between colliding priorities.", "max-options: 5"],
+    ["guardrail.*", "Prevent prompt-injection and sanitize text.", "approval-gate-fail-closed: true"],
+    ["state-graph.*", "Enforce strict state transition bounds.", "soft-block-on-violation: false"],
+  ]}
+/>
 
 ## Extension points
 
-- `CeTask` / `CeTaskExecutor`
-- `McpToolExecutor` and adapter interfaces
-- `ConversationMemoryStore`
-- `EngineStepHook`
-- custom rule type/action resolvers
+<Tabs groupId="extensions">
+  <TabItem value="tasks" label="CeTask" default>
+
+<CodeBlockToggle title="Creating a Pending Action Task" language="java" packagePath="com.zapper.convengine.tasks">
+{`@Component("shippingConfirmationTask")
+public class ShippingConfirmationTask implements CeTask {
+  @Override
+  public TaskResult execute(EngineSession session, CePendingAction action) {
+    String trackingId = (String) session.getInputParams().get("trackingId");
+    // Call downstream API
+    session.putInputParam("shippingStatus", "DISPATCHED");
+    return TaskResult.success();
+  }
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="tools" label="McpToolExecutor">
+
+<CodeBlockToggle title="Tool execution adapter" language="java" packagePath="com.zapper.convengine.tools">
+{`@Component("billingToolAdapter")
+public class BillingToolAdapter implements McpToolExecutor {
+  @Override
+  public ToolExecutionResult invoke(ToolRequest request, EngineSession session) {
+    if (request.getToolGroup().equals("BILLING")) {
+       return ToolExecutionResult.success(Map.of("balance", 0.00));
+    }
+    return ToolExecutionResult.skipped();
+  }
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="memory" label="Memory Store">
+
+<CodeBlockToggle title="Custom Session Snapshotting" language="java" packagePath="com.zapper.convengine.stores">
+{`@Component
+public class CustomMemoryStore implements ConversationMemoryStore {
+  @Override
+  public String summarize(List<TurnSnapshot> turns) {
+      // Use LLM to compress 20 turns into a 100 character context injection
+      return llmClient.summarizeWithLimits(turns, 100);
+  }
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
 
 ## Operational safety checklist
 
-- configure fallback response rows for `UNKNOWN`/`ANY`
-- do not depend on one rule only; use phase-specific rules
-- verify pending-action catalog priorities to avoid ambiguous execution
-- enable state-graph validation before promoting to production
-- monitor audit for guardrail and disambiguation stages
+- **Configure Fallbacks**: Configure fallback response rows for `UNKNOWN` / `ANY`.
+- **Phase Targeting**: Do not depend on one rule only; cleanly separate constraints into `PRE_EVAL`, `EVAL`, and `POST_EVAL` rule phases.
+- **Priority Bounds**: Verify pending-action catalog priorities to avoid ambiguous execution hooks during interaction policy overlaps.
+- **Guardrails**: Monitor the `ce_audit` log for `GUARDRAIL_VIOLATION` to track potential malicious end-user prompt injection.
+- **Strict Bounds**: Enable `state-graph` validation before promoting a new flow to production.
 
 ## Regression strategy
 
-Use `ConversationReplayService` to replay scripted turns and assert expected intent/state at each turn.
+Use `ConversationReplayService` to replay scripted turns and assert the expected variables at each turn.
+
+<CodeBlockToggle title="ConversationReplayService assertion" language="java" filePath="src/test/java/com/zapper/RegressionTests.java">
+{`@Test
+public void testShippingFlow() {
+   ReplayResult finalTurn = replayService.runScript("shipping_confirmation_script.json");
+   
+   assertEquals("SHIPPING_CONFIRMED", finalTurn.getFinalIntent());
+   assertEquals("EXECUTE_PENDING_ACTION", finalTurn.getAuditStages().getLastSystemAction());
+}`}
+</CodeBlockToggle>

@@ -1,4 +1,6 @@
----
+import sys
+
+content = """---
 title: Examples (ReactFlow)
 sidebar_position: 3
 hide_table_of_contents: true
@@ -189,12 +191,12 @@ Step loop invokes each <MethodRef>execute(session)</MethodRef>. If a step return
 VALUES ('FAQ', 'Answer informational questions from FAQ knowledge base', 10, true);
 
 INSERT INTO ce_intent_classifier (intent_code, rule_type, pattern, priority, enabled)
-VALUES ('FAQ', 'REGEX', '(?i)\\b(what|how|help|faq|information|details|explain)\\b', 10, true);
+VALUES ('FAQ', 'REGEX', '(?i)\\\\b(what|how|help|faq|information|details|explain)\\\\b', 10, true);
 
 INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, temperature, enabled)
 VALUES ('FAQ', 'IDLE', 'TEXT',
         'You are a concise FAQ assistant. Answer directly and clearly.',
-        'User question: {{user_input}}\nFAQ context: {{container_data}}\nReturn short helpful answer.',
+        'User question: {{user_input}}\\nFAQ context: {{container_data}}\\nReturn short helpful answer.',
         0.10, true);
 
 INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
@@ -414,3 +416,9 @@ VALUES ('DATABASE_QUERY', 'IDLE', 'DERIVED', 'tmpl_inventory_gen', 10, true);`}
 <Highlight type="tip" title="Fast validation">
 For each example run, inspect both <FileRef>/api/v2/conversation/audit/{'{conversationId}'}</FileRef> and <FileRef>/api/v2/conversation/audit/{'{conversationId}'}/trace</FileRef>.
 </Highlight>
+"""
+
+with open('docs/v2/examples.mdx', 'w') as f:
+    f.write(content)
+
+print('done')

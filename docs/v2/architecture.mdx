@@ -19,7 +19,7 @@ import { FlowStep, Highlight, CodeBlockToggle, FileRef, MethodRef } from "@site/
 - <MethodRef>EnginePipelineFactory</MethodRef> (DAG sort + wrappers + timing + step hooks)
 - <MethodRef>EngineSession</MethodRef> (per-turn mutable state)
 
-### Decision + Control Layer (v2)
+### Decision + Control Layer
 - dialogue act: <MethodRef>DialogueActStep</MethodRef>
 - policy: <MethodRef>InteractionPolicyStep</MethodRef>
 - pending action lifecycle: <MethodRef>ActionLifecycleStep</MethodRef>, <MethodRef>DisambiguationStep</MethodRef>, <MethodRef>PendingActionStep</MethodRef>
@@ -44,7 +44,7 @@ Builds <MethodRef>EngineContext</MethodRef> from <MethodRef>conversationId</Meth
 <MethodRef>EngineSessionFactory</MethodRef> creates session and history provider injects last turns.
 </FlowStep>
 
-<FlowStep step="3" title="v2 control steps run">
+<FlowStep step="3" title="Control steps run">
 Dialogue act + interaction policy + pending-action lifecycle decide whether to execute task, clarify, or continue standard intent flow.
 </FlowStep>
 
@@ -63,7 +63,6 @@ Final payload is persisted and returned as TEXT/JSON response, with full audit t
   language="java"
   packagePath="com.github.salilvnair.convengine.engine.provider"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java"
-  defaultOpen={false}
 >
 {`@Override
 public EngineResult process(EngineContext engineContext) {
@@ -92,8 +91,8 @@ public EngineResult process(EngineContext engineContext) {
 You can intercept any step via <MethodRef>EngineStepHook</MethodRef> (<MethodRef>beforeStep</MethodRef>, <MethodRef>afterStep</MethodRef>, <MethodRef>onStepError</MethodRef>) without forking the engine.
 :::
 
-<Highlight type="info" title="v2 control phases">
-Rules execute by phase in v2: <MethodRef>PIPELINE_RULES</MethodRef>, <MethodRef>AGENT_POST_INTENT</MethodRef>, <MethodRef>MCP_POST_LLM</MethodRef>, and <MethodRef>TOOL_POST_EXECUTION</MethodRef>.
+<Highlight type="info" title="Control phases">
+Rules execute by phase: <MethodRef>PIPELINE_RULES</MethodRef>, <MethodRef>AGENT_POST_INTENT</MethodRef>, <MethodRef>MCP_POST_LLM</MethodRef>, and <MethodRef>TOOL_POST_EXECUTION</MethodRef>.
 </Highlight>
 
 <Highlight type="warning" title="Deterministic boundary">

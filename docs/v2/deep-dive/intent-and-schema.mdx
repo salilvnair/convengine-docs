@@ -1,70 +1,88 @@
 ---
 title: Intent & Schema
 sidebar_position: 5
+hide_table_of_contents: true
 ---
 
-# Intent and Schema Internals (v2)
+import { CodeBlockToggle, Highlight, DbTable } from "@site/src/components/convengine";
+
+# Intent and Schema Internals
 
 ## Dialogue act resolution
 
-`DialogueActStep` supports three modes via `convengine.flow.dialogue-act.resolute`:
+`DialogueActStep` handles linguistic classification before intent resolution even begins. It supports three configuration modes via `convengine.flow.dialogue-act.resolute`:
 
 - `REGEX_ONLY`
 - `REGEX_THEN_LLM`
 - `LLM_ONLY`
 
-Regex handles core acts:
+<DbTable
+  title="Core Dialogue Acts"
+  columns={["Act", "Meaning", "Regex Sample"]}
+  rows={[
+    ["AFFIRM", "User agrees or confirms", "(?i)^\\\\s*(yes|yep|yeah|sure)\\\\s*$"],
+    ["NEGATE", "User disagrees or cancels", "(?i)^\\\\s*(no|nope|cancel)\\\\s*$"],
+    ["EDIT", "User requests a correction", "(?i)^\\\\s*(edit|change|modify)\\\\s*$"],
+    ["RESET", "User requests a fresh start", "(?i)^\\\\s*(reset|start over)\\\\s*$"],
+    ["QUESTION", "User asks a clarifying question", "text ending in '?'"],
+    ["NEW_REQUEST", "(Fallback) User begins a new topic", "default fallback"],
+  ]}
+/>
 
-- `AFFIRM`
-- `NEGATE`
-- `EDIT`
-- `RESET`
-- `QUESTION`
-- fallback `NEW_REQUEST`
-
-When LLM path is used, it must return strict JSON act + confidence.
+When the LLM path is engaged (confidence below `llm-threshold`), it must return a strict JSON payload containing the act and confidence to be parsed by the engine.
 
 ## Interaction policy decision
 
-`InteractionPolicyStep` derives policy decision using:
+`InteractionPolicyStep` derives the routing policy for the current turn based on existing context.
 
-- dialogue act
-- pending action/slot presence
-- optional pending-action registry presence
-- configurable matrix in `convengine.flow.interaction-policy.matrix`
+<DbTable
+  title="Engine Routing Policies"
+  columns={["Policy Decision", "Trigger Context", "Pipeline Impact"]}
+  rows={[
+    ["EXECUTE_PENDING_ACTION", "DialogueAct=AFFIRM + hasPendingAction", "Triggers PendingActionStep; Skips Intent Resolution"],
+    ["REJECT_PENDING_ACTION", "DialogueAct=NEGATE + hasPendingAction", "Marks Pending task REJECTED; Skips Intent Resolution"],
+    ["FILL_PENDING_SLOT", "DialogueAct!=NEW_REQUEST + hasPendingSlot", "Passes input to SchemaExtractionStep; Skips Intent Resolution"],
+    ["RECLASSIFY_INTENT", "DialogueAct=NEW_REQUEST (or no pending state)", "Forces standard Intent Resolution"],
+  ]}
+/>
 
-Decisions:
+## Intent resolver behavior
 
-- `EXECUTE_PENDING_ACTION`
-- `REJECT_PENDING_ACTION`
-- `FILL_PENDING_SLOT`
-- `RECLASSIFY_INTENT`
+The pipeline resolves intent in order of priority via `CompositeIntentResolver`.
 
-## Intent resolver behavior in v2
-
-`IntentResolutionStep` can skip resolution when:
-
-- schema collection is active/locked
-- policy sets `skip_intent_resolution=true`
-- sticky-intent optimization is active during incomplete schema flow
-
-New audit signals:
-
+<Highlight type="info" title="Lock and Skip Behaviors">
+The engine prevents intent drift during active schema collection automatically. You will see these audit signals in the trace when intent resolution is intentionally bypassed:
 - `INTENT_RESOLVE_SKIPPED_POLICY`
 - `INTENT_RESOLVE_SKIPPED_SCHEMA_COLLECTION`
 - `INTENT_RESOLVE_SKIPPED_STICKY_INTENT`
+</Highlight>
 
 ## Schema extraction
 
-`SchemaExtractionStep` still drives missing-field follow-up flows.
+`SchemaExtractionStep` drives missing-field follow-up flows and automatically formats prompt templates utilizing `ce_prompt_template`. 
 
-Runtime facts are written into input params and then used by rules:
+<CodeBlockToggle
+  title="Schema LLM Injection Template"
+  language="json"
+  defaultOpen={false}
+>
+{`{
+  "type": "object",
+  "required": ["customerId", "email"],
+  "properties": {
+    "customerId": {"type": "string"},
+    "email": {"type": "string"}
+  }
+}`}
+</CodeBlockToggle>
+
+Runtime facts are evaluated and written into the `EngineSession` context by `AutoAdvanceStep`, making them available for `ce_rule` evaluation:
 
 - `missing_fields`
 - `missing_field_options`
 - `schema_json`
 - `schema_complete`
 
-## Practical design rule
-
-Use schema extraction for required slot collection, and use dialogue+policy for short confirmations (`yes/ok/do that`) so intent reclassification does not disrupt active flow.
+<Highlight type="success" title="Practical design rule">
+Use **schema extraction** for required slot collection, and use **dialogue acts + interaction policies** for short confirmations (like replying "yes" to "Are you sure?"). This ensures intent reclassification does not disrupt your active multi-turn flows.
+</Highlight>
