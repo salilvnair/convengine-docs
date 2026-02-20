@@ -1,0 +1,70 @@
+---
+title: Intent & Schema
+sidebar_position: 5
+---
+
+# Intent and Schema Internals (v2)
+
+## Dialogue act resolution
+
+`DialogueActStep` supports three modes via `convengine.flow.dialogue-act.resolute`:
+
+- `REGEX_ONLY`
+- `REGEX_THEN_LLM`
+- `LLM_ONLY`
+
+Regex handles core acts:
+
+- `AFFIRM`
+- `NEGATE`
+- `EDIT`
+- `RESET`
+- `QUESTION`
+- fallback `NEW_REQUEST`
+
+When LLM path is used, it must return strict JSON act + confidence.
+
+## Interaction policy decision
+
+`InteractionPolicyStep` derives policy decision using:
+
+- dialogue act
+- pending action/slot presence
+- optional pending-action registry presence
+- configurable matrix in `convengine.flow.interaction-policy.matrix`
+
+Decisions:
+
+- `EXECUTE_PENDING_ACTION`
+- `REJECT_PENDING_ACTION`
+- `FILL_PENDING_SLOT`
+- `RECLASSIFY_INTENT`
+
+## Intent resolver behavior in v2
+
+`IntentResolutionStep` can skip resolution when:
+
+- schema collection is active/locked
+- policy sets `skip_intent_resolution=true`
+- sticky-intent optimization is active during incomplete schema flow
+
+New audit signals:
+
+- `INTENT_RESOLVE_SKIPPED_POLICY`
+- `INTENT_RESOLVE_SKIPPED_SCHEMA_COLLECTION`
+- `INTENT_RESOLVE_SKIPPED_STICKY_INTENT`
+
+## Schema extraction
+
+`SchemaExtractionStep` still drives missing-field follow-up flows.
+
+Runtime facts are written into input params and then used by rules:
+
+- `missing_fields`
+- `missing_field_options`
+- `schema_json`
+- `schema_complete`
+
+## Practical design rule
+
+Use schema extraction for required slot collection, and use dialogue+policy for short confirmations (`yes/ok/do that`) so intent reclassification does not disrupt active flow.

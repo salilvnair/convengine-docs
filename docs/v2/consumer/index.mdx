@@ -1,0 +1,20 @@
+---
+title: Consumer
+sidebar_position: 1
+---
+
+# Consumer Integration (v2)
+
+## What changed in v2 integration
+
+- Configure behavior via `convengine.flow.*`
+- Use `ce_pending_action` for confirmable actions
+- Prefer rules/policy over custom Java branching
+- Add tool executors through tool-group adapters
+
+## Minimum setup
+
+- `@EnableConvEngine`
+- `LlmClient` implementation
+- DDL + seed for required `ce_*` tables
+- response/rule rows for initial and terminal states

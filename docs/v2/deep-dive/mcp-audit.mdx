@@ -1,0 +1,73 @@
+---
+title: MCP and Audit
+sidebar_position: 10
+---
+
+# MCP, Tool Orchestration, and Audit (v2)
+
+## Two tool paths in v2
+
+1. `ToolOrchestrationStep`
+- direct request path via `tool_request`
+- executes exactly one tool request
+- runs `TOOL_POST_EXECUTION` rules
+
+2. `McpToolStep`
+- planner loop path (`CALL_TOOL`/`ANSWER`)
+- supports up to bounded loops
+- writes observations/final answer to `context.mcp`
+- runs `MCP_POST_LLM` rules
+
+## Executor model
+
+Both paths dispatch to `McpToolExecutor` implementations by normalized `tool_group`.
+
+Built-in groups:
+
+- `DB`
+- `HTTP_API`
+- `WORKFLOW_ACTION`
+- `DOCUMENT_RETRIEVAL`
+- `CALCULATOR_TRANSFORM`
+- `NOTIFICATION`
+- `FILES`
+
+Adapter interfaces exist so consumers can plug business implementations without editing engine steps.
+
+## Guardrail integration
+
+If guardrail blocks execution:
+
+- `skip_tool_execution=true`
+- MCP/tool steps safely skip
+- no unhandled errors required for this branch
+
+## Audit stages to watch
+
+Tool orchestration:
+
+- `TOOL_ORCHESTRATION_REQUEST`
+- `TOOL_ORCHESTRATION_RESULT`
+- `TOOL_ORCHESTRATION_ERROR`
+
+MCP planner:
+
+- `MCP_PLAN_LLM_INPUT`
+- `MCP_PLAN_LLM_OUTPUT`
+- `MCP_TOOL_CALL`
+- `MCP_TOOL_RESULT`
+- `MCP_TOOL_ERROR`
+- `MCP_FINAL_ANSWER`
+
+## MCP tool scope filtering
+
+`ce_mcp_tool` supports optional runtime scope columns:
+
+- `intent_code`
+- `state_code`
+
+Eligibility rules:
+
+- `NULL` scope values are wildcards
+- non-null scope values must match current `session.intent` and `session.state`
+- if no MCP tool matches current scope, MCP step skips safely and emits `MCP_NO_TOOLS_AVAILABLE`

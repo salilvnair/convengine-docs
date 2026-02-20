@@ -1,0 +1,34 @@
+---
+title: FAQ
+sidebar_position: 4
+---
+
+# FAQ
+
+## Is v1 still available?
+
+Yes. v1 docs are still available from the version dropdown. Use v2 docs for advanced and current features.
+
+## How does v2 understand "yes/ok/do that"?
+
+Using `DialogueActStep` + `InteractionPolicyStep` + pending-action context, not only intent keyword matching.
+
+## Does `StateGraphStep` mutate state?
+
+No. Current v2 implementation is validate-only; it audits validity and can set a soft-block flag.
+
+## Can I configure behavior without Java changes?
+
+Yes. Primary control should be through:
+
+- `ce_rule`
+- `ce_response`
+- `ce_pending_action`
+- `ce_policy`
+- `convengine.flow.*`
+
+## How do we avoid 500s for conversational mismatches?
+
+- keep fallback `UNKNOWN`/`ANY` rows
+- use disambiguation and guardrail paths
+- ensure response mappings exist for reachable states

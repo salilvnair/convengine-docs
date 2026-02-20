@@ -1,0 +1,66 @@
+---
+title: Configuration
+sidebar_position: 5
+---
+
+# Consumer Configuration (v2)
+
+## Core namespaces
+
+- `convengine.flow.*` (runtime behavior tuning)
+- `convengine.audit.*`
+- `convengine.transport.*`
+- `convengine.experimental.*`
+
+## Flow config (v2)
+
+```yaml
+convengine:
+  flow:
+    dialogue-act:
+      resolute: REGEX_THEN_LLM # REGEX_ONLY | REGEX_THEN_LLM | LLM_ONLY
+      llm-threshold: 0.90
+
+    interaction-policy:
+      execute-pending-on-affirm: true
+      reject-pending-on-negate: true
+      fill-pending-slot-on-non-new-request: true
+      require-resolved-intent-and-state: true
+      matrix:
+        "PENDING_ACTION:AFFIRM": EXECUTE_PENDING_ACTION
+        "PENDING_ACTION:NEGATE": REJECT_PENDING_ACTION
+        "PENDING_SLOT:QUESTION": FILL_PENDING_SLOT
+
+    action-lifecycle:
+      enabled: true
+      ttl-turns: 3
+      ttl-minutes: 30
+
+    disambiguation:
+      enabled: true
+      max-options: 5
+
+    guardrail:
+      enabled: true
+      sanitize-input: true
+      require-approval-for-sensitive-actions: false
+      approval-gate-fail-closed: false
+      sensitive-patterns: []
+
+    state-graph:
+      enabled: true
+      soft-block-on-violation: false
+      allowed-transitions: {}
+
+    tool-orchestration:
+      enabled: true
+
+    memory:
+      enabled: true
+      summary-max-chars: 1200
+      recent-turns-for-summary: 3
+```
+
+## Why this matters
+
+This config controls v2 behavior without requiring consumer-side hardcoded Java branching for common dialogue/action patterns.

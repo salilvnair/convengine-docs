@@ -1,0 +1,81 @@
+---
+title: Version History
+sidebar_position: 30
+---
+
+# Version History
+
+## 2.0.0
+
+Major v2 runtime evolution focused on production-grade turn control, tool orchestration, safety, and observability.
+
+### Added new steps
+
+- `DialogueActStep`
+- `InteractionPolicyStep`
+- `ActionLifecycleStep`
+- `DisambiguationStep`
+- `GuardrailStep`
+- `ToolOrchestrationStep`
+- `StateGraphStep`
+- `MemoryStep`
+- `PendingActionStep` enhanced for v2 policy/lifecycle integration
+
+### Added new flow configuration model
+
+- `ConvEngineFlowConfig` (`convengine.flow.*`)
+  - dialogue act
+  - interaction policy matrix
+  - action lifecycle TTL
+  - disambiguation options
+  - guardrail controls
+  - state graph settings
+  - tool orchestration toggle
+  - memory summary settings
+
+### Added new control table
+
+- `ce_pending_action`
+  - action catalog for pending-action execution
+  - indexed by action key/intent/state/priority
+
+### Added new rule phases
+
+- `MCP_POST_LLM`
+- `TOOL_POST_EXECUTION`
+
+### Added tool execution architecture
+
+- `McpToolExecutor` interface
+- group executors for:
+  - `DB`
+  - `HTTP_API`
+  - `WORKFLOW_ACTION`
+  - `DOCUMENT_RETRIEVAL`
+  - `CALCULATOR_TRANSFORM`
+  - `NOTIFICATION`
+  - `FILES`
+- adapter interfaces for consumer implementations
+
+### Added memory and replay scaffolding
+
+- `ConversationMemoryStore`
+- `ConversationReplayService`
+- replay model classes (`Trace*`)
+
+### Added audit stage coverage
+
+Expanded audit visibility for:
+
+- dialogue act and interaction policy
+- pending action lifecycle and execution
+- disambiguation requirements
+- guardrail allow/deny
+- tool orchestration request/result/error
+- state graph validation/violation
+- memory updates
+- post-phase rule metadata
+
+## 1.x line
+
+Use the version dropdown to switch to `v1` documentation.

@@ -1,0 +1,101 @@
+---
+title: Architecture
+sidebar_position: 2
+---
+
+import { FlowStep, Highlight, CodeBlockToggle, FileRef, MethodRef } from "@site/src/components/convengine";
+
+# Architecture
+
+## Layers
+
+### API + Transport Layer
+- <MethodRef>ConversationController</MethodRef>
+- request ingress + validation + correlation ids
+- SSE / STOMP event transport for audit streams
+
+### Runtime Pipeline Layer
+- <MethodRef>DefaultConversationalEngine</MethodRef>
+- <MethodRef>EnginePipelineFactory</MethodRef> (DAG sort + wrappers + timing + step hooks)
+- <MethodRef>EngineSession</MethodRef> (per-turn mutable state)
+
+### Decision + Control Layer (v2)
+- dialogue act: <MethodRef>DialogueActStep</MethodRef>
+- policy: <MethodRef>InteractionPolicyStep</MethodRef>
+- pending action lifecycle: <MethodRef>ActionLifecycleStep</MethodRef>, <MethodRef>DisambiguationStep</MethodRef>, <MethodRef>PendingActionStep</MethodRef>
+- guard + transition validation: <MethodRef>GuardrailStep</MethodRef>, <MethodRef>StateGraphStep</MethodRef>
+- core intent/schema/rules/response path
+
+### Tooling Layer
+- <MethodRef>ToolOrchestrationStep</MethodRef> (unified tool request/execute/result contract)
+- <MethodRef>McpToolStep</MethodRef> (planner loop + `CALL_TOOL` / `ANSWER`)
+
+### Persistence + Audit Layer
+- JPA repositories on <FileRef>ce_*</FileRef>
+- <FileRef>ce_conversation</FileRef>, <FileRef>ce_audit</FileRef>, <FileRef>ce_memory</FileRef> write path
+
+## Request Path (high-level)
+
+<FlowStep step="1" title="Controller receives request">
+Builds <MethodRef>EngineContext</MethodRef> from <MethodRef>conversationId</MethodRef>, <MethodRef>message</MethodRef>, <MethodRef>inputParams</MethodRef>, optional <MethodRef>reset</MethodRef> flag.
+</FlowStep>
+
+<FlowStep step="2" title="Engine opens session">
+<MethodRef>EngineSessionFactory</MethodRef> creates session and history provider injects last turns.
+</FlowStep>
+
+<FlowStep step="3" title="v2 control steps run">
+Dialogue act + interaction policy + pending-action lifecycle decide whether to execute task, clarify, or continue standard intent flow.
+</FlowStep>
+
+<FlowStep step="4" title="Core flow resolves output">
+Intent/schema/rules/response steps produce deterministic state transition + assistant payload.
+</FlowStep>
+
+<FlowStep step="5" title="Persist + return result">
+Final payload is persisted and returned as TEXT/JSON response, with full audit trail.
+</FlowStep>
+
+## Code references
+
+<CodeBlockToggle
+  title="Engine entrypoint"
+  language="java"
+  packagePath="com.github.salilvnair.convengine.engine.provider"
+  filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java"
+  defaultOpen={false}
+>
+{`@Override
+public EngineResult process(EngineContext engineContext) {
+    EngineSession session = sessionFactory.open(engineContext);
+    session.setConversationHistory(historyProvider.lastTurns(session.getConversationId(), 10));
+    EnginePipeline pipeline = pipelineFactory.create();
+    return pipeline.execute(session);
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle
+  title="Pipeline execution loop"
+  language="java"
+  packagePath="com.github.salilvnair.convengine.engine.pipeline"
+  filePath="src/main/java/com/github/salilvnair/convengine/engine/pipeline/EnginePipeline.java"
+>
+{`for (EngineStep step : steps) {
+    StepResult r = step.execute(session);
+    if (r instanceof StepResult.Stop(EngineResult result)) {
+        return result;
+    }
+}`}
+</CodeBlockToggle>
+
+:::tip Intervention point
+You can intercept any step via <MethodRef>EngineStepHook</MethodRef> (<MethodRef>beforeStep</MethodRef>, <MethodRef>afterStep</MethodRef>, <MethodRef>onStepError</MethodRef>) without forking the engine.
+:::
+
+<Highlight type="info" title="v2 control phases">
+Rules execute by phase in v2: <MethodRef>PIPELINE_RULES</MethodRef>, <MethodRef>AGENT_POST_INTENT</MethodRef>, <MethodRef>MCP_POST_LLM</MethodRef>, and <MethodRef>TOOL_POST_EXECUTION</MethodRef>.
+</Highlight>
+
+<Highlight type="warning" title="Deterministic boundary">
+Keep business transitions in <FileRef>ce_rule</FileRef> and state graph config, not hardcoded in steps, so behavior remains data-driven and auditable.
+</Highlight>

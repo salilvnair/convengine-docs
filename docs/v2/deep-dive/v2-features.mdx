@@ -1,0 +1,107 @@
+---
+title: v2 Features
+sidebar_position: 11
+---
+
+# ConvEngine v2 Features (Detailed)
+
+## 1. DialogueActStep
+
+- Adds configurable resolve mode via `convengine.flow.dialogue-act.resolute`:
+  - `REGEX_ONLY`
+  - `REGEX_THEN_LLM`
+  - `LLM_ONLY`
+- Fast-path regex classification remains primary.
+- LLM path used for ambiguity based on configured threshold.
+- Emits: `DIALOGUE_ACT_CLASSIFIED` audit.
+
+## 2. InteractionPolicyStep
+
+- Policy matrix externalized in `convengine.flow.interaction-policy.matrix`.
+- Default safe matrix included.
+- Output remains deterministic enums:
+  - `EXECUTE_PENDING_ACTION`
+  - `REJECT_PENDING_ACTION`
+  - `FILL_PENDING_SLOT`
+  - `RECLASSIFY_INTENT`
+- Emits: `INTERACTION_POLICY_DECIDED`.
+
+## 3. ActionLifecycleStep
+
+- Runtime lifecycle stored in context `pending_action_runtime`.
+- Status values:
+  - `OPEN`
+  - `IN_PROGRESS`
+  - `EXECUTED`
+  - `REJECTED`
+  - `EXPIRED`
+- TTL by turns/time configurable via `convengine.flow.action-lifecycle.*`.
+- Uses `ce_pending_action` as catalog only.
+- Emits: `PENDING_ACTION_LIFECYCLE`.
+
+## 4. ToolOrchestrationStep
+
+- Unified tool contract:
+  - request (`tool_request`)
+  - execute
+  - result (`tool_result`, `tool_status`)
+- Keeps DB executor path and adds group dispatch interfaces for:
+  - `HTTP_API`
+  - `WORKFLOW_ACTION`
+  - `DOCUMENT_RETRIEVAL`
+  - `CALCULATOR_TRANSFORM`
+  - `NOTIFICATION`
+  - `FILES`
+- MCP tool eligibility is scoped by optional `ce_mcp_tool.intent_code` and `ce_mcp_tool.state_code` (with `NULL` as wildcard).
+- Executes post-tool rules with `TOOL_POST_EXECUTION`.
+
+## 5. GuardrailStep
+
+Before tool/action execution:
+
+- input sanitization
+- sensitive action pattern checks
+- approval gate hooks
+
+Outputs:
+
+- allow/deny audit entries (`GUARDRAIL_ALLOW`, `GUARDRAIL_DENY`)
+- skip flags for tool/pending-action execution when denied
+
+## 6. StateGraphStep (validate mode)
+
+- Validates transition only, no forced mutation.
+- Emits:
+  - `STATE_GRAPH_VALID`
+  - `STATE_GRAPH_VIOLATION`
+- Can set optional soft-block flag for downstream behavior.
+
+## 7. DisambiguationStep
+
+- When multiple pending actions eligible at same top priority:
+  - asks targeted clarification
+  - pauses execution cleanly
+- Emits: `DISAMBIGUATION_REQUIRED`.
+
+## 8. MemoryStep
+
+- Writes session summary in context.
+- Optional recall/write via pluggable `ConversationMemoryStore` adapter.
+- Emits: `MEMORY_UPDATED`.
+
+## 9. Eval/Trace framework
+
+- `ConversationReplayService` replays conversations from input messages.
+- Supports expectation assertions for intent/state regressions.
+
+## 10. Consumer contract docs
+
+Consumer should configure behavior with data/config first:
+
+- `ce_rule`
+- `ce_response`
+- `ce_pending_action`
+- `ce_mcp_tool`
+- `convengine.flow.*`
+
+Avoid hardcoding conversational decisions in controller/service code.

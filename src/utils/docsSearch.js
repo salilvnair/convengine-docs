@@ -1,7 +1,34 @@
-import docsIndex from '@site/src/data/docs-index.json';
+import docsIndexV2 from '@site/src/data/docs-index-v2.json';
+import docsIndexV1 from '@site/src/data/docs-index-v1.json';
 
 function normalize(value) {
   return String(value || '').toLowerCase();
+}
+
+function getActiveVersion() {
+  if (typeof window === 'undefined') {
+    return 'v2';
+  }
+  const pathname = window.location?.pathname || '';
+  if (pathname.startsWith('/docs/v1')) {
+    return 'v1';
+  }
+  if (pathname.startsWith('/docs/v2') || pathname === '/docs') {
+    return 'v2';
+  }
+  try {
+    const stored = (window.localStorage.getItem('ce.docs.version') || '').toLowerCase();
+    if (stored === 'v1' || stored === 'v2') {
+      return stored;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return 'v2';
+}
+
+function getActiveIndex() {
+  return getActiveVersion() === 'v1' ? docsIndexV1 : docsIndexV2;
 }
 
 function normalizeQuery(value) {
@@ -68,6 +95,7 @@ function scoreDoc(doc, q) {
 export function searchDocs(query, limit = Number.POSITIVE_INFINITY) {
   const q = normalizeQuery(query);
   if (!q) return [];
+  const docsIndex = getActiveIndex();
 
   const matched = docsIndex
     .map((doc) => ({ ...doc, _score: scoreDoc(doc, q) }))
@@ -80,5 +108,5 @@ export function searchDocs(query, limit = Number.POSITIVE_INFINITY) {
 }
 
 export function docsCount() {
-  return docsIndex.length;
+  return getActiveIndex().length;
 }

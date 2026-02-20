@@ -25,7 +25,7 @@ import { CodeBlockToggle, Highlight, DbTable } from "@site/src/components/conven
   title="MCP table usage"
   columns={["Table", "Role", "Key fields"]}
   rows={[
-    ["ce_mcp_tool", "Tool registry", "tool_code, tool_group, enabled"],
+    ["ce_mcp_tool", "Tool registry", "tool_code, tool_group, intent_code, state_code, enabled"],
     ["ce_mcp_db_tool", "DB tool SQL template config", "sql_template, param_schema, max_rows, safe_mode"],
     ["ce_config", "Planner prompts", "McpPlanner.SYSTEM_PROMPT, McpPlanner.USER_PROMPT"],
   ]}

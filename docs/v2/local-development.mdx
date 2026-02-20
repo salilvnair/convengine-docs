@@ -1,0 +1,134 @@
+---
+title: Local Development
+sidebar_position: 4
+---
+
+import { CodeBlockToggle, Highlight, FileRef, MethodRef } from "@site/src/components/convengine";
+
+# Local Development
+
+## Prerequisites
+
+- Java 21
+- Spring-compatible host app
+- PostgreSQL + ConvEngine <FileRef>ce_*</FileRef> schema
+- <MethodRef>LlmClient</MethodRef> implementation bean
+
+## Minimal integration
+
+<CodeBlockToggle
+  title="Enable ConvEngine"
+  language="java"
+  packagePath="your.app"
+>
+{`@EnableConvEngine
+@SpringBootApplication
+public class MyApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(MyApplication.class, args);
+  }
+}`}
+</CodeBlockToggle>
+
+## Required runtime beans from consumer side
+
+- <MethodRef>LlmClient</MethodRef>
+- datasource + JPA config
+- any custom hooks/transformers you need
+
+## Recommended local test loop
+
+1. Send one turn to <FileRef>/message</FileRef>
+2. Read <FileRef>/audit/{'{conversationId}'}</FileRef>
+3. Read <FileRef>/audit/{'{conversationId}'}/trace</FileRef>
+4. Tune DB rows and rerun same conversation id
+
+## Transport toggles
+
+<CodeBlockToggle title="application.yml" language="yaml">
+{`server:
+    port: 8080
+
+spring:
+    datasource:
+      url: jdbc:postgresql://localhost:5432/convengine
+      username: convengine_user
+      password: convengine_pwd
+
+convengine:
+  transport:
+      sse:
+        enabled: true or false
+        emitter-timeout-ms: 1800000
+      stomp:
+        enabled: true or false
+        endpoint: /ws-convengine
+        app-destination-prefix: /app
+        topic-prefix: /topic
+        audit-destination-base: /topic/convengine/audit
+        allowed-origin-pattern: "*"
+        sock-js: true
+        broker:
+          mode: SIMPLE
+          relay-destination-prefixes: /topic,/queue
+          relay-host: localhost
+          relay-port: 61613
+          client-login: ""
+          client-passcode: ""
+          system-login: ""
+          system-passcode: ""
+          virtual-host: ""
+          system-heartbeat-send-interval-ms: 10000
+          system-heartbeat-receive-interval-ms: 10000
+
+  audit:
+      enabled: true
+      level: ALL
+      include-stages: []
+      exclude-stages: []
+      persistence:
+        mode: IMMEDIATE
+        jdbc-batch-size: 200
+        max-buffered-events: 5000
+        flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
+        final-step-names: PipelineEndGuardStep
+        flush-on-stop-outcome: true
+      dispatch:
+        async-enabled: false
+        worker-threads: 2
+        queue-capacity: 2000
+        rejection-policy: CALLER_RUNS
+        keep-alive-seconds: 60
+      rate-limit:
+        enabled: false
+        max-events: 200
+        window-ms: 1000
+        per-conversation: true
+        per-stage: true
+        max-tracked-buckets: 20000
+  experimental:
+      enabled: false`}
+</CodeBlockToggle>
+
+<Highlight type="warning" title="When enabling STOMP">
+Keep SSE enabled initially. Use STOMP only when your client architecture needs bidirectional websocket semantics.
+</Highlight>
+
+## Optional feature annotations
+
+<CodeBlockToggle title="Enable optional performance features" language="java">
+{`@EnableConvEngine(stream = true)
+@EnableConvEngineAsyncAuditDispatch
+@EnableConvEngineStompBrokerRelay
+@SpringBootApplication
+public class MyApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(MyApplication.class, args);
+  }
+}`}
+</CodeBlockToggle>
+
+<Highlight type="info" title="Stream flag behavior">
+With <MethodRef>@EnableConvEngine(stream = true)</MethodRef> (default), startup fails if both SSE and STOMP are disabled.  
+With <MethodRef>@EnableConvEngine(stream = false)</MethodRef>, transport flags are ignored and only REST flow is active.
+</Highlight>

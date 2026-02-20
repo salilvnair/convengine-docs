@@ -1,0 +1,47 @@
+---
+title: Developer Guide
+sidebar_position: 5
+---
+
+# Developer Guide (v2)
+
+## Build order for a new flow
+
+1. define intent/state and response rows
+2. define schema row (if slot collection needed)
+3. define rule transitions by phase
+4. define pending actions in `ce_pending_action` for confirmation flows
+5. configure `convengine.flow.*`
+6. add tool rows and adapters if external execution is needed
+7. replay test with expected intent/state assertions
+
+## `convengine.flow.*` checklist
+
+- `dialogue-act.*`
+- `interaction-policy.*`
+- `action-lifecycle.*`
+- `disambiguation.*`
+- `guardrail.*`
+- `state-graph.*`
+- `tool-orchestration.*`
+- `memory.*`
+
+## Extension points
+
+- `CeTask` / `CeTaskExecutor`
+- `McpToolExecutor` and adapter interfaces
+- `ConversationMemoryStore`
+- `EngineStepHook`
+- custom rule type/action resolvers
+
+## Operational safety checklist
+
+- configure fallback response rows for `UNKNOWN`/`ANY`
+- do not depend on one rule only; use phase-specific rules
+- verify pending-action catalog priorities to avoid ambiguous execution
+- enable state-graph validation before promoting to production
+- monitor audit for guardrail and disambiguation stages
+
+## Regression strategy
+
+Use `ConversationReplayService` to replay scripted turns and assert expected intent/state at each turn.

@@ -1,0 +1,124 @@
+---
+title: REST API
+sidebar_position: 1
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { CodeBlockToggle, DbTable, Highlight, FileRef, MethodRef } from "@site/src/components/convengine";
+
+# REST API
+
+## Base
+
+<FileRef>/api/v1/conversation</FileRef>
+
+## Endpoints
+
+<DbTable
+  title="Conversation endpoints"
+  columns={["Method", "Path", "Purpose"]}
+  rows={[
+    ["POST", "/message", "Process one turn and return payload"],
+    ["GET", "/audit/{conversationId}", "Raw audit rows for conversation"],
+    ["GET", "/audit/{conversationId}/trace", "Normalized step+stage timeline"],
+  ]}
+/>
+
+## POST <FileRef>/message</FileRef>
+
+<CodeBlockToggle title="Request body" language="json" defaultOpen={true}>
+{`{
+  "conversationId": "uuid-optional",
+  "message": "Track request REQ-778102",
+  "reset": false,
+  "inputParams": {
+    "tenant": "acme"
+  }
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Success response" language="json" defaultOpen={true}>
+{`{
+  "success": true,
+  "conversationId": "9bf7540a-b129-4685-a120-730e8a0cb94b",
+  "intent": "REQUEST_TRACKER",
+  "state": "IDLE",
+  "payload": {
+    "type": "TEXT",
+    "value": "Request REQ-778102 is IN_REVIEW."
+  },
+  "context": "{...}"
+}`}
+</CodeBlockToggle>
+
+## Experimental endpoint (feature-flagged)
+
+Base: <FileRef>/api/v1/conversation/experimental</FileRef>
+
+- <MethodRef>POST /generate-sql</MethodRef>
+
+Enable with:
+
+<CodeBlockToggle title="application.yml (feature flag)" language="yaml">
+{`convengine:
+  experimental:
+      enabled: true`}
+</CodeBlockToggle>
+
+<Tabs groupId="experimental-generate-sql">
+  <TabItem value="postman" label="Postman" default>
+
+<DbTable
+  title="Postman setup"
+  columns={["Field", "Value"]}
+  rows={[
+    ["Method", "POST"],
+    ["URL", "http://localhost:8080/api/v1/conversation/experimental/generate-sql"],
+    ["Headers", "Content-Type: application/json"],
+    ["Body Mode", "raw (JSON)"],
+  ]}
+/>
+
+<CodeBlockToggle title="Postman body (JSON)" language="json">
+{`{
+  "scenario": "Build disconnect electricity workflow",
+  "domain": "utilities",
+  "constraints": "Collect account number before action",
+  "includeMcp": true
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="curl" label="curl">
+
+<CodeBlockToggle title="curl request" language="bash">
+{`curl -X POST "http://localhost:8080/api/v1/conversation/experimental/generate-sql" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "scenario": "Build disconnect electricity workflow",
+    "domain": "utilities",
+    "constraints": "Collect account number before action",
+    "includeMcp": true
+  }'`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+<CodeBlockToggle title="/experimental/generate-sql success response" language="json">
+{`{
+  "success": true,
+  "sql": "INSERT INTO ce_config ...;\\nINSERT INTO ce_intent ...;",
+  "warnings": [],
+  "note": "Experimental output: review before applying in production."
+}`}
+</CodeBlockToggle>
+
+<Highlight type="info" title="Generation scope">
+`generate-sql` is designed for non-transactional configuration tables (`ce_config`, `ce_intent`, `ce_rule`, `ce_prompt_template`, `ce_response`, `ce_output_schema`, `ce_container_config`, optional MCP tables). It does not generate runtime conversation/audit data.
+</Highlight>
+
+<Highlight type="warning" title="Experimental output">
+Generated SQL should be reviewed before use. The endpoint applies safety checks but does not replace human review.
+</Highlight>

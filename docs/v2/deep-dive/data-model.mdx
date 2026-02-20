@@ -1,0 +1,91 @@
+---
+title: Data Model
+sidebar_position: 4
+---
+
+# Data Model (v2)
+
+## Control-plane tables
+
+- `ce_config`
+- `ce_container_config`
+- `ce_intent`
+- `ce_intent_classifier`
+- `ce_output_schema`
+- `ce_prompt_template`
+- `ce_response`
+- `ce_rule`
+- `ce_policy`
+- `ce_mcp_tool`
+- `ce_mcp_db_tool`
+- `ce_pending_action` (new in v2)
+
+## Runtime tables
+
+- `ce_conversation`
+- `ce_audit`
+- `ce_conversation_history`
+- `ce_llm_call_log`
+- `ce_validation_snapshot`
+
+## `ce_pending_action` (v2)
+
+Purpose:
+
+- declarative catalog for executable pending actions by intent/state/action key
+
+Key columns:
+
+- `pending_action_id`
+- `intent_code`
+- `state_code`
+- `action_key`
+- `bean_name`
+- `method_names`
+- `priority`
+- `enabled`
+- `description`
+- `created_at`
+
+Lookup index:
+
+- `(enabled, action_key, intent_code, state_code, priority)`
+
+Important:
+
+- runtime status (`OPEN/IN_PROGRESS/EXECUTED/REJECTED/EXPIRED`) is not stored in this table
+- runtime status is stored in `context.pending_action_runtime`
+
+## Rule phase compatibility
+
+`ce_rule.phase` includes v2 phases:
+
+- `PIPELINE_RULES`
+- `AGENT_POST_INTENT`
+- `MCP_POST_LLM`
+- `TOOL_POST_EXECUTION`
+
+## Tool-group compatibility
+
+`ce_mcp_tool.tool_group` normalizes to:
+
+- `DB`
+- `HTTP_API`
+- `WORKFLOW_ACTION`
+- `DOCUMENT_RETRIEVAL`
+- `CALCULATOR_TRANSFORM`
+- `NOTIFICATION`
+- `FILES`
+
+## MCP tool scope columns
+
+`ce_mcp_tool` also supports optional scope columns:
+
+- `intent_code` (nullable)
+- `state_code` (nullable)
+
+Behavior:
+
+- if both are `NULL`, the tool is globally eligible
+- if set, tool eligibility is constrained to matching runtime `session.intent` and `session.state`
+- non-matching scoped tools are skipped from MCP planning/execution

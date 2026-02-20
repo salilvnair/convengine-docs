@@ -1,8 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 
-const docsDir = path.resolve(process.cwd(), 'docs');
-const outFile = path.resolve(process.cwd(), 'src/data/docs-index.json');
+const docsDir = path.resolve(process.cwd(), 'docs/v2');
+const v1DocsDir = path.resolve(process.cwd(), 'docs/v1');
+const outFileV2 = path.resolve(process.cwd(), 'src/data/docs-index-v2.json');
+const outFileV1 = path.resolve(process.cwd(), 'src/data/docs-index-v1.json');
+const outFileCompat = path.resolve(process.cwd(), 'src/data/docs-index.json');
 
 function walk(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -59,24 +62,43 @@ function excerpt(content, max = 220) {
   return content.slice(0, max) + (content.length > max ? '…' : '');
 }
 
-const files = walk(docsDir);
-const records = files.map((abs) => {
-  const rel = path.relative(docsDir, abs);
-  const raw = fs.readFileSync(abs, 'utf8');
-  const titleFallback = path.basename(rel, path.extname(rel)).replace(/[-_]/g, ' ');
-  const title = parseTitle(raw, titleFallback);
-  const noFm = stripFrontmatter(raw);
-  const plain = cleanupContent(noFm);
-  const rawContent = rawSearchContent(noFm);
-  return {
-    id: rel.replace(/\\/g, '/'),
-    title,
-    permalink: toPermalink(rel),
-    content: plain,
-    rawContent,
-    excerpt: excerpt(plain),
-  };
-});
+function buildRecords(rootDir, version) {
+  if (!fs.existsSync(rootDir)) {
+    return [];
+  }
+  const files = walk(rootDir);
+  return files.map((abs) => {
+    const rel = path.relative(rootDir, abs);
+    const raw = fs.readFileSync(abs, 'utf8');
+    const titleFallback = path.basename(rel, path.extname(rel)).replace(/[-_]/g, ' ');
+    const title = parseTitle(raw, titleFallback);
+    const noFm = stripFrontmatter(raw);
+    const plain = cleanupContent(noFm);
+    const rawContent = rawSearchContent(noFm);
+    const permalink = toPermalink(rel);
+    return {
+      id: rel.replace(/\\/g, '/'),
+      version,
+      title,
+      permalink:
+        version === 'v1'
+          ? permalink.replace(/^\/docs\b/, '/docs/v1')
+          : permalink.replace(/^\/docs\b/, '/docs/v2'),
+      content: plain,
+      rawContent,
+      excerpt: excerpt(plain),
+    };
+  });
+}
 
-fs.writeFileSync(outFile, JSON.stringify(records, null, 2));
-console.log(`Generated docs index: ${records.length} documents -> ${path.relative(process.cwd(), outFile)}`);
+const recordsV2 = buildRecords(docsDir, 'v2');
+const recordsV1 = buildRecords(v1DocsDir, 'v1');
+const recordsCombined = [...recordsV2, ...recordsV1];
+
+fs.writeFileSync(outFileV2, JSON.stringify(recordsV2, null, 2));
+fs.writeFileSync(outFileV1, JSON.stringify(recordsV1, null, 2));
+fs.writeFileSync(outFileCompat, JSON.stringify(recordsCombined, null, 2));
+
+console.log(
+  `Generated docs indexes: v2=${recordsV2.length}, v1=${recordsV1.length}, combined=${recordsCombined.length}`
+);

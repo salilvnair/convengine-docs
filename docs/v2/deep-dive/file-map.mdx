@@ -1,0 +1,59 @@
+---
+title: File Map
+sidebar_position: 2
+---
+
+# File Map (v2)
+
+## Core runtime
+
+- `engine/provider/DefaultConversationalEngine.java`
+- `engine/factory/EnginePipelineFactory.java`
+- `engine/pipeline/EnginePipeline.java`
+- `engine/session/EngineSession.java`
+
+## New v2 flow config
+
+- `config/ConvEngineFlowConfig.java`
+
+## New v2 steps
+
+- `engine/steps/DialogueActStep.java`
+- `engine/steps/InteractionPolicyStep.java`
+- `engine/steps/ActionLifecycleStep.java`
+- `engine/steps/DisambiguationStep.java`
+- `engine/steps/GuardrailStep.java`
+- `engine/steps/PendingActionStep.java` (enhanced behavior)
+- `engine/steps/ToolOrchestrationStep.java`
+- `engine/steps/StateGraphStep.java`
+- `engine/steps/MemoryStep.java`
+
+## Intent/schema/rules/response
+
+- `engine/steps/IntentResolutionStep.java`
+- `engine/steps/SchemaExtractionStep.java`
+- `engine/steps/RulesStep.java`
+- `engine/steps/ResponseResolutionStep.java`
+
+## MCP + tool execution
+
+- `engine/steps/McpToolStep.java`
+- `engine/mcp/McpPlanner.java`
+- `engine/mcp/McpToolRegistry.java`
+- `engine/mcp/executor/McpToolExecutor.java`
+- `engine/mcp/executor/*` (group-specific executors)
+- `engine/mcp/executor/adapter/*` (consumer adapter contracts)
+
+## Data + repositories
+
+- `entity/CePendingAction.java`
+- `repo/PendingActionRepository.java`
+- `entity/CeRule.java`
+- `repo/RuleRepository.java`
+- SQL DDL files in `src/main/resources/sql/*`
+
+## Memory + eval
+
+- `engine/memory/ConversationMemoryStore.java`
+- `engine/eval/ConversationReplayService.java`
+- `engine/eval/model/*`

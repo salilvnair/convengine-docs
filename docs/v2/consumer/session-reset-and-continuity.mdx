@@ -1,0 +1,69 @@
+---
+title: Session, Reset, Continuity
+sidebar_position: 4
+---
+
+import { CodeBlockToggle, Highlight } from "@site/src/components/convengine";
+
+# Session, Reset, and Continuity
+
+## What is restored per turn
+
+From `ce_conversation`, session restores:
+
+- `intent_code`
+- `state_code`
+- `context_json`
+- `input_params_json`
+
+From context branch values, session also restores cross-turn values such as clarification and intent lock metadata.
+
+## Intent lock lifecycle
+
+Intent lock is used for incomplete schema collection to avoid drift.
+
+- lock set when required schema fields are still missing
+- intent resolver skip logic respects lock
+- lock removed when schema is complete or schema path is absent
+
+## Sticky intent lifecycle (`ce_config`)
+
+`IntentResolutionStep.STICKY_INTENT` applies during active incomplete schema collection to keep intent stable while required fields are still missing.
+
+- when enabled, `IntentResolutionStep` skips re-resolution only while incomplete schema collection is active
+- skip emits audit stage: `INTENT_RESOLVE_SKIPPED_STICKY_INTENT`
+- re-resolution runs once schema collection is complete, and still runs for explicit switch/reset/force signals
+
+<CodeBlockToggle title="Sticky intent config" language="sql">
+{`INSERT INTO ce_config (config_type, config_key, config_value, enabled)
+VALUES ('IntentResolutionStep', 'STICKY_INTENT', 'true', true);`}
+</CodeBlockToggle>
+
+Force re-resolution signals:
+
+- reset commands: `reset`, `restart`, `/reset`, `/restart`
+- switch phrases: `switch to ...`, `switch intent`, `change intent/flow/mode`
+- input params: `force_intent_resolution=true`, `resolve_intent=true`, `switch_intent=true`, `switch_flow=true`, `switch_mode=true`
+- active clarification flow
+
+## Reset triggers
+
+- request body `reset=true`
+- input params `reset`, `restart`, `conversation_reset`
+- text commands `reset`, `restart`, `/reset`, `/restart`
+- intent-based reset via `ResetResolvedIntentStep` (`ce_config`)
+
+<CodeBlockToggle title="Reset intent config" language="sql">
+{`INSERT INTO ce_config (config_type, config_key, config_value, enabled)
+VALUES ('ResetResolvedIntentStep', 'RESET_INTENT_CODES', 'RESET_SESSION,START_OVER', true);`}
+</CodeBlockToggle>
+
+## Practical advice
+
+- Keep reset intent names explicit and reserved (`RESET_SESSION` style)
+- Avoid mixing business intents with reset intents
+- Audit `CONVERSATION_RESET` stages in pre-production tests
+
+<Highlight type="warning" title="Common failure mode">
+If reset logic is custom-coded only in controller, multi-turn state may still leak from existing conversation context. Use pipeline reset steps, not ad-hoc request branching.
+</Highlight>

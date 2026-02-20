@@ -1,0 +1,284 @@
+---
+title: Real World Examples
+sidebar_position: 3
+hide_table_of_contents: true
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { Conversation, User, Assistant, DbTable, Highlight, CodeBlockToggle } from "@site/src/components/convengine";
+
+# Real World Examples
+
+This page is intentionally dense. Each flow is shown as:
+
+1. Chat transcript
+2. Per-turn step trace (what executed and why)
+3. Required control-plane rows (`ce_*`)
+4. Audit timeline with payload-level checkpoints
+
+## Example 1: FAQ (informational path)
+
+<Tabs groupId="v2-faq-deep">
+  <TabItem value="chat" label="Chat Transcript" default>
+
+<Conversation title="FAQ conversation">
+  <User>How do I transfer my electricity connection?</User>
+  <Assistant>Share customerId, phone, email, source city, and target city. Then confirm to submit transfer.</Assistant>
+</Conversation>
+
+<DbTable
+  title="Intent and state outcome"
+  columns={["Field", "Expected value", "Why"]}
+  rows={[
+    ["intent", "FAQ", "Classifier matches informational query language"],
+    ["state", "IDLE", "No slot collection / no pending action required"],
+    ["responseType", "DERIVED (TEXT)", "FAQ answer generated from prompt/context"],
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="trace" label="Per-turn Step Trace">
+
+<DbTable
+  title="Turn T1 runtime trace"
+  columns={["Order", "Step", "Input facts", "Output facts"]}
+  rows={[
+    ["1", "LoadOrCreateConversationStep", "conversationId present or new", "session opened/hydrated"],
+    ["2", "AuditUserInputStep", "raw user text", "USER_INPUT audit row"],
+    ["3", "DialogueActStep", "question sentence", "dialogue_act=QUESTION"],
+    ["4", "InteractionPolicyStep", "no pending_action, no pending_slot", "policy_decision=RECLASSIFY_INTENT"],
+    ["5", "IntentResolutionStep", "classifiers + agent hints", "intent=FAQ, state=IDLE"],
+    ["6", "SchemaExtractionStep", "FAQ schema (light)", "schema facts available"],
+    ["7", "RulesStep", "no FAQ rule action", "RULE_NO_MATCH or no mutation"],
+    ["8", "ResponseResolutionStep", "FAQ response row + prompt", "assistant output prepared"],
+    ["9", "MemoryStep", "recent turn context", "memory_session_summary"],
+    ["10", "PersistConversationStep", "final session", "conversation/audit persisted"],
+  ]}
+/>
+
+<Highlight type="info" title="Why no pending-action path here">
+`InteractionPolicyStep` sees no `pending_action` signal and does not produce `EXECUTE_PENDING_ACTION`. The turn continues as a regular intent-resolution flow.
+</Highlight>
+
+  </TabItem>
+
+  <TabItem value="db" label="Required ce_* Rows">
+
+<DbTable
+  title="Minimum rows required for FAQ flow"
+  columns={["Table", "Required row shape", "Used by"]}
+  rows={[
+    ["ce_intent", "intent_code=FAQ", "IntentResolutionStep"],
+    ["ce_intent_classifier", "intent_code=FAQ, rule_type=REGEX", "IntentResolutionStep"],
+    ["ce_prompt_template", "intent_code=FAQ, response_type=TEXT", "ResponseResolutionStep (DERIVED)"],
+    ["ce_response", "intent_code=FAQ, state_code=IDLE", "ResponseResolutionStep"],
+    ["ce_container_config", "intent_code=FAQ (optional context source)", "AddContainerDataStep"],
+    ["ce_config", "AgentIntentResolver + SchemaExtractionStep prompt keys", "Intent/Schema steps"],
+  ]}
+/>
+
+<CodeBlockToggle title="FAQ seed snippet" language="sql">
+{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+VALUES ('FAQ', 'Answer informational questions from FAQ knowledge base', 10, true);
+
+INSERT INTO ce_intent_classifier (intent_code, rule_type, pattern, priority, enabled)
+VALUES ('FAQ', 'REGEX', '(?i)\\b(what|how|help|faq|information|details|explain)\\b', 10, true);
+
+INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, temperature, enabled)
+VALUES ('FAQ', 'IDLE', 'TEXT',
+        'You are a concise FAQ assistant. Answer directly and clearly.',
+        'User question: {{user_input}}\\nFAQ context: {{container_data}}\\nReturn short helpful answer.',
+        0.10, true);
+
+INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
+VALUES ('FAQ', 'IDLE', 'TEXT', 'DERIVED',
+        'Answer FAQ using available context and user question.', 10, true);`}
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="audit" label="Audit + Payload Postmortem">
+
+<DbTable
+  title="Expected audit stages (ordered)"
+  columns={["Order", "Stage", "Must contain"]}
+  rows={[
+    ["1", "USER_INPUT", "original user message"],
+    ["2", "DIALOGUE_ACT_CLASSIFIED", "dialogueAct=QUESTION"],
+    ["3", "INTERACTION_POLICY_DECIDED", "policyDecision=RECLASSIFY_INTENT"],
+    ["4", "INTENT_RESOLVED_BY_*", "intent=FAQ"],
+    ["5", "RESOLVE_RESPONSE_SELECTED", "responseType=DERIVED"],
+    ["6", "ASSISTANT_OUTPUT", "output text or json payload"],
+    ["7", "MEMORY_UPDATED", "summaryChars/recalled flags"],
+  ]}
+/>
+
+<CodeBlockToggle title="Audit payload checkpoint: DIALOGUE_ACT_CLASSIFIED" language="json">
+{`{
+  "_meta": { "stage": "DIALOGUE_ACT_CLASSIFIED" },
+  "userText": "How do I transfer my electricity connection?",
+  "dialogueAct": "QUESTION",
+  "dialogueActConfidence": 0.70,
+  "dialogueActSource": "REGEX"
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Audit payload checkpoint: INTERACTION_POLICY_DECIDED" language="json">
+{`{
+  "_meta": { "stage": "INTERACTION_POLICY_DECIDED" },
+  "dialogueAct": "QUESTION",
+  "policyDecision": "RECLASSIFY_INTENT",
+  "skipIntentResolution": false,
+  "hasPendingAction": false,
+  "hasPendingSlot": false
+}`}
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## Example 2: CONNECTION_TRANSFER (multi-turn + confirmation + pending action)
+
+<Tabs groupId="v2-transfer-deep">
+  <TabItem value="chat" label="Chat Transcript" default>
+
+<Conversation title="Connection transfer conversation">
+  <User>Move my electricity connection from City1 to City2.</User>
+  <Assistant>Please provide customerId, phone, email, sourceCity, and targetCity.</Assistant>
+  <User>customerId 9912, phone 9988776655, email user@zapper.com, sourceCity City1, targetCity City2</User>
+  <Assistant>Do you want to move this connection right away?</Assistant>
+  <User>yes please</User>
+  <Assistant>Connection transfer request submitted successfully.</Assistant>
+</Conversation>
+
+  </TabItem>
+
+  <TabItem value="trace" label="Per-turn Step Trace">
+
+<DbTable
+  title="Turn T1 (initial request)"
+  columns={["Step", "Key output", "Notes"]}
+  rows={[
+    ["IntentResolutionStep", "intent=CONNECTION_TRANSFER", "Classifier picks transfer intent"],
+    ["SchemaExtractionStep", "missing fields computed", "Required slots are incomplete"],
+    ["RulesStep", "state -> COLLECT_INPUTS", "Bootstrap collection state"],
+    ["ResponseResolutionStep", "ask for required fields", "Prompt user for missing slots"],
+  ]}
+/>
+
+<DbTable
+  title="Turn T2 (slot fill)"
+  columns={["Step", "Key output", "Notes"]}
+  rows={[
+    ["SchemaExtractionStep", "customerId/phone/email/sourceCity/targetCity extracted", "Schema complete"],
+    ["RulesStep", "COLLECT_INPUTS -> AWAITING_CONFIRMATION", "User must confirm execution"],
+    ["ResponseResolutionStep", "confirmation prompt", ""],
+  ]}
+/>
+
+<DbTable
+  title="Turn T3 (affirm)"
+  columns={["Order", "Step", "Key output", "Why it matters"]}
+  rows={[
+    ["1", "DialogueActStep", "AFFIRM", "Converts 'yes please' into execution signal"],
+    ["2", "InteractionPolicyStep", "EXECUTE_PENDING_ACTION", "Policy routes to pending action"],
+    ["3", "ActionLifecycleStep", "OPEN -> IN_PROGRESS", "Runtime status tracked in context"],
+    ["4", "DisambiguationStep", "not required", "Single eligible action"],
+    ["5", "GuardrailStep", "ALLOW", "No sensitive/approval block"],
+    ["6", "PendingActionStep", "EXECUTED", "Task bean/method invoked from ce_pending_action"],
+    ["7", "RulesStep", "AWAITING_CONFIRMATION -> COMPLETED", "Final state transition"],
+    ["8", "ResponseResolutionStep", "success response", "User receives completion"],
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="db" label="Required ce_* Rows">
+
+<DbTable
+  title="Control-plane requirements"
+  columns={["Table", "Must have", "Consumed by"]}
+  rows={[
+    ["ce_intent", "CONNECTION_TRANSFER", "IntentResolutionStep"],
+    ["ce_intent_classifier", "transfer/move regex", "IntentResolutionStep"],
+    ["ce_output_schema", "required slots for transfer", "SchemaExtractionStep"],
+    ["ce_rule", "state bootstrap + completeness + completion rules", "RulesStep"],
+    ["ce_pending_action", "action_key + bean_name + method_names", "ActionLifecycleStep/PendingActionStep"],
+    ["ce_response", "COLLECT_INPUTS, AWAITING_CONFIRMATION, COMPLETED responses", "ResponseResolutionStep"],
+    ["ce_config", "dialogue/prompt keys", "DialogueActStep/Schema steps"],
+    ["ce_policy", "optional policy blocks", "PolicyEnforcementStep"],
+  ]}
+/>
+
+<CodeBlockToggle title="Seed snippet: pending action + rules" language="sql">
+{`INSERT INTO ce_pending_action
+(intent_code, state_code, action_key, bean_name, method_names, priority, enabled, description)
+VALUES
+('CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'FINALIZE_CONNECTION_TRANSFER',
+ 'faqRuleTask', 'injectContainerData', 1, true,
+ 'Demo finalize action for connection transfer');
+
+INSERT INTO ce_rule (phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled)
+VALUES
+('PIPELINE_RULES', 'CONNECTION_TRANSFER', 'IDLE', 'REGEX', '.*', 'SET_STATE', 'COLLECT_INPUTS', 10, true),
+('PIPELINE_RULES', 'CONNECTION_TRANSFER', 'COLLECT_INPUTS', 'JSON_PATH',
+ '$[?(@.state == ''COLLECT_INPUTS'' && @.customerId && @.phone && @.email && @.sourceCity && @.targetCity)]',
+ 'SET_STATE', 'AWAITING_CONFIRMATION', 100, true),
+('PIPELINE_RULES', 'CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'JSON_PATH',
+ '$[?(@.state == ''AWAITING_CONFIRMATION'' && (@.pending_action_result == ''EXECUTED'' || @.inputParams.pending_action_result == ''EXECUTED''))]',
+ 'SET_STATE', 'COMPLETED', 200, true);`}
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="audit" label="Audit + Payload Postmortem">
+
+<DbTable
+  title="Confirmation turn audit chain (must appear in order)"
+  columns={["Order", "Stage", "Payload keys to verify"]}
+  rows={[
+    ["1", "DIALOGUE_ACT_CLASSIFIED", "dialogueAct=AFFIRM, confidence, source"],
+    ["2", "INTERACTION_POLICY_DECIDED", "policyDecision=EXECUTE_PENDING_ACTION"],
+    ["3", "PENDING_ACTION_LIFECYCLE", "status=IN_PROGRESS"],
+    ["4", "GUARDRAIL_ALLOW", "result=ALLOW"],
+    ["5", "PENDING_ACTION_EXECUTED", "pendingActionResult=EXECUTED"],
+    ["6", "RULE_APPLIED", "state transition to COMPLETED"],
+    ["7", "ASSISTANT_OUTPUT", "final completion response"],
+    ["8", "MEMORY_UPDATED", "summary updated"],
+  ]}
+/>
+
+<CodeBlockToggle title="Audit payload checkpoint: PENDING_ACTION_EXECUTED" language="json">
+{`{
+  "_meta": { "stage": "PENDING_ACTION_EXECUTED" },
+  "policyDecision": "EXECUTE_PENDING_ACTION",
+  "pendingActionRef": "faqRuleTask:injectContainerData",
+  "pendingActionResult": "EXECUTED",
+  "intent": "CONNECTION_TRANSFER",
+  "state": "AWAITING_CONFIRMATION"
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Audit payload checkpoint: RULE_APPLIED after execution" language="json">
+{`{
+  "_meta": { "stage": "RULE_APPLIED" },
+  "rulePhase": "PIPELINE_RULES",
+  "intent": "CONNECTION_TRANSFER",
+  "ruleStateCode": "AWAITING_CONFIRMATION",
+  "action": "SET_STATE",
+  "actionValue": "COMPLETED"
+}`}
+</CodeBlockToggle>
+
+<Highlight type="success" title="Fast failure triage">
+If user says "yes" but flow loops back to confirmation, check in order:
+1) `DIALOGUE_ACT_CLASSIFIED` must be `AFFIRM`
+2) `INTERACTION_POLICY_DECIDED` must be `EXECUTE_PENDING_ACTION`
+3) `PENDING_ACTION_EXECUTED` must exist
+4) `RULE_APPLIED` must transition state from `AWAITING_CONFIRMATION` to terminal state.
+</Highlight>
+
+  </TabItem>
+</Tabs>

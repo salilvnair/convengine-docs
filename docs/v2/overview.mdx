@@ -1,0 +1,55 @@
+---
+title: Overview
+sidebar_position: 1
+---
+
+# ConvEngine v2 Overview
+
+ConvEngine v2 is a deterministic conversation workflow engine with explicit turn-control steps for dialogue act, policy, pending-action lifecycle, guardrails, tool orchestration, state-graph validation, and memory.
+
+## What v2 adds over v1
+
+- Turn understanding before intent re-resolution:
+  - `DialogueActStep`
+  - `InteractionPolicyStep`
+- Pending action runtime control:
+  - `ActionLifecycleStep`
+  - `DisambiguationStep`
+  - `PendingActionStep`
+- Safety controls:
+  - `GuardrailStep`
+  - `StateGraphStep` (validate-only)
+- Tool runtime unification:
+  - `ToolOrchestrationStep`
+  - `McpToolStep` with executor-per-tool-group
+- Memory and replay:
+  - `MemoryStep`
+  - `ConversationReplayService`
+- Rule phases expanded with post-tool/post-mcp execution:
+  - `MCP_POST_LLM`
+  - `TOOL_POST_EXECUTION`
+- New control table:
+  - `ce_pending_action`
+
+## Runtime model
+
+ConvEngine remains config-first:
+
+- DB control plane: `ce_intent*`, `ce_rule`, `ce_response`, `ce_prompt_template`, `ce_pending_action`, `ce_mcp_*`
+- Runtime policy config: `convengine.flow.*`
+- Deterministic pipeline with audited stage output
+
+## Key outcomes
+
+- Handles `yes / ok / do that` against pending context, not standalone intent.
+- Avoids hidden state mutation by validating transitions (`StateGraphStep`) and auditing violations.
+- Supports multiple tool groups (`DB`, `HTTP_API`, `WORKFLOW_ACTION`, `DOCUMENT_RETRIEVAL`, `CALCULATOR_TRANSFORM`, `NOTIFICATION`, `FILES`).
+- Keeps every control decision visible in audit timeline.
+
+## Next Reads
+
+- [Architecture](/docs/v2/architecture)
+- [Pipeline (Step-by-Step)](/docs/v2/deep-dive/pipeline-steps)
+- [Real World Examples (chat + DB + audit)](/docs/v2/deep-dive/examples)
+- [What’s New in v2](/docs/v2/deep-dive/v2-features)
+- [Version History](/docs/v2/version-history)

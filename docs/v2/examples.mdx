@@ -1,0 +1,52 @@
+---
+title: Examples
+sidebar_position: 3
+---
+
+# Examples (v2)
+
+## 1. Mapper Studio publish/confirm flow
+
+Turn sequence:
+
+1. Agent asks finalize confirmation.
+2. User sends `confirm` / `publish` / `generate excel` / `download excel`.
+3. `DialogueActStep` => `AFFIRM`.
+4. `InteractionPolicyStep` => `EXECUTE_PENDING_ACTION`.
+5. `PendingActionStep` executes mapped `ce_pending_action` task.
+6. Rules move state (for example `PUBLISHED`).
+7. Response resolver returns publish confirmation payload.
+
+## 2. Ambiguous action disambiguation
+
+If multiple actions are eligible with equal top priority:
+
+- `DisambiguationStep` sets clarification question
+- execution is paused safely
+- no accidental action execution
+
+## 3. Guarded sensitive action
+
+If sensitive pattern matched and approval is required but missing:
+
+- `GuardrailStep` denies
+- tool and pending-action execution are skipped
+- flow continues to safe response path with audit visibility
+
+## 4. Tool orchestration flow
+
+When input includes `tool_request`:
+
+- `ToolOrchestrationStep` dispatches by `tool_group`
+- writes `tool_result` and `tool_status`
+- executes `TOOL_POST_EXECUTION` rules
+
+## 5. Zapper move-connection flow
+
+1. User: move connection city1 to city2.
+2. Schema extraction identifies missing `custId`, `phone`, `email`.
+3. Engine asks follow-up for missing fields.
+4. User provides values.
+5. Engine asks confirmation.
+6. User: `ok` / `yes please` / `go ahead`.
+7. Policy resolves against pending action and executes move request task.

@@ -1,0 +1,284 @@
+---
+title: Extensions
+sidebar_position: 3
+---
+
+import { CodeBlockToggle, Highlight, FlowStep, DbTable, MethodRef, FileRef, DocTermPopup } from "@site/src/components/convengine";
+
+# Extension Points and Intervention Scenarios
+
+<div className="ce-extensions-page">
+
+## `EngineStepHook` - intervene between any steps {#1-enginestephook---intervene-between-any-steps}
+
+Real scenario: For `LOG_ANALYSIS`, inject additional retrieval hint before schema extraction.
+
+<CodeBlockToggle title="EngineStepHook example" language="java" packagePath="com.zapper.convengine.hooks">
+{`@Component
+public class LogAnalysisHintHook implements EngineStepHook {
+    @Override
+    public boolean supports(EngineStep.Name stepName, EngineSession session) {
+        return EngineStep.Name.SchemaExtractionStep == stepName
+            && "LOG_ANALYSIS".equalsIgnoreCase(session.getIntent());
+    }
+
+    @Override
+    public void beforeStep(EngineStep.Name stepName, EngineSession session) {
+        session.putInputParam("log_source_priority", "APM_FIRST");
+    }
+}`}
+</CodeBlockToggle>
+
+:::tip Where to use this
+Use hooks when you need low-friction runtime intervention without forking framework steps.
+:::
+
+## `ContainerDataTransformer` - reshape container response {#2-containerdatatransformer---reshape-container-response}
+
+Real scenario: CCF returns nested payload; you flatten to schema-friendly map.
+
+<CodeBlockToggle title="ContainerDataTransformer example" language="java" packagePath="com.zapper.convengine.transformers">
+{`@Component
+@ContainerDataTransformer(intent = "REQUEST_TRACKER", state = "IDLE")
+public class RequestTrackerContainerTransformer implements ContainerDataTransformerHandler {
+    @Override
+    public Map<String, Object> transform(ContainerComponentResponse response,
+                                         EngineSession session,
+                                         Map<String, Object> inputParams) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ticket_id", inputParams.get("ticketId"));
+        out.put("status", "IN_REVIEW");
+        return out;
+    }
+}`}
+</CodeBlockToggle>
+
+## `ResponseTransformer` - post-process final payload {#3-responsetransformer---post-process-final-payload}
+
+Real scenario: Add support-team escalation footer for high-severity disconnect failures.
+
+<CodeBlockToggle title="ResponseTransformer example" language="java" packagePath="com.zapper.convengine.transformers">
+{`@Component
+@ResponseTransformer(intent = "DISCONNECT_ELECTRICITY", state = "FAILED")
+public class DisconnectFailureResponseTransformer implements ResponseTransformerHandler {
+    @Override
+    public OutputPayload transform(OutputPayload responsePayload,
+                                   EngineSession session,
+                                   Map<String, Object> inputParams) {
+        if (responsePayload instanceof TextPayload(String text)) {
+            return new TextPayload(text + "\\nIf this is urgent, call support at +1-800-000-0000.");
+        }
+        return responsePayload;
+    }
+}`}
+</CodeBlockToggle>
+
+## `ContainerDataInterceptor` - intercept request/response around CCF {#4-containerdatainterceptor---intercept-requestresponse-around-ccf}
+
+Real scenario: add tenant metadata and redact a field before persistence.
+
+<CodeBlockToggle title="Interceptor scenario (concept)" language="text">
+{`Before Execute:
+- inject tenantId/requestId
+- attach observability headers
+
+After Execute:
+- redact sensitive node from raw container payload
+- enrich session input params for downstream rule checks`}
+</CodeBlockToggle>
+
+## Rule Action Playbook (`SET_TASK`, `SET_JSON`, `GET_CONTEXT`, `GET_SESSION`) {#5-rule-action-playbook-set_task-set_json-get_context-get_session}
+
+These actions execute inside <MethodRef>RulesStep.execute(...)</MethodRef> and mutate the live <MethodRef>EngineSession</MethodRef>.
+
+Set <MethodRef>ce_rule.phase</MethodRef> based on where you want the action to run:
+- <MethodRef>PIPELINE_RULES</MethodRef>: normal <MethodRef>RulesStep</MethodRef> pass.
+- <MethodRef>AGENT_POST_INTENT</MethodRef>: post-intent pass inside <MethodRef>AgentIntentResolver</MethodRef>.
+
+<DbTable
+  title="Action value format (exact runtime behavior)"
+  columns={["Action", "action_value format", "Engine behavior"]}
+  rows={[
+    ["SET_TASK", "beanName:methodName or beanName:methodA,methodB", "Invokes Spring bean methods via CeRuleTaskExecutor"],
+    ["SET_JSON", "targetKey:jsonPath", "Extracts JSONPath from session eject and stores into inputParams[targetKey]"],
+    ["GET_CONTEXT", "targetKey (optional)", "Stores session.contextDict() into inputParams[targetKey] (default key=context)"],
+    ["GET_SESSION", "targetKey (optional)", "Stores session.sessionDict() into inputParams[targetKey] (default key=session)"],
+  ]}
+/>
+
+### `SET_TASK` - execute consumer Java methods from rule {#51-set_task---execute-consumer-java-methods-from-rule}
+
+Use this when a rule match must trigger consumer-side business logic (incident raise, tracker lookup, eligibility fetch, etc).
+
+<FlowStep step="1" title="Create ce_rule row">
+Set <MethodRef>ce_rule.action</MethodRef> to <MethodRef>SET_TASK</MethodRef> and provide bean/method mapping in <MethodRef>action_value</MethodRef>.
+</FlowStep>
+
+<CodeBlockToggle title="SET_TASK rule example (SQL)" language="sql">
+{`INSERT INTO ce_rule
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'ANY', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus,attachEta', 10, true,
+   'Load tracker status + ETA from consumer service');`}
+</CodeBlockToggle>
+
+<FlowStep step="2" title="Implement task bean">
+Bean must be a Spring bean with the configured bean name and implement <MethodRef>CeRuleTask</MethodRef>. Methods are invoked with <MethodRef>(EngineSession session, CeRule rule)</MethodRef>.
+</FlowStep>
+
+<CodeBlockToggle
+  title="Consumer task bean (Java)"
+  language="java"
+  packagePath="com.zapper.convengine.tasks"
+  filePath="src/main/java/com/acme/convengine/tasks/RequestTrackerTask.java"
+>
+{`@Component("requestTrackerTask")
+public class RequestTrackerTask implements CeRuleTask {
+
+    public void loadStatus(EngineSession session, CeRule rule) {
+        String requestId = String.valueOf(session.getInputParams().getOrDefault("requestId", ""));
+        // fetch from your DB/service
+        session.putInputParam("requestStatus", "APPROVAL_PENDING");
+        session.putInputParam("lastUpdated", "2026-02-10T11:40:00Z");
+    }
+
+    public void attachEta(EngineSession session, CeRule rule) {
+        session.putInputParam("eta_hours", 12);
+    }
+}`}
+</CodeBlockToggle>
+
+<FlowStep step="3" title="Use in response generation">
+Downstream prompt/response can read new context/inputParams (for example `requestStatus`, `lastUpdated`, `eta_hours`).
+</FlowStep>
+
+### `SET_JSON` - move JSONPath value into input params {#52-set_json---move-jsonpath-value-into-input-params}
+
+Use this to extract one value from runtime session JSON into a flat prompt var.
+
+<CodeBlockToggle title="SET_JSON rule example (SQL)" language="sql">
+{`INSERT INTO ce_rule
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('PIPELINE_RULES', 'LOG_ANALYSIS', 'ANY', 'JSON_PATH', '$.schemaJson.errorCode != null', 'SET_JSON', 'error_code:$.schemaJson.errorCode', 20, true,
+   'Expose extracted errorCode as prompt var');`}
+</CodeBlockToggle>
+
+<Highlight type="info" title="What exactly gets updated">
+`SET_JSON` writes to <MethodRef>session.putInputParam("error_code", value)</MethodRef>.  
+It does not change `session.contextJson` unless your subsequent task/hook updates context explicitly.
+</Highlight>
+
+### `GET_CONTEXT` - snapshot context into input params {#53-get_context---snapshot-context-into-input-params}
+
+Use this when prompt templates or tasks need full context as a single variable.
+
+<CodeBlockToggle title="GET_CONTEXT rule example (SQL)" language="sql">
+{`INSERT INTO ce_rule
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'ANY', 'REGEX', '(?i).*status.*', 'GET_CONTEXT', 'ctx_snapshot', 30, true,
+   'Expose full context to prompt/task layer');`}
+</CodeBlockToggle>
+
+If `action_value` is blank, engine uses default key `context`.
+
+### `GET_SESSION` - snapshot session facts into input params {#54-get_session---snapshot-session-facts-into-input-params}
+
+Use this for advanced derived responses that need runtime flags (`schemaComplete`, `intentLocked`, `missingRequiredFields`, etc).
+
+<CodeBlockToggle title="GET_SESSION rule example (SQL)" language="sql">
+{`INSERT INTO ce_rule
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('PIPELINE_RULES', 'DISCONNECT_ELECTRICITY', 'ANY', 'JSON_PATH', '$.schemaComplete == false', 'GET_SESSION', 'session_snapshot', 40, true,
+   'Expose full runtime session facts for follow-up prompt decisions');`}
+</CodeBlockToggle>
+
+If `action_value` is blank, engine uses default key `session`.
+
+<Highlight type="warning" title="Operational guardrails">
+`SET_TASK` methods run during rule execution. Keep methods deterministic and idempotent.  
+For side-effecting calls (ticket creation, webhook dispatch), guard with strict rule conditions and add idempotency keys from <MethodRef>conversationId</MethodRef>.
+</Highlight>
+
+<Highlight type="tip" title="Where to trace this in code">
+<div className="ce-chip-groups">
+  <div className="ce-chip-group">
+    <span className="ce-chip-group-label">Resolvers</span>
+    <div className="ce-chip-list">
+      <span className="ce-chip-item"><FileRef>engine/rule/type/provider/SetTaskActionResolver.java</FileRef></span>
+      <span className="ce-chip-item"><FileRef>engine/rule/type/provider/SetJsonActionResolver.java</FileRef></span>
+      <span className="ce-chip-item"><FileRef>engine/rule/type/provider/GetContextActionResolver.java</FileRef></span>
+      <span className="ce-chip-item"><FileRef>engine/rule/type/provider/GetSessionActionResolver.java</FileRef></span>
+    </div>
+  </div>
+
+  <div className="ce-chip-group">
+    <span className="ce-chip-group-label">Task invocation</span>
+    <div className="ce-chip-list">
+      <span className="ce-chip-item"><FileRef>engine/rule/task/CeRuleTaskExecutor.java</FileRef></span>
+    </div>
+  </div>
+
+  <div className="ce-chip-group">
+    <span className="ce-chip-group-label">Execution loop</span>
+    <div className="ce-chip-list">
+      <span className="ce-chip-item"><FileRef>engine/steps/RulesStep.java</FileRef></span>
+    </div>
+  </div>
+</div>
+</Highlight>
+
+### Custom action resolver (`RuleActionResolver`) {#55-custom-action-resolver-ruleactionresolver}
+
+Consumer can define a brand-new rule action without changing framework core.
+
+<FlowStep step="1" title="Create custom resolver bean">
+Implement <MethodRef>RuleActionResolver</MethodRef> and return your action name from <MethodRef>action()</MethodRef>.
+</FlowStep>
+
+<CodeBlockToggle
+  title="Custom RuleActionResolver example"
+  language="java"
+  packagePath="com.zapper.convengine.rules"
+  filePath="src/main/java/com/acme/convengine/rules/EnrichCustomerTierActionResolver.java"
+>
+{`@Component
+public class EnrichCustomerTierActionResolver implements RuleActionResolver {
+
+    @Override
+    public String action() {
+        return "ENRICH_TIER";
+    }
+
+    @Override
+    public void resolve(EngineSession session, CeRule rule) {
+        // action_value example: customerTier:PREMIUM
+        String raw = rule.getActionValue() == null ? "" : rule.getActionValue();
+        String[] parts = raw.split(":", 2);
+        String key = parts.length > 0 && !parts[0].isBlank() ? parts[0] : "customerTier";
+        String value = parts.length > 1 ? parts[1] : "STANDARD";
+
+        session.putInputParam(key, value);
+    }
+}`}
+</CodeBlockToggle>
+
+<FlowStep step="2" title="Use action in ce_rule">
+Set <MethodRef>ce_rule.action</MethodRef> to your custom token (case-insensitive lookup), for example <MethodRef>ENRICH_TIER</MethodRef>.
+</FlowStep>
+
+<CodeBlockToggle title="ce_rule row for custom action" language="sql">
+{`INSERT INTO ce_rule
+  (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('PIPELINE_RULES', 'REQUEST_TRACKER', 'REGEX', '(?i).*vip.*', 'ENRICH_TIER', 'customerTier:PREMIUM', 5, true,
+   'Mark VIP tier for downstream response logic');`}
+</CodeBlockToggle>
+
+<Highlight type="tip" title="Auto-registration behavior">
+No manual factory config is needed. <DocTermPopup term="Auto-registration behavior">RuleActionResolverFactory auto-registration behavior</DocTermPopup> auto-discovers all Spring beans implementing <MethodRef>RuleActionResolver</MethodRef> and maps by <MethodRef>action().toUpperCase()</MethodRef>.
+</Highlight>
+
+</div>

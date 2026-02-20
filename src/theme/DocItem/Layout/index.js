@@ -83,6 +83,8 @@ function useDocTOC() {
 export default function DocItemLayout({ children }) {
   const docTOC = useDocTOC();
   const { metadata } = useDoc();
+  const docPath = metadata?.permalink || '';
+  const docsVersion = docPath.startsWith('/docs/v1') ? 'v1' : 'v2';
   const [openSections, setOpenSections] = useState(false);
   const flashTimerRef = useRef(null);
   const autoCloseTimerRef = useRef(null);
@@ -196,7 +198,12 @@ export default function DocItemLayout({ children }) {
         <DocVersionBanner />
         <div className={styles.docItemContainer}>
           <article>
-            <DocBreadcrumbs />
+            <div className="ce-breadcrumb-row">
+              <DocBreadcrumbs />
+              <span className={clsx('ce-doc-version-chip', `ce-doc-version-chip-${docsVersion}`)}>
+                {docsVersion}
+              </span>
+            </div>
             <DocVersionBadge />
             {docTOC.mobile}
 

@@ -1,0 +1,105 @@
+---
+title: Java API
+sidebar_position: 2
+---
+
+import { CodeBlockToggle, DbTable, MethodRef } from "@site/src/components/convengine";
+
+# Java API (Core Contracts)
+
+## Entry points
+
+<DbTable
+  title="Primary interfaces"
+  columns={["Type", "Package", "Role"]}
+  rows={[
+    ["ConversationalEngine", "engine.core", "Main process method"],
+    ["LlmClient", "llm.core", "LLM adapter contract"],
+    ["EngineStep", "engine.pipeline", "Step unit contract"],
+    ["EngineStepHook", "engine.hook", "Step interception contract"],
+    ["McpToolExecutor", "engine.mcp.executor", "Tool-group executor contract"],
+    ["ConversationMemoryStore", "engine.memory", "Pluggable memory adapter"],
+    ["CeTask", "engine.task", "Task contract for pending/rule execution"],
+  ]}
+/>
+
+<CodeBlockToggle title="ConversationalEngine" language="java" packagePath="com.github.salilvnair.convengine.engine.core">
+{`public interface ConversationalEngine {
+    EngineResult process(EngineContext engineContext);
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="LlmClient" language="java" packagePath="com.github.salilvnair.convengine.llm.core">
+{`public interface LlmClient {
+    String generateText(String hint, String contextJson);
+    String generateJson(String hint, String jsonSchema, String contextJson);
+    float[] generateEmbedding(String input);
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="EngineStep.Name enum (current)" language="java" packagePath="com.github.salilvnair.convengine.engine.pipeline">
+{`public interface EngineStep {
+    enum Name {
+        AuditUserInputStep,
+        DialogueActStep,
+        InteractionPolicyStep,
+        ActionLifecycleStep,
+        DisambiguationStep,
+        GuardrailStep,
+        IntentResolutionStep,
+        AddContainerDataStep,
+        SchemaExtractionStep,
+        PendingActionStep,
+        ToolOrchestrationStep,
+        StateGraphStep,
+        ResponseResolutionStep,
+        MemoryStep,
+        AutoAdvanceStep,
+        McpToolStep,
+        LoadOrCreateConversationStep,
+        FallbackIntentStateStep,
+        PersistConversationBootstrapStep,
+        ResetConversationStep,
+        PersistConversationStep,
+        PipelineEndGuardStep,
+        ResetResolvedIntentStep,
+        PolicyEnforcementStep,
+        RulesStep,
+        Unknown;
+    }
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="McpToolExecutor" language="java" packagePath="com.github.salilvnair.convengine.engine.mcp.executor">
+{`public interface McpToolExecutor {
+    String toolGroup();
+    String execute(CeMcpTool tool, Map<String, Object> args, EngineSession session);
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="ConversationMemoryStore" language="java" packagePath="com.github.salilvnair.convengine.engine.memory">
+{`public interface ConversationMemoryStore {
+    default String read(EngineSession session) { return null; }
+    default void write(EngineSession session, String summary) {}
+}`}
+</CodeBlockToggle>
+
+## Flow configuration API
+
+<DbTable
+  title="Configuration classes"
+  columns={["Class", "Purpose"]}
+  rows={[
+    ["ConvEngineFlowConfig", "Runtime controls for dialogue/policy/lifecycle/guardrail/tool/stategraph/disambiguation/memory"],
+    ["ConvEngineEntityConfig", "Dynamic table name mapping via convengine.tables"],
+    ["ConvEngineAuditConfig", "Audit behavior controls"],
+  ]}
+/>
+
+## Extension contracts
+
+- <MethodRef>ResponseTransformerHandler</MethodRef>
+- <MethodRef>ContainerDataTransformerHandler</MethodRef>
+- rule task execution pathway via <MethodRef>SET_TASK</MethodRef>
+- pending action execution via `CeTaskExecutor`
+- tool adapters through `McpToolExecutor` implementations

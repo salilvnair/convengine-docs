@@ -1,0 +1,45 @@
+---
+title: Rules & Responses
+sidebar_position: 6
+---
+
+# Rules and Response Resolution (v2)
+
+## Rule phases
+
+`ce_rule.phase` in v2 supports:
+
+- `PIPELINE_RULES`
+- `AGENT_POST_INTENT`
+- `MCP_POST_LLM`
+- `TOOL_POST_EXECUTION`
+
+`RulesStep` now writes phase/source/origin metadata into input params and audit payload for every pass.
+
+## Rule matching behavior
+
+For each pass:
+
+1. fetch by phase + session state
+2. check intent (`ANY`/blank/null supported)
+3. check state (`ANY`/blank/null supported)
+4. evaluate type resolver (`EXACT`, `REGEX`, `JSON_PATH`)
+5. execute action resolver
+6. rerun pass if intent/state changed (max pass cap)
+
+Audit emitted even when not matched (`RULE_NO_MATCH`) with explicit reason.
+
+## Response resolution behavior
+
+`ResponseResolutionStep`:
+
+1. selects response template by intent/state/priority
+2. resolves output format
+3. emits `RESOLVE_RESPONSE*` audit stages
+4. writes final payload (`EXACT` or `DERIVED`)
+
+## v2 operational guidance
+
+- keep `UNKNOWN` and `ANY` fallback responses to avoid hard failures
+- keep at least one response for each terminal state
+- use phase-scoped rules instead of overloading one monolithic `PIPELINE_RULES` pass

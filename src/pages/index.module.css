@@ -48,12 +48,56 @@
   color: inherit;
 }
 
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.72rem;
-  opacity: 0.86;
-  margin-bottom: 1rem;
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.2rem;
+}
+
+.versionChips {
+  display: flex;
+  gap: 0.5rem;
+
+}
+
+.versionChipV2,
+.versionChipV1 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.22rem 0.66rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  text-decoration: none;
+}
+
+.versionChipV2 {
+  background: #e6f8ed;
+  color: #0b6b3a;
+  border-color: #8bdbb0;
+}
+
+.versionChipV1 {
+  background: #fff7d8;
+  color: #8a5a00;
+  border-color: #f0cf67;
+}
+
+[data-theme='dark'] .versionChipV2 {
+  background: rgba(74, 222, 128, 0.2);
+  color: #9ff7b2;
+  border-color: rgba(74, 222, 128, 0.55);
+}
+
+[data-theme='dark'] .versionChipV1 {
+  background: rgba(250, 204, 21, 0.2);
+  color: #fde68a;
+  border-color: rgba(250, 204, 21, 0.5);
 }
 
 .heroTitle {
@@ -127,28 +171,6 @@
   color: var(--ifm-color-primary);
 }
 
-.valueWrap {
-  padding: 1rem 0 3rem;
-}
-
-.valueGrid {
-  border: 1px solid var(--ifm-color-emphasis-200);
-  border-radius: 14px;
-  padding: 1.2rem;
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 1.2rem;
-}
-
-.valueList {
-  margin: 0;
-  padding-left: 1rem;
-}
-
-.valueList li {
-  margin-bottom: 0.55rem;
-}
-
 @media screen and (max-width: 996px) {
   .heroBanner {
     padding: 3.2rem 0 2.6rem;
@@ -157,9 +179,5 @@
   .heroBanner::after {
     background: var(--ce-hero-logo-light) right -16px top 18px / min(62vw, 270px) auto no-repeat;
     opacity: 0.85;
-  }
-
-  .valueGrid {
-    grid-template-columns: 1fr;
   }
 }
