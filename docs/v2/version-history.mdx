@@ -5,6 +5,29 @@ sidebar_position: 30
 
 # Version History
 
+
+## 2.0.1
+
+Add audit metadata support for prompt rendering and context
+
+- Introduced new fields in `PromptTemplateContext`:
+  * `templateName`
+  * `systemPrompt`
+  * `userPrompt`
+  * `session` (EngineSession)
+- Updated all response format resolvers (`JsonOutputFormatResolver`, `TextOutputFormatResolver`) to build a context that includes the new metadata.
+- Updated intent resolution, disambiguation, schema extraction and MCP planner steps to supply the new metadata when creating `PromptTemplateContext`.
+- Enhanced `PromptTemplateRenderer`:
+  * Collects metadata (selected prompt, system/user prompts, session dump, and prompt variables) into a map.
+  * Throws `ConversationEngineException` with the metadata via `withMetaData`.
+- Added a `metaData` field and `withMetaData()` method to `ConversationEngineException`.
+- Updated imports across modified classes.
+- Adjusted the database DDL for SQLite to use `strftime('%Y-%m-%d %H:%M:%f', 'now')` for timestamp defaults.
+- Bumped project version to **2.0.1** in `pom.xml`.
+
+These changes provide richer audit traces for prompt usage and enable better debugging of engine behaviour.
+
+
 ## 2.0.0
 
 Major runtime engine evolution focused on production-grade turn control, tool orchestration, safety, and observability. 
