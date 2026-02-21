@@ -1,0 +1,149 @@
+---
+title: Caching & Persistence
+sidebar_position: 4
+---
+
+import { DbTable, CodeBlockToggle, Highlight, MethodRef } from "@site/src/components/convengine";
+
+# Caching & Persistence
+
+ConvEngine v2 is heavily optimized to decouple real-time generative latency from slow relational database I/O. The framework accomplishes this by utilizing **Asynchronous Persistence Threads** alongside **Spring's Abstract CacheManager**.
+
+To activate this optimization on your backend, add the following decorators to your application class:
+1. <MethodRef>@CeEnableCaching</MethodRef>
+2. <MethodRef>@CeEnableAsyncConversation</MethodRef>
+
+<Highlight type="tip" title="How the abstraction works">
+The actual datastore powering `@CeEnableCaching` is **entirely controlled by the Consumer application**, not the ConvEngine framework. ConvEngine relies on the generic Spring \`CacheManager\` interface to save and load \`CeConversation\` instances via the \`ce_conversation_cache\` routing key.
+</Highlight>
+
+## Default Configuration (HashMap)
+
+By default, if you attach `@CeEnableCaching` but do not import any external caching dependencies into your `pom.xml`, Spring Boot falls back to a **`ConcurrentMapCacheManager`**.
+
+This operates seamlessly out of the box. It holds conversation states inside a standard Java `HashMap` residing in your server's active JVM memory. 
+
+- **Pros**: Blazing fast (`0ms` read/write latency), requires zero configuration.
+- **Cons**: Cache is completely wiped if the Spring Boot application restarts or crashes; not horizontal-scale (multi-pod) friendly.
+
+---
+
+## 1. Ehcache 3 (JSR-107)
+
+For robust, production-grade memory bounds, **Ehcache** is a highly recommended on-premise memory provider. It allows conversational payloads to spill over from the active `heap` into `offheap` memory to prevent JVM garbage collection thrashing during large multi-turn flows.
+
+**Dependency update (`pom.xml`)**:
+<CodeBlockToggle title="pom.xml" language="xml">
+{`<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>
+<dependency>
+    <groupId>javax.cache</groupId>
+    <artifactId>cache-api</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.ehcache</groupId>
+    <artifactId>ehcache</artifactId>
+</dependency>`}
+</CodeBlockToggle>
+
+**App configuration (`application.yml`)**:
+<CodeBlockToggle title="application.yml" language="yaml">
+{`spring:
+  cache:
+    jcache:
+      config: classpath:ehcache.xml`}
+</CodeBlockToggle>
+
+**Provider specification (`src/main/resources/ehcache.xml`)**:
+<CodeBlockToggle title="ehcache.xml" language="xml">
+{`<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns="http://www.ehcache.org/v3"
+        xmlns:jsr107="http://www.ehcache.org/v3/jsr107"
+        xsi:schemaLocation="
+            http://www.ehcache.org/v3 http://www.ehcache.org/schema/ehcache-core-3.0.xsd
+            http://www.ehcache.org/v3/jsr107 http://www.ehcache.org/schema/ehcache-107-ext-3.0.xsd">
+
+    <!-- This MUST exactly match ConvEngine's requested alias -->
+    <cache alias="ce_conversation_cache">
+        <key-type>java.lang.String</key-type>
+        <value-type>com.github.salilvnair.convengine.entity.CeConversation</value-type>
+        <expiry>
+            <ttl unit="minutes">60</ttl>
+        </expiry>
+        <resources>
+            <heap unit="entries">2000</heap>
+            <offheap unit="MB">100</offheap>
+        </resources>
+    </cache>
+</config>`}
+</CodeBlockToggle>
+
+---
+
+## 2. Caffeine Cache
+
+If you prefer a highly optimized, high-performance local cache strictly contained inside the JVM (without off-heap spillage but statistically faster hit-rates than Ehcache), **Caffeine** is Spring Boot's default local provider replacement.
+
+**Dependency update (`pom.xml`)**:
+<CodeBlockToggle title="pom.xml" language="xml">
+{`<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>
+<dependency>
+    <groupId>com.github.ben-manes.caffeine</groupId>
+    <artifactId>caffeine</artifactId>
+</dependency>`}
+</CodeBlockToggle>
+
+**App configuration (`application.yml`)**:
+Unlike Ehcache, Caffeine can be fully initialized inside `application.yml` without distinct XML files.
+<CodeBlockToggle title="application.yml" language="yaml">
+{`spring:
+  cache:
+    type: caffeine
+    cache-names: ce_conversation_cache
+    caffeine:
+      # Max limits the cache to 5,000 conversational objects, expiring them 60 minutes after their last network write
+      spec: maximumSize=5000,expireAfterWrite=60m`}
+</CodeBlockToggle>
+
+---
+
+## 3. Redis
+
+For horizontally scaled environments like Kubernetes (`k8s`) where your user traffic rotates across multiple server pods mid-conversation, you cannot use local memory (Ehcache/Caffeine). **Redis** binds ConvEngine's cache into an external centralized datastore.
+
+**Dependency update (`pom.xml`)**:
+<CodeBlockToggle title="pom.xml" language="xml">
+{`<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>`}
+</CodeBlockToggle>
+
+**App configuration (`application.yml`)**:
+<CodeBlockToggle title="application.yml" language="yaml">
+{`spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  cache:
+    type: redis
+    redis:
+      time-to-live: 60m
+      cache-null-values: false
+      use-key-prefix: true
+      key-prefix: "convengine:"`}
+</CodeBlockToggle>
+
+<Highlight type="warning" title="A note on serialization">
+Because Redis runs outside the active server JVM, it relies on network transmission. You must ensure that your Spring application has a generic `RedisTemplate` or Jackson-configured `RedisCacheConfiguration` bean configured to serialize `CeConversation` entities, otherwise Java will throw `NotSerializableException` when attempting to push the object to the internet.
+</Highlight>

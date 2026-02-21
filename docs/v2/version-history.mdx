@@ -5,6 +5,16 @@ sidebar_position: 30
 
 # Version History
 
+## 2.0.2
+
+Introduces deep performance optimizations targeting conversational latency, RAG context injection, and rigid data payloads.
+
+- **Query Rewrite (Contextual RAG)**: Added `convengine.flow.query-rewrite.enabled` property. `DialogueActStep` now natively evaluates conversation history to extract a `standaloneQuery` into session parameters, allowing downstream RAG tools to receive explicit context without incurring secondary LLM execution penalties.
+- **JSON Payload Flattening**: Patched `EngineSession` storage logic to aggressively filter redundant structural blocks (`CONTEXT`, `SCHEMA_JSON`, `SESSION`) before database serialization, permanently resolving exponential payload bloat inside `ce_conversation.input_params_json`.
+- **Framework Caching & Async Pipelines**: 
+  - Separated Spring's raw `@EnableCaching` and `@EnableAsync` from the default ConvEngine auto-configuration.
+  - Introduced explicitly managed `@CeEnableCaching` and `@CeEnableAsyncConversation` consumer integration decorators.
+  - Automatically intercepts the internal engine pipeline via Spring's `CacheManager` to execute synchronous memory writes while offloading slow I/O Relational DB saves to background asynchronous threads.
 
 ## 2.0.1
 

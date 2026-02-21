@@ -51,6 +51,8 @@ Below is a complete reference of the default configuration options exposed by Co
 
     # Flow tuning
     flow:
+      query-rewrite:
+        enabled: true
       dialogue-act:
         resolute: REGEX_THEN_LLM # REGEX_ONLY | REGEX_THEN_LLM | LLM_ONLY
         llm-threshold: 0.90
@@ -157,6 +159,14 @@ The `convengine.flow.*` properties control the nuanced routing behavior without 
   rows={[
     ["resolute", "REGEX_THEN_LLM", "Intent resolution strategy (REGEX_ONLY, REGEX_THEN_LLM, LLM_ONLY)"],
     ["llm-threshold", "0.90", "Confidence threshold for LLM intent classification via DialogueAct"]
+  ]}
+/>
+
+<DbTable
+  title="convengine.flow.query-rewrite"
+  columns={["Property", "Default", "Description"]}
+  rows={[
+    ["enabled", "true", "Automatically derives a standalone query from conversation history for contextual downstream RAG tool injection."]
   ]}
 />
 

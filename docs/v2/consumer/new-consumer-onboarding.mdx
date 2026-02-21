@@ -90,6 +90,8 @@ Move from non-prod to prod only after all correctness/security/scalability gates
     <CodeBlockToggle title="Enable ConvEngine" language="java" packagePath="com.zapper.demo" filePath="src/main/java/com/acme/demo/DemoApplication.java">
     {`@SpringBootApplication
     @EnableConvEngine(stream = true)
+    @CeEnableCaching
+    @CeEnableAsyncConversation
     public class DemoApplication {
       public static void main(String[] args) {
         SpringApplication.run(DemoApplication.class, args);
