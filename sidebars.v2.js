@@ -16,6 +16,7 @@ const sidebars = {
         'consumer/new-consumer-onboarding',
         'consumer/ui-integration',
         'consumer/backend-integration',
+        'consumer/caching-and-persistence',
         'consumer/configuration',
         'consumer/annotations-reference',
         'consumer/extensions',
