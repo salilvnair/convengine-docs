@@ -27,122 +27,122 @@ Below is a complete reference of the default configuration options exposed by Co
 
 <CodeBlockToggle title="Complete application.yml reference" language="yaml" defaultOpen={true}>
 {`convengine:
-  # Dynamic table mapping for CE_* entities (same as V1)
-  tables:
-    AUDIT: CE_AUDIT
-    CONFIG: CE_CONFIG
-    CONTAINER_CONFIG: CE_CONTAINER_CONFIG
-    CONVERSATION: CE_CONVERSATION
-    INTENT: CE_INTENT
-    INTENT_CLASSIFIER: CE_INTENT_CLASSIFIER
-    LLM_CALL_LOG: CE_LLM_CALL_LOG
-    MCP_DB_TOOL: CE_MCP_DB_TOOL
-    MCP_TOOL: CE_MCP_TOOL
-    OUTPUT_SCHEMA: CE_OUTPUT_SCHEMA
-    POLICY: CE_POLICY
-    PROMPT_TEMPLATE: CE_PROMPT_TEMPLATE
-    RESPONSE: CE_RESPONSE
-    RULE: CE_RULE
+    # Dynamic table mapping for CE_* entities (same as V1)
+    tables:
+      AUDIT: CE_AUDIT
+      CONFIG: CE_CONFIG
+      CONTAINER_CONFIG: CE_CONTAINER_CONFIG
+      CONVERSATION: CE_CONVERSATION
+      INTENT: CE_INTENT
+      INTENT_CLASSIFIER: CE_INTENT_CLASSIFIER
+      LLM_CALL_LOG: CE_LLM_CALL_LOG
+      MCP_DB_TOOL: CE_MCP_DB_TOOL
+      MCP_TOOL: CE_MCP_TOOL
+      OUTPUT_SCHEMA: CE_OUTPUT_SCHEMA
+      POLICY: CE_POLICY
+      PROMPT_TEMPLATE: CE_PROMPT_TEMPLATE
+      RESPONSE: CE_RESPONSE
+      RULE: CE_RULE
 
 
-  # Feature flags for experimental features
-  experimental:
-    enabled: false
-
-  # Flow tuning
-  flow:
-    dialogue-act:
-      resolute: REGEX_THEN_LLM # REGEX_ONLY | REGEX_THEN_LLM | LLM_ONLY
-      llm-threshold: 0.90
-    interaction-policy:
-      execute-pending-on-affirm: true
-      reject-pending-on-negate: true
-      fill-pending-slot-on-non-new-request: true
-      require-resolved-intent-and-state: true
-      matrix:
-        "PENDING_ACTION:AFFIRM": EXECUTE_PENDING_ACTION
-        "PENDING_ACTION:NEGATE": REJECT_PENDING_ACTION
-        "PENDING_SLOT:EDIT": FILL_PENDING_SLOT
-        "PENDING_SLOT:QUESTION": FILL_PENDING_SLOT
-        "PENDING_SLOT:NEGATE": FILL_PENDING_SLOT
-        "PENDING_SLOT:AFFIRM": FILL_PENDING_SLOT
-    action-lifecycle:
-      enabled: true
-      ttl-turns: 3
-      ttl-minutes: 30
-    tool-orchestration:
-      enabled: true
-    guardrail:
-      enabled: true
-      sanitize-input: true
-      require-approval-for-sensitive-actions: false
-      approval-gate-fail-closed: false
-      sensitive-patterns: []
-    state-graph:
-      enabled: true
-      soft-block-on-violation: false
-      allowed-transitions: {}
-    disambiguation:
-      enabled: true
-      max-options: 5
-    memory:
-      enabled: true
-      summary-max-chars: 1200
-      recent-turns-for-summary: 3
-
-  # Transport mechanisms
-  transport:
-    sse:
-      enabled: true
-      emitter-timeout-ms: 1800000
-    stomp:
+    # Feature flags for experimental features
+    experimental:
       enabled: false
-      endpoint: /ws-convengine
-      app-destination-prefix: /app
-      topic-prefix: /topic
-      audit-destination-base: /topic/convengine/audit
-      allowed-origin-pattern: "*"
-      sock-js: true
-      broker:
-        mode: SIMPLE   # SIMPLE | RELAY
-        relay-destination-prefixes: /topic,/queue
-        relay-host: localhost
-        relay-port: 61613
-        client-login: ""
-        client-passcode: ""
-        system-login: ""
-        system-passcode: ""
-        virtual-host: ""
-        system-heartbeat-send-interval-ms: 10000
-        system-heartbeat-receive-interval-ms: 10000
 
-  # Auditing controls
-  audit:
-    enabled: true
-    persist-meta: true
-    level: ALL          # ALL | STANDARD | ERROR_ONLY | NONE
-    include-stages: []
-    exclude-stages: []
-    persistence:
-      mode: IMMEDIATE   # IMMEDIATE | DEFERRED_BULK
-      jdbc-batch-size: 200
-      max-buffered-events: 5000
-      flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
-      final-step-names: PipelineEndGuardStep
-      flush-on-stop-outcome: true
-    dispatch:
-      async-enabled: false
-      worker-threads: 2
-      queue-capacity: 2000
-      rejection-policy: CALLER_RUNS  # CALLER_RUNS | DROP_NEWEST | DROP_OLDEST | ABORT
-      keep-alive-seconds: 60
-    rate-limit:
-      enabled: false
-      max-events: 200
-      window-ms: 1000
-      per-conversation: true
-      per-stage: true
-      max-tracked-buckets: 20000`}
+    # Flow tuning
+    flow:
+      dialogue-act:
+        resolute: REGEX_THEN_LLM # REGEX_ONLY | REGEX_THEN_LLM | LLM_ONLY
+        llm-threshold: 0.90
+      interaction-policy:
+        execute-pending-on-affirm: true
+        reject-pending-on-negate: true
+        fill-pending-slot-on-non-new-request: true
+        require-resolved-intent-and-state: true
+        matrix:
+          "PENDING_ACTION:AFFIRM": EXECUTE_PENDING_ACTION
+          "PENDING_ACTION:NEGATE": REJECT_PENDING_ACTION
+          "PENDING_SLOT:EDIT": FILL_PENDING_SLOT
+          "PENDING_SLOT:QUESTION": FILL_PENDING_SLOT
+          "PENDING_SLOT:NEGATE": FILL_PENDING_SLOT
+          "PENDING_SLOT:AFFIRM": FILL_PENDING_SLOT
+      action-lifecycle:
+        enabled: true
+        ttl-turns: 3
+        ttl-minutes: 30
+      tool-orchestration:
+        enabled: true
+      guardrail:
+        enabled: true
+        sanitize-input: true
+        require-approval-for-sensitive-actions: false
+        approval-gate-fail-closed: false
+        sensitive-patterns: []
+      state-graph:
+        enabled: true
+        soft-block-on-violation: false
+        allowed-transitions: {}
+      disambiguation:
+        enabled: true
+        max-options: 5
+      memory:
+        enabled: true
+        summary-max-chars: 1200
+        recent-turns-for-summary: 3
+
+    # Transport mechanisms
+    transport:
+      sse:
+        enabled: true
+        emitter-timeout-ms: 1800000
+      stomp:
+        enabled: false
+        endpoint: /ws-convengine
+        app-destination-prefix: /app
+        topic-prefix: /topic
+        audit-destination-base: /topic/convengine/audit
+        allowed-origin-pattern: "*"
+        sock-js: true
+        broker:
+          mode: SIMPLE   # SIMPLE | RELAY
+          relay-destination-prefixes: /topic,/queue
+          relay-host: localhost
+          relay-port: 61613
+          client-login: ""
+          client-passcode: ""
+          system-login: ""
+          system-passcode: ""
+          virtual-host: ""
+          system-heartbeat-send-interval-ms: 10000
+          system-heartbeat-receive-interval-ms: 10000
+
+    # Auditing controls
+    audit:
+      enabled: true
+      persist-meta: true
+      level: ALL          # ALL | STANDARD | ERROR_ONLY | NONE
+      include-stages: []
+      exclude-stages: []
+      persistence:
+        mode: IMMEDIATE   # IMMEDIATE | DEFERRED_BULK
+        jdbc-batch-size: 200
+        max-buffered-events: 5000
+        flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
+        final-step-names: PipelineEndGuardStep
+        flush-on-stop-outcome: true
+      dispatch:
+        async-enabled: false
+        worker-threads: 2
+        queue-capacity: 2000
+        rejection-policy: CALLER_RUNS  # CALLER_RUNS | DROP_NEWEST | DROP_OLDEST | ABORT
+        keep-alive-seconds: 60
+      rate-limit:
+        enabled: false
+        max-events: 200
+        window-ms: 1000
+        per-conversation: true
+        per-stage: true
+        max-tracked-buckets: 20000`}
 </CodeBlockToggle>
 
 ---
