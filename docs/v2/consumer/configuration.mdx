@@ -53,6 +53,8 @@ Below is a complete reference of the default configuration options exposed by Co
     flow:
       query-rewrite:
         enabled: true
+      conversation-history:
+        max-turns: 10
       dialogue-act:
         resolute: REGEX_THEN_LLM # REGEX_ONLY | REGEX_THEN_LLM | LLM_ONLY
         llm-threshold: 0.90
@@ -167,6 +169,14 @@ The `convengine.flow.*` properties control the nuanced routing behavior without 
   columns={["Property", "Default", "Description"]}
   rows={[
     ["enabled", "true", "Automatically derives a standalone query from conversation history for contextual downstream RAG tool injection."]
+  ]}
+/>
+
+<DbTable
+  title="convengine.flow.conversation-history"
+  columns={["Property", "Default", "Description"]}
+  rows={[
+    ["maxTurns", "10", "Maximum number of conversation turns to retain in history before summarization."]
   ]}
 />
 

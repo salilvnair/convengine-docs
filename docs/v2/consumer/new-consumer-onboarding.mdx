@@ -112,6 +112,8 @@ convengine:
     dialogue-act:
       resolute: REGEX_THEN_LLM
       llm-threshold: 0.90
+    conversation-history:
+      max-turns: 10
     interaction-policy:
       execute-pending-on-affirm: true
       reject-pending-on-negate: true

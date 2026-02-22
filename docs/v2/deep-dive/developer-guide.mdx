@@ -72,11 +72,13 @@ Use your `application.yml` to tune the pipeline without writing Java extension c
   columns={["Subsystem", "Purpose", "Example Property"]}
   rows={[
     ["dialogue-act.*", "Detect foundational speech acts (AFFIRM, NEGATE) instead of strict intents.", "resolute: REGEX_THEN_LLM"],
-    ["interaction-policy.*", "Map acts to system outcomes like EXECUTE_PENDING_ACTION.", "matrix: PENDING_ACTION:AFFIRM -> EXECUTE"],
-    ["action-lifecycle.*", "Evict old confirmations out of memory.", "ttl-turns: 3"],
-    ["disambiguation.*", "Ask the user to clarify between colliding priorities.", "max-options: 5"],
-    ["guardrail.*", "Prevent prompt-injection and sanitize text.", "approval-gate-fail-closed: true"],
-    ["state-graph.*", "Enforce strict state transition bounds.", "soft-block-on-violation: false"],
+    ["query-rewrite.*", "Automatically rewrite user input before intent resolution.", "enabled: true"],
+    ["conversation-history.*", "Manage conversation history size and summarization.", "max-turns: 10"],
+    ["interaction-policy.*", "Map dialogue acts to system actions like EXECUTE_PENDING_ACTION.", "execute-pending-on-affirm: true"],
+    ["action-lifecycle.*", "Automatically expire pending actions after N turns.", "ttl-turns: 3"],
+    ["disambiguation.*", "Configure thresholds for triggering user clarifications.", "max-options: 5"],
+    ["guardrail.*", "Set up proactive redaction and fail-closed policies.", "approval-gate-fail-closed: true"],
+    ["state-graph.*", "Enforce strict state transition rules for better predictability.", "soft-block-on-violation: false"]
   ]}
 />
 

@@ -19,9 +19,21 @@ The actual datastore powering `@CeEnableCaching` is **entirely controlled by the
 
 ## Default Configuration (HashMap)
 
-By default, if you attach `@CeEnableCaching` but do not import any external caching dependencies into your `pom.xml`, Spring Boot falls back to a **`ConcurrentMapCacheManager`**.
+By default, to activate ConvEngine caching, you must pull in Spring Boot's caching abstraction layer. If you import this module but do not import any external caching dependencies (like Redis or Ehcache), Spring Boot will automatically fall back to providing a **`ConcurrentMapCacheManager`** out of the box.
 
-This operates seamlessly out of the box. It holds conversation states inside a standard Java `HashMap` residing in your server's active JVM memory. 
+**Dependency requirement (`pom.xml`)**:
+<CodeBlockToggle title="pom.xml" language="xml">
+{`<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>`}
+</CodeBlockToggle>
+
+<Highlight type="warning" title="Startup crashes without this dependency">
+If you annotate your application class with \`@CeEnableCaching\` but fail to include \`spring-boot-starter-cache\` in your \`pom.xml\`, the Spring context will fatally crash on startup because it cannot find an underlying \`CacheManager\` bean to bind to.
+</Highlight>
+
+This operates seamlessly once the module is present. It holds conversation states inside a standard Java `HashMap` residing in your server's active JVM memory. 
 
 - **Pros**: Blazing fast (`0ms` read/write latency), requires zero configuration.
 - **Cons**: Cache is completely wiped if the Spring Boot application restarts or crashes; not horizontal-scale (multi-pod) friendly.
