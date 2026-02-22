@@ -5,15 +5,23 @@ sidebar_position: 30
 
 # Version History
 
+## 2.0.3
+
+Introduces deep cache auditing utilities and executor-level history optimization.
+
+- **Cache Inspection Audit Logging**: Added a dedicated `CacheInspectAuditStep` and the `convengine.audit.cache-inspector` boolean property. When enabled, the engine evaluates a full JSON snapshot of the hydrated `EngineSession` conversation cache tree and logs it to `ce_audit` under the `CACHE_INSPECTION` stage before user input audits finalize.
+- **Global Audit Meta Metadata**: The `DbAuditService` now natively intercepts `convengine.audit.cache-inspector` triggers to permanently append a discrete `_cache` analysis object map inside the `_meta` root node across all audit phases for continuous memory visibility.
+- **Optimized Executor History Provisioning**: Refactored the underlying conversational history provisioner array evaluation (`historyProvider.lastTurns(...)`) natively into the root `DefaultConversationalEngine.process` ingress method. This formally prevents downstream LLM nodes from executing entirely redundant `ce_conversation` relational database queries across consecutive lifecycle turns.
+
 ## 2.0.2
 
 Introduces deep performance optimizations targeting conversational latency, RAG context injection, and rigid data payloads.
 
 - **Query Rewrite (Contextual RAG)**: Added `convengine.flow.query-rewrite.enabled` property. `DialogueActStep` now natively evaluates conversation history to extract a `standaloneQuery` into session parameters, allowing downstream RAG tools to receive explicit context without incurring secondary LLM execution penalties.
 - **JSON Payload Flattening**: Patched `EngineSession` storage logic to aggressively filter redundant structural blocks (`CONTEXT`, `SCHEMA_JSON`, `SESSION`) before database serialization, permanently resolving exponential payload bloat inside `ce_conversation.input_params_json`.
-- **Framework Caching & Async Pipelines**: 
-  - Separated Spring's raw `@EnableCaching` and `@EnableAsync` from the default ConvEngine auto-configuration.
-  - Introduced explicitly managed `@CeEnableCaching` and `@CeEnableAsyncConversation` consumer integration decorators.
+- **Framework Caching & Async Pipelines**
+  - Integrated standard Spring `@Cacheable` and `@Async` interfaces over all state persistence mutations to entirely decouple zero-latency edge delivery from blocking background Relational Database I/O.
+  - Introduced explicitly managed `@EnableConvEngineCaching` and `@EnableConvEngineAsyncConversation` consumer integration decorators.
   - Automatically intercepts the internal engine pipeline via Spring's `CacheManager` to execute synchronous memory writes while offloading slow I/O Relational DB saves to background asynchronous threads.
 
 ## 2.0.1

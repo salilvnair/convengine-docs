@@ -10,14 +10,12 @@ import { DbTable, CodeBlockToggle, Highlight, MethodRef } from "@site/src/compon
 ConvEngine v2 is heavily optimized to decouple real-time generative latency from slow relational database I/O. The framework accomplishes this by utilizing **Asynchronous Persistence Threads** alongside **Spring's Abstract CacheManager**.
 
 To activate this optimization on your backend, add the following decorators to your application class:
-1. <MethodRef>@CeEnableCaching</MethodRef>
-2. <MethodRef>@CeEnableAsyncConversation</MethodRef>
+1. <MethodRef>@EnableConvEngineCaching</MethodRef>
+2. <MethodRef>@EnableConvEngineAsyncConversation</MethodRef>
 
 <Highlight type="tip" title="How the abstraction works">
-The actual datastore powering `@CeEnableCaching` is **entirely controlled by the Consumer application**, not the ConvEngine framework. ConvEngine relies on the generic Spring \`CacheManager\` interface to save and load \`CeConversation\` instances via the \`ce_conversation_cache\` routing key.
+The actual datastore powering `@EnableConvEngineCaching` is **entirely controlled by the Consumer application**, not the ConvEngine framework. ConvEngine relies on the generic Spring `CacheManager` interface to save and load `CeConversation` instances via the `ce_conversation_cache` routing key.
 </Highlight>
-
-## Default Configuration (HashMap)
 
 By default, to activate ConvEngine caching, you must pull in Spring Boot's caching abstraction layer. If you import this module but do not import any external caching dependencies (like Redis or Ehcache), Spring Boot will automatically fall back to providing a **`ConcurrentMapCacheManager`** out of the box.
 
@@ -30,7 +28,7 @@ By default, to activate ConvEngine caching, you must pull in Spring Boot's cachi
 </CodeBlockToggle>
 
 <Highlight type="warning" title="Startup crashes without this dependency">
-If you annotate your application class with \`@CeEnableCaching\` but fail to include \`spring-boot-starter-cache\` in your \`pom.xml\`, the Spring context will fatally crash on startup because it cannot find an underlying \`CacheManager\` bean to bind to.
+If you annotate your application class with `@EnableConvEngineCaching` but fail to include `spring-boot-starter-cache` in your `pom.xml`, the Spring context will fatally crash on startup because it cannot find an underlying `CacheManager` bean to bind to.
 </Highlight>
 
 This operates seamlessly once the module is present. It holds conversation states inside a standard Java `HashMap` residing in your server's active JVM memory. 

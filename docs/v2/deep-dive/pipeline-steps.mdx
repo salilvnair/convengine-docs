@@ -12,6 +12,7 @@ import { DbTable, Highlight, CodeBlockToggle } from "@site/src/components/conven
   columns={["Step", "Primary responsibility", "Main session mutations", "Config/table dependencies"]}
   rows={[
     ["LoadOrCreateConversationStep", "Fetch or bootstrap conversation row", "conversation, intent/state/context sync", "ce_conversation"],
+    ["CacheInspectAuditStep", "Conditionally audit cache snapshot", "none", "convengine.audit.cache-inspector property"],
     ["ResetConversationStep", "Early explicit reset", "intent/state/context/input params reset", "input flags, command text"],
     ["PersistConversationBootstrapStep", "Ensure conversation row persisted", "none/metadata", "ce_conversation"],
     ["AuditUserInputStep", "Persist user input audit", "none", "ce_audit"],
@@ -103,6 +104,34 @@ This ensures that regardless of scale, the API is entirely stateless and can rou
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
     <span className="ce-step-badge-index">2</span>
+    <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>CacheInspectAuditStep</span>
+  </div>
+</div>
+
+**Responsibility:** Conditionally audit cache snapshot  
+**Session Mutations:** `none`  
+**Config/Table Dependencies:** `convengine.audit.cache-inspector` property  
+
+<details open>
+<summary>Detailed Execution Logic</summary>
+
+Dynamically runs if `convengine.audit.cache-inspector` is true. It takes a complete JSON snapshot of the hydrated `EngineSession` conversation cache tree and logs it under the `CACHE_INSPECTION` priority stage before explicit user input audits are finalized.
+
+<CodeBlockToggle title="CacheInspectAuditStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/CacheInspectAuditStep.java" defaultOpen={true}>
+{`public StepResult execute(EngineSession session) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("cache_snapshot", objectMapper.valueToTree(session.getConversation()));
+        auditService.audit(ConvEngineAuditStage.CACHE_INSPECTION, session.getConversationId(), payload);
+        return new StepResult.Continue();
+    }`}
+</CodeBlockToggle>
+</details>
+
+---
+
+<div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
+  <div className="ce-step-badge-item">
+    <span className="ce-step-badge-index">3</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>ResetConversationStep</span>
   </div>
 </div>
@@ -156,7 +185,7 @@ The session is marked as \`RUNNING\` again, but completely fresh. An audit event
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">3</span>
+    <span className="ce-step-badge-index">4</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>PersistConversationBootstrapStep</span>
   </div>
 </div>
@@ -186,7 +215,7 @@ A simple lifecycle checkpoint to ensure the conversation has a `createdAt` times
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">4</span>
+    <span className="ce-step-badge-index">5</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>AuditUserInputStep</span>
   </div>
 </div>
@@ -214,7 +243,7 @@ Records the raw text query the user typed on this turn into the `ce_audit` table
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">5</span>
+    <span className="ce-step-badge-index">6</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>PolicyEnforcementStep</span>
   </div>
 </div>
@@ -269,7 +298,7 @@ It reads all active rows from `ce_policy`, executing either `REGEX`, `EXACT`, or
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">6</span>
+    <span className="ce-step-badge-index">7</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>DialogueActStep</span>
   </div>
 </div>
@@ -340,7 +369,7 @@ Notice in the source that if the LLM predicts an `EDIT` or `RESET` act, but the 
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">7</span>
+    <span className="ce-step-badge-index">8</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>InteractionPolicyStep</span>
   </div>
 </div>
@@ -442,7 +471,7 @@ The output maps to the `InteractionPolicyDecision` enum:
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">8</span>
+    <span className="ce-step-badge-index">9</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>ActionLifecycleStep</span>
   </div>
 </div>
@@ -550,7 +579,7 @@ Status transitions (Enum `PendingActionStatus`):
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">9</span>
+    <span className="ce-step-badge-index">10</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>DisambiguationStep</span>
   </div>
 </div>
@@ -640,7 +669,7 @@ It dynamically builds a multiple-choice prompt (or LLM synthesis) asking the use
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">10</span>
+    <span className="ce-step-badge-index">11</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>GuardrailStep</span>
   </div>
 </div>
@@ -710,7 +739,7 @@ If a command is flagged as "sensitive" (e.g., destructive actions like closing a
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">11</span>
+    <span className="ce-step-badge-index">12</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>IntentResolutionStep</span>
   </div>
 </div>
@@ -814,7 +843,7 @@ Otherwise:
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">12</span>
+    <span className="ce-step-badge-index">13</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>ResetResolvedIntentStep</span>
   </div>
 </div>
@@ -862,7 +891,7 @@ A quality of life check. If the resolved intent matches one of the `RESET_INTENT
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">13</span>
+    <span className="ce-step-badge-index">14</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>FallbackIntentStateStep</span>
   </div>
 </div>
@@ -912,7 +941,7 @@ A safety net. If the classifier fails to return any confidence, or an exception 
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">14</span>
+    <span className="ce-step-badge-index">15</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>AddContainerDataStep</span>
   </div>
 </div>
@@ -1053,7 +1082,7 @@ Bridges static tenant/consumer configurations. Evaluates `ce_container_config` t
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">15</span>
+    <span className="ce-step-badge-index">16</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>PendingActionStep</span>
   </div>
 </div>
@@ -1150,7 +1179,7 @@ It invokes `CeTaskExecutor.execute()`, runs the backend transaction (e.g. Stripe
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">16</span>
+    <span className="ce-step-badge-index">17</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>ToolOrchestrationStep</span>
   </div>
 </div>
@@ -1246,7 +1275,7 @@ The gateway for Model Context Protocol (MCP) tooling. If `ce_tool` specifies tha
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">17</span>
+    <span className="ce-step-badge-index">18</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>McpToolStep</span>
   </div>
 </div>
@@ -1376,7 +1405,7 @@ Specifically iterates over `ce_mcp_tool` bindings. Instead of static grouped too
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">18</span>
+    <span className="ce-step-badge-index">19</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>SchemaExtractionStep</span>
   </div>
 </div>
@@ -1427,7 +1456,7 @@ It then runs `missingFieldEvaluator.evaluate()`. If fields are missing, it sets 
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">19</span>
+    <span className="ce-step-badge-index">20</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>AutoAdvanceStep</span>
   </div>
 </div>
@@ -1474,7 +1503,7 @@ In V1, rules had to manually check if schema extraction was done. In V2, this st
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">20</span>
+    <span className="ce-step-badge-index">21</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>RulesStep</span>
   </div>
 </div>
@@ -1504,7 +1533,7 @@ If a rule matches, it executes the target `action` (e.g. `SET_STATE` to `CONFIRM
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">21</span>
+    <span className="ce-step-badge-index">22</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>StateGraphStep</span>
   </div>
 </div>
@@ -1561,7 +1590,7 @@ A strict validater. Checks `ce_state_graph` to see if the transition that just o
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">22</span>
+    <span className="ce-step-badge-index">23</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>ResponseResolutionStep</span>
   </div>
 </div>
@@ -1678,7 +1707,7 @@ Sets `session.getConversation().setLastAssistantJson()` with the payload.
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">23</span>
+    <span className="ce-step-badge-index">24</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>MemoryStep</span>
   </div>
 </div>
@@ -1750,7 +1779,7 @@ Evaluates the rolling history. If `ce_memory` is configured, and `recentTurns` e
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">24</span>
+    <span className="ce-step-badge-index">25</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>PersistConversationStep</span>
   </div>
 </div>
@@ -1807,7 +1836,7 @@ The database commit step. Writes the `CeConversation` row, saving the mutated `c
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">25</span>
+    <span className="ce-step-badge-index">26</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>PipelineEndGuardStep</span>
   </div>
 </div>
