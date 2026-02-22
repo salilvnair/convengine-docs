@@ -8,6 +8,7 @@ import { CodeBlockToggle, Highlight, FileRef, PipelineStepList } from "@site/src
 
 export const v2PipelineSteps = [
   { name: "LoadOrCreateConversationStep", description: "Hydrates existing conversation or creates new conversation shell." },
+  { name: "CacheInspectAuditStep", description: "Conditionally audits cache snapshot when cache-inspector enabled." },
   { name: "ResetConversationStep", description: "Applies reset/start-over command handling." },
   { name: "PersistConversationBootstrapStep", description: "Persists conversation bootstrap row before persisted-required steps." },
   { name: "AuditUserInputStep", description: "Writes raw user input audit event." },

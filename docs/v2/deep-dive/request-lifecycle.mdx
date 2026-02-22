@@ -10,6 +10,7 @@ import { EngineDebugFlow, CodeBlockToggle, Highlight, DbTable, FileRef, MethodRe
 
 export const v2PipelineSteps = [
   { name: "LoadOrCreateConversationStep", description: "Hydrates existing conversation or creates new conversation shell." },
+  { name: "CacheInspectAuditStep", description: "Conditionally audits cache snapshot when cache-inspector enabled." },
   { name: "ResetConversationStep", description: "Applies reset/start-over command handling." },
   { name: "PersistConversationBootstrapStep", description: "Persists conversation bootstrap row before persisted-required steps." },
   { name: "AuditUserInputStep", description: "Writes raw user input audit event." },
@@ -43,6 +44,7 @@ export const lifecycleNodes = [
   { id: "pipeline", position: { x: 860, y: 40 }, data: { label: "EnginePipelineFactory.create" } },
 
   { id: "s1", position: { x: 20, y: 190 }, data: { label: "LoadOrCreateConversationStep" } },
+  { id: "s1a", position: { x: 140, y: 190 }, data: { label: "CacheInspectAuditStep" } },
   { id: "s2", position: { x: 260, y: 190 }, data: { label: "ResetConversationStep" } },
   { id: "s3", position: { x: 500, y: 190 }, data: { label: "AuditUserInputStep" } },
   { id: "s4", position: { x: 740, y: 190 }, data: { label: "IntentResolutionStep" } },
@@ -63,8 +65,9 @@ export const lifecycleEdges = [
   { id: "e3", source: "session", target: "pipeline" },
 
   { id: "e4", source: "pipeline", target: "s1" },
-  { id: "e5", source: "s1", target: "s2" },
-  { id: "e6", source: "s2", target: "s3" },
+  { id: "e4a", source: "s1", target: "s1a" },
+  { id: "e4b", source: "s1a", target: "s2" },
+  { id: "e5", source: "s2", target: "s3" },
   { id: "e7", source: "s3", target: "s4" },
   { id: "e8", source: "s4", target: "s5" },
   { id: "e9", source: "s5", target: "s6" },

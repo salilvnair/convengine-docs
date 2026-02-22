@@ -46,6 +46,7 @@ This page is intentionally dense. Each flow is shown as:
   columns={["Order", "Step", "Input facts", "Output facts"]}
   rows={[
     ["1", "LoadOrCreateConversationStep", "conversationId present or new", "session opened/hydrated"],
+    ["1a", "CacheInspectAuditStep", "cache-inspector enabled", "CACHE_INSPECTION audit row (conditional)"],
     ["2", "AuditUserInputStep", "raw user text", "USER_INPUT audit row"],
     ["3", "DialogueActStep", "question sentence", "dialogue_act=QUESTION"],
     ["4", "InteractionPolicyStep", "no pending_action, no pending_slot", "policy_decision=RECLASSIFY_INTENT"],
