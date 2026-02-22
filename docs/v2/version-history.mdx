@@ -5,6 +5,13 @@ sidebar_position: 30
 
 # Version History
 
+## 2.0.4
+
+Patches internal `OffsetDateTime` JSON serialization stability when executing audit cache inspection.
+
+- **`JavaTimeModule` Jackson Integration**: Formally added the `jackson-datatype-jsr310` dependency to the core engine `pom.xml` build matrix.
+- **`CacheInspectAuditStep` Modularization**: Refactored the step to insulate itself from potentially unconfigured host Spring application contexts. It now natively spins up and governs a strictly private internal `ObjectMapper` exclusively pre-configured with the `JavaTimeModule` and ISO-8601 formatting to cleanly convert internal `OffsetDateTime` objects found inside `ce_conversation`.
+
 ## 2.0.3
 
 Introduces deep cache auditing utilities and executor-level history optimization.

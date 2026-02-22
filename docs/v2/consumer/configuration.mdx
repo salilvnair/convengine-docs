@@ -124,6 +124,7 @@ Below is a complete reference of the default configuration options exposed by Co
     audit:
       enabled: true
       persist-meta: true
+      cache-inspector: false
       level: ALL          # ALL | STANDARD | ERROR_ONLY | NONE
       include-stages: []
       exclude-stages: []
@@ -248,6 +249,19 @@ The `convengine.flow.*` properties control the nuanced routing behavior without 
 ## Breakdown: Audit Configuration
 
 `convengine.audit.*` dictates how the system records telemetry and metric payloads down to the individual pipeline stage logic.
+
+<DbTable
+  title="convengine.audit"
+  columns={["Property", "Default", "Description"]}
+  rows={[
+    ["enabled", "true", "Root toggle for the audit framework"],
+    ["persist-meta", "true", "Attach engine metadata to the payload (intent, state, emittedAt)"],
+    ["cache-inspector", "false", "Takes full snapshots of the memory session tree on every cache step"],
+    ["level", "ALL", "Logging verbosity threshold (ALL, STANDARD, ERROR_ONLY, NONE)"],
+    ["include-stages", "[]", "Whitelist specific stages"],
+    ["exclude-stages", "[]", "Blacklist specific stages"]
+  ]}
+/>
 
 <DbTable
   title="convengine.audit.dispatch"
