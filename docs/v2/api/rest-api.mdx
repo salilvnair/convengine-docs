@@ -22,6 +22,7 @@ import { CodeBlockToggle, DbTable, Highlight, FileRef, MethodRef } from "@site/s
     ["POST", "/message", "Process one turn and return payload"],
     ["GET", "/audit/{conversationId}", "Raw audit rows for conversation"],
     ["GET", "/audit/{conversationId}/trace", "Normalized step+stage timeline"],
+    ["GET", "/cache/refresh", "Evicts static configs memory tree (`ce_static_configs`) and triggers a Spring DB pre-loader to dynamically swap framework configuration"]
   ]}
 />
 

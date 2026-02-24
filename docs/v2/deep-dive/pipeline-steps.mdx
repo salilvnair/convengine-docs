@@ -310,58 +310,93 @@ It reads all active rows from `ce_policy`, executing either `REGEX`, `EXACT`, or
 <details open>
 <summary>Detailed Execution Logic</summary>
 
-This is a core semantic classification step. Instead of jumping straight to domain Intents (like 'PAY_BILL'), the engine first classifies the **linguistic act** of the turn. 
+This step attempts to classify the raw user text into an explicit conversational "act" through Regex, and optionally as fallback, a LLM request depending on the strictness of `convengine.flow.dialogue-act.resolute` (e.g., `REGEX_THEN_LLM`).
 
-Values are mapped to the Java `DialogueAct` enum:
-- **`NEW_REQUEST`**: User is asking for a brand new topic.
-- **`AFFIRM`**: User is saying "yes", "sure", "do it".
-- **`NEGATE`**: User is saying "no", "stop", "cancel".
-- **`QUESTION`**: User is asking a clarifying question.
-- **`EDIT`**: User wants to modify previous input ("wait change that to 5").
-- **`RESET`**: User wants to start over.
+If `convengine.flow.queryRewrite.enabled=true` and the `conversionHistory` is present, the step morphs its LLM request into a dual **Classifier & RAG Context Optimizer**. It supplies the ongoing conversation to the LLM to rewrite ambiguous pronouns into an explicit standalone search query, returning it as `"standaloneQuery"`. 
 
-**Resolution flow (Config to LLM):**
-1. By default, reads `convengine.flow.dialogue-act.resolute` from `application.yml` (e.g., `REGEX_THEN_LLM`).
-2. Checks fast regexes first in `classifyByRegex(userText)`:
-   - `(?i)^(\\s)*(yes|yep|yeah|ok|okay|sure|go ahead|do that|please do|confirm|approved?)(\\s)*$` maps to `AFFIRM` (0.95d confidence).
-   - `(?i)^(\\s)*(no|nope|nah|cancel|stop|don't|do not)(\\s)*$` maps to `NEGATE` (0.95d).
-   - `(?i)^(\\s)*(edit|revise|change|modify|update)(\\s)*$` maps to `EDIT` (0.95d).
-3. If regex confidence is below `convengine.flow.dialogue-act.llm-threshold`, it falls back to `classifyByLlm(session, userText)`.
-4. The LLM is prompted to probabilistically resolve the `DialogueAct` using a strict JSON schema generator.
-5. The result is stored as `DIALOGUE_ACT`, `DIALOGUE_ACT_CONFIDENCE`, and `DIALOGUE_ACT_SOURCE` in the engine session's input params for downstream rules to evaluate.
+The core parameters for these prompts are dynamically loaded from `ce_config`, allowing administrators to Hot-Swap classifier behaviors in production without recompiling Java arrays.
+
+### Supported Dialogue Acts
+
+| Enum Name     | Purpose |
+|---------------|---------|
+| `AFFIRM`      | The user expressed agreement or confirmation (e.g., "yes", "go ahead"). Can override Guardrails or execute Pending Actions. |
+| `NEGATE`      | The user expressed rejection or cancellation (e.g., "no", "stop"). Can cancel active Interaction Policies. |
+| `EDIT`        | The user wants to change previously supplied context or entity slots. |
+| `RESET`       | The user wants to clear memory and start completely fresh. |
+| `QUESTION`    | The user is asking a direct conversational question (triggers fallback intent workflows). |
+| `NEW_REQUEST` | The baseline generic classification. Engine routes normally. |
+| `GREETING`    | The user issued a pleasantry ("Hi", "Hello"). Typically bypassed by downstream Orchestrators to prevent expensive RAG queries. |
+
+### Source Execution Profile
 
 <Highlight type="tip" title="Regex Guardrails">
 Notice in the source that if the LLM predicts an `EDIT` or `RESET` act, but the user's text did not match the explicit `EDIT` or `RESET` regex, the engine overrides the LLM prediction down to a `REGEX_GUARD` fallback. This prevents the LLM from hallucinating an edit on a brand new, complex sentence.
 </Highlight>
 
-<CodeBlockToggle title="DialogueActStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/DialogueActStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
-        DialogueActResolveMode resolveMode = DialogueActResolveMode.from(
-                flowConfig.getDialogueAct().getResolute(),
-                DialogueActResolveMode.REGEX_THEN_LLM
+<CodeBlockToggle title="DialogueActStep.java (Simplified)" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/DialogueActStep.java" defaultOpen={true}>
+{`@MustRunAfter(AuditUserInputStep.class)
+@MustRunBefore(IntentResolutionStep.class)
+public class DialogueActStep implements EngineStep {
+
+    private final ConvEngineFlowConfig flowConfig;
+    private final CeConfigResolver configResolver;
+    
+    // Extracted from ce_config during Application Initialization
+    private Pattern REGEX_GREETING;
+    private Pattern REGEX_AFFIRM;
+    private Pattern REGEX_NEGATE;
+
+    private String SYSTEM_PROMPT;
+    private String QUERY_REWRITE_SYSTEM_PROMPT;
+    // ...
+
+    @PostConstruct
+    public void init() {
+        // Core Regex Evaluation Patterns mapped securely in ce_config
+        REGEX_GREETING = Pattern.compile(
+                configResolver.resolveString(this, "REGEX_GREETING", "^(\\s)*(hi|hello|hey|greetings|good morning|...)$"),
+                Pattern.CASE_INSENSITIVE
         );
-        double regexConfidenceThresholdForLlm = flowConfig.getDialogueAct().getLlmThreshold();
-        String userText = session.getUserText() == null ? "" : session.getUserText().trim();
 
+        // Loads from ce_config where config_type="DialogueActStep" and config_key="SYSTEM_PROMPT".
+        SYSTEM_PROMPT = configResolver.resolveString(this, "SYSTEM_PROMPT", """
+                You are a dialogue-act classifier.
+                Return JSON only with:
+                {"dialogueAct":"AFFIRM|NEGATE|EDIT|RESET|QUESTION|NEW_REQUEST|GREETING","confidence":0.0}
+                """);
+                
+        // Loads the query-rewrite variant
+        QUERY_REWRITE_SYSTEM_PROMPT = configResolver.resolveString(this, "QUERY_REWRITE_SYSTEM_PROMPT", """
+                        You are a dialogue-act classifier and intelligent query search rewriter.
+                        Using the conversation history, rewrite the user's text into an explicit, standalone query that perfectly describes their intent without needing the conversation history context.
+                        Also classify their dialogue act.
+                        Return JSON only matching the exact schema.
+                        """);
+    }
+
+    @Override
+    public StepResult execute(EngineSession session) {
+        String userText = session.getUserText();
+
+        // 1. Regex Classification First
         DialogueActResult regexResult = classifyByRegex(userText);
-        DialogueActResult resolved = resolveByMode(session, userText, regexResult, resolveMode, regexConfidenceThresholdForLlm);
+        
+        // 2. Resolve final intention
+        DialogueActResult resolved = resolveByMode(session, userText, regexResult);
 
+        // 3. Mutate Global Session
         session.putInputParam(ConvEngineInputParamKey.DIALOGUE_ACT, resolved.act().name());
         session.putInputParam(ConvEngineInputParamKey.DIALOGUE_ACT_CONFIDENCE, resolved.confidence());
-        session.putInputParam(ConvEngineInputParamKey.DIALOGUE_ACT_SOURCE, resolved.source());
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put(ConvEnginePayloadKey.USER_TEXT, session.getUserText());
-        payload.put(ConvEnginePayloadKey.DIALOGUE_ACT, resolved.act().name());
-        payload.put(ConvEnginePayloadKey.DIALOGUE_ACT_CONFIDENCE, resolved.confidence());
-        payload.put(ConvEnginePayloadKey.DIALOGUE_ACT_SOURCE, resolved.source());
-        payload.put("dialogueActResolveMode", resolveMode.name());
-        payload.put(ConvEnginePayloadKey.INTENT, session.getIntent());
-        payload.put(ConvEnginePayloadKey.STATE, session.getState());
-        audit.audit(ConvEngineAuditStage.DIALOGUE_ACT_CLASSIFIED, session.getConversationId(), payload);
+        
+        if (resolved.standaloneQuery() != null) {
+            session.putInputParam(ConvEngineInputParamKey.STANDALONE_QUERY, resolved.standaloneQuery());
+            session.setStandaloneQuery(resolved.standaloneQuery());
+        }
 
         return new StepResult.Continue();
-    }`}
+    }
+}`}
 </CodeBlockToggle>
 </details>
 
@@ -395,7 +430,7 @@ The output maps to the `InteractionPolicyDecision` enum:
 3. If no custom matrix decision applies, it checks boolean flags from the config.
    - `isExecutePendingOnAffirm()`: If true, `AFFIRM` + `hasPendingAction` -> `EXECUTE_PENDING_ACTION`
    - `isRejectPendingOnNegate()`: If true, `NEGATE` + `hasPendingAction` -> `REJECT_PENDING_ACTION`
-   - `isFillPendingSlotOnNonNewRequest()`: If true, `!NEW_REQUEST` + `hasPendingSlot` -> `FILL_PENDING_SLOT`
+   - `isFillPendingSlotOnNonNewRequest()`: If true, `!= NEW_REQUEST && != GREETING` + `hasPendingSlot` -> `FILL_PENDING_SLOT`
 4. Most crucially, if any of these policy decisions trigger, it sets `skipIntentResolution = true`. This stops Step 11 (`IntentResolutionStep`) from overriding the sticky intent. The payload is attached with `POLICY_DECISION`.
 
 <CodeBlockToggle title="InteractionPolicyStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/InteractionPolicyStep.java" defaultOpen={true}>

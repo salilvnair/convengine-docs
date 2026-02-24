@@ -157,3 +157,20 @@ For horizontally scaled environments like Kubernetes (`k8s`) where your user tra
 <Highlight type="warning" title="A note on serialization">
 Because Redis runs outside the active server JVM, it relies on network transmission. You must ensure that your Spring application has a generic `RedisTemplate` or Jackson-configured `RedisCacheConfiguration` bean configured to serialize `CeConversation` entities, otherwise Java will throw `NotSerializableException` when attempting to push the object to the internet.
 </Highlight>
+
+---
+
+## 4. Static Configuration Preloading
+
+Beyond dynamic conversational sessions, ConvEngine also permanently caches all non-transactional database rules (`ce_intent`, `ce_rule`, `ce_mcp_tool`, `ce_config`, etc.) into a generic `ce_static_configs` memory tree entirely upon JVM live initiation. This ensures that the engine never triggers synchronous relational fetches during the middle of a customer's turn.
+
+If you connect to your database and update a `ce_rule` row manually using `SQL`, the active Java application won't automatically see it until you flush this static cache. 
+
+**Flushing the Cache Tree:**
+You can do this by hitting the integrated Admin Controller endpoint mapped generically natively into your backend:
+
+<CodeBlockToggle title="Cache Refresh Trigger" language="bash">
+{`curl -X GET "http://localhost:8080/api/v1/cache/refresh"`}
+</CodeBlockToggle>
+
+This endpoint executes `@CacheEvict(value = "ce_static_configs", allEntries = true)` and immediately re-triggers the Spring Data Preloader, locking in your latest SQL tweaks live.

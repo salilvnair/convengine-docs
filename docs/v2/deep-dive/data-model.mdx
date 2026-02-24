@@ -29,6 +29,18 @@ ConvEngine relies entirely on configuration over code. State, relationships, and
 - `ce_conversation_history`
 - `ce_llm_call_log`
 
+## `ce_conversation_history`
+
+Introduced to store chronological multi-turn array states strictly decoupled from internal `ce_audit` tracking.
+
+Key columns:
+- `history_id`
+- `conversation_id`
+- `user_input`
+- `assistant_output`
+- `created_at`
+- `modified_at`
+
 ## `ce_pending_action`
 
 Introduced for confirm-before-run logic and unambiguous multi-action resolution.
