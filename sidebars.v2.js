@@ -53,6 +53,7 @@ const sidebars = {
         'deep-dive/lifecycle',
         'deep-dive/examples',
         'deep-dive/data-model',
+        'deep-dive/verbose-and-conversation-runtime',
         'deep-dive/developer-guide',
         'deep-dive/file-map',
         'deep-dive/pipeline-steps',

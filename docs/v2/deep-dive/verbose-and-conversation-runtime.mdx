@@ -1,0 +1,97 @@
+---
+title: Verbose and Conversation Runtime
+sidebar_position: 5
+---
+
+import { DbTable, CodeBlockToggle, Highlight } from "@site/src/components/convengine";
+
+# Verbose and Conversation Runtime
+
+This page documents two runtime tables that are often tuned together:
+
+- `ce_conversation` (conversation state persistence)
+- `ce_verbose` (runtime progress/error messaging)
+
+## `ce_conversation` runtime contract
+
+`ce_conversation` is the turn-to-turn state source used by `EngineSessionFactory` and `LoadOrCreateConversationStep`.
+
+<DbTable
+  title="ce_conversation fields used at runtime"
+  columns={["Column", "How engine uses it", "Write path"]}
+  rows={[
+    ["conversation_id", "Primary key for session bootstrap and resume", "Created once in bootstrap/create step"],
+    ["intent_code", "Restored into session intent at turn start", "Updated through pipeline + persist"],
+    ["state_code", "Restored into session state at turn start", "Updated through pipeline + persist"],
+    ["context_json", "Restored into `session.contextJson`", "Mutated by steps, saved in persist"],
+    ["input_params_json", "Restored into session input params baseline", "Sanitized and saved in persist"],
+    ["last_user_text", "Tracks most recent user text for diagnostics", "Set in `LoadOrCreateConversationStep`"],
+    ["last_assistant_json", "Stores last assistant payload", "Set during response/persist flow"],
+    ["status", "Conversation status marker (normally `RUNNING`)", "Set in bootstrap/persist"],
+    ["created_at/updated_at", "Turn recency and lifecycle timestamps", "Created in bootstrap, updated each turn"]
+  ]}
+/>
+
+<Highlight type="tip" title="Bootstrap behavior">
+If a conversation row does not exist, `EngineSessionFactory` creates a minimal row with `context_json={}`, `input_params_json={}`, and status `RUNNING`, then syncs session from it.
+</Highlight>
+
+## `ce_verbose` runtime contract
+
+`ce_verbose` is resolved by `DbVerboseMessageResolver` using the current runtime context from session and metadata.
+
+<DbTable
+  title="ce_verbose matching inputs"
+  columns={["Column", "Meaning", "Example"]}
+  rows={[
+    ["intent_code/state_code", "Primary runtime scope", "Exact value or `ANY`"],
+    ["determinant", "Event emitted by runtime code", "`STEP_ENTER`, `RULE_MATCH`, `MCP_TOOL_CALL`"],
+    ["step_match + step_value", "Step matcher (`EXACT|REGEX|JSON_PATH`)", "`RulesStep`, `.*Step$`, `$.stepInfo.error`"],
+    ["rule_id/tool_code", "Optional strict narrowing", "Specific rule or MCP tool"],
+    ["message/error_message", "Text returned for info/error paths", "Progress and failure variants"],
+    ["priority", "Lower value wins after specificity scoring", "10, 20, 100"],
+    ["enabled", "Row eligibility switch", "true/false"]
+  ]}
+/>
+
+### Resolver behavior (from Java implementation)
+
+1. Load eligible rows from static cache (`ce_verbose`) by intent/state.
+2. Filter by determinant, step match, rule/tool constraints.
+3. Score candidates by specificity (`intent`, `state`, `determinant`, step match type, `rule_id`, `tool_code`) and priority.
+4. Build `VerboseStreamPayload` with `level=INFO|ERROR`.
+5. If no row matches and the event is error path, fallback publishes:
+   `Something went wrong while processing <step>.`
+
+## Determinants currently emitted by runtime
+
+<DbTable
+  title="Common emitted determinants"
+  columns={["Source", "Determinants"]}
+  rows={[
+    ["Step hook", "STEP_ENTER, STEP_EXIT, STEP_ERROR"],
+    ["Intent resolver", "AGENT_INTENT_START, AGENT_INTENT_ACCEPTED, AGENT_INTENT_REJECTED, AGENT_INTENT_COLLISION, AGENT_INTENT_NEEDS_CLARIFICATION"],
+    ["Rules", "RULE_MATCH, RULE_APPLIED"],
+    ["MCP/tool", "MCP_TOOL_CALL, MCP_TOOL_RESULT, MCP_TOOL_ERROR, MCP_FINAL_ANSWER, TOOL_ORCHESTRATION_REQUEST, TOOL_ORCHESTRATION_RESULT, TOOL_ORCHESTRATION_ERROR"],
+    ["Resolver factories", "RULE_ACTION_RESOLVER_SELECTED/NOT_FOUND, RESPONSE_TYPE_RESOLVER_SELECTED/NOT_FOUND, OUTPUT_FORMAT_RESOLVER_SELECTED/NOT_FOUND"],
+    ["Response step", "RESOLVE_RESPONSE"],
+    ["Intent step", "INTENT_RESOLVED"]
+  ]}
+/>
+
+## Stream envelope contract (`AUDIT` + `VERBOSE`)
+
+Both SSE and STOMP publish `AuditStreamEventResponse` with:
+
+- `eventType`: `AUDIT` or `VERBOSE`
+- `verbose`: populated for verbose events
+- `payload.verbose`: verbose payload mirror for clients that read payload map
+
+<CodeBlockToggle title="Verbose rollout SQL (standalone assets)" language="text">
+{`src/main/resources/sql/verbose_ddl.sql
+src/main/resources/sql/verbose_seed.sql`}
+</CodeBlockToggle>
+
+<Highlight type="warning" title="Startup safety">
+`ce_verbose` is validated at startup. Invalid `step_match` or blank `step_value` / `determinant` rows can fail startup integrity checks.
+</Highlight>

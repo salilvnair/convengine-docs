@@ -201,12 +201,12 @@ curl "http://localhost:8080/api/v1/cache/analyze?warmup=false"`}
 `warmup=true` actively calls static cache loaders before reporting timing metrics. `warmup=false` only inspects current state and does not trigger additional warmup calls.
 </Highlight>
 
-### CE IDE Panel: How the Response Should Be Read
+### How to Read the Analyzer Response
 
-If your CE IDE panel renders the JSON response, interpret each block as follows:
+Interpret each JSON block as follows:
 
 <DbTable
-  title="Field-by-field meaning in CE IDE"
+  title="Field-by-field meaning"
   columns={["Field", "What it means", "Healthy signal", "When to investigate"]}
   rows={[
     ["warmupAndTimingEnabled", "Whether analyzer executed active timing probe.", "Matches your request flag.", "Unexpected value indicates wrong request or proxy/caching to old endpoint."],
@@ -219,7 +219,7 @@ If your CE IDE panel renders the JSON response, interpret each block as follows:
   ]}
 />
 
-<CodeBlockToggle title="Sample response (from CE IDE)" language="json">
+<CodeBlockToggle title="Sample response" language="json">
 {`{
   "warmupAndTimingEnabled": true,
   "cacheManagerClass": "org.springframework.cache.concurrent.ConcurrentMapCacheManager",
