@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.9.2">
-<title data-rh="true">Overview | ConvEngine</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://salilvnair.com/docs/v2/overview"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-v2-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-v2-current"><meta data-rh="true" property="og:title" content="Overview | ConvEngine"><meta data-rh="true" name="description" content="ConvEngine is a deterministic conversation workflow engine with explicit turn-control steps for dialogue act, policy, pending-action lifecycle, guardrails, tool orchestration, state-graph validation, and memory."><meta data-rh="true" property="og:description" content="ConvEngine is a deterministic conversation workflow engine with explicit turn-control steps for dialogue act, policy, pending-action lifecycle, guardrails, tool orchestration, state-graph validation, and memory."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://salilvnair.com/docs/v2/overview"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/overview" hreflang="en"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/overview" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Overview","item":"https://salilvnair.com/docs/v2/overview"}]}</script><link rel="stylesheet" href="/assets/css/styles.2c09cc6e.css">
-<script src="/assets/js/runtime~main.b255abdf.js" defer="defer"></script>
-<script src="/assets/js/main.70a3c585.js" defer="defer"></script>
+<title data-rh="true">Overview | ConvEngine</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://salilvnair.com/docs/v2/overview"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-v2-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-v2-current"><meta data-rh="true" property="og:title" content="Overview | ConvEngine"><meta data-rh="true" name="description" content="ConvEngine is a deterministic conversation workflow engine with explicit turn-control steps for dialogue act, policy, pending-action lifecycle, guardrails, tool orchestration, state-graph validation, and memory."><meta data-rh="true" property="og:description" content="ConvEngine is a deterministic conversation workflow engine with explicit turn-control steps for dialogue act, policy, pending-action lifecycle, guardrails, tool orchestration, state-graph validation, and memory."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://salilvnair.com/docs/v2/overview"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/overview" hreflang="en"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/overview" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Overview","item":"https://salilvnair.com/docs/v2/overview"}]}</script><link rel="stylesheet" href="/assets/css/styles.9dd5bf7e.css">
+<script src="/assets/js/runtime~main.1eee788d.js" defer="defer"></script>
+<script src="/assets/js/main.d6db34ec.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
 <svg style="display: none;"><defs>
@@ -52,20 +52,21 @@
 </li>
 <li class="">Rule phases expanded with post-tool/post-mcp execution:<!-- -->
 <ul>
-<li class=""><code>MCP_POST_LLM</code></li>
-<li class=""><code>TOOL_POST_EXECUTION</code></li>
+<li class=""><code>POST_AGENT_MCP</code></li>
+<li class=""><code>POST_TOOL_EXECUTION</code></li>
 </ul>
 </li>
-<li class="">New control table:<!-- -->
+<li class="">New control tables:<!-- -->
 <ul>
 <li class=""><code>ce_pending_action</code></li>
+<li class=""><code>ce_verbose</code> (runtime progress/error messaging)</li>
 </ul>
 </li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="runtime-model">Runtime model<a href="#runtime-model" class="hash-link" aria-label="Direct link to Runtime model" title="Direct link to Runtime model" translate="no">​</a></h2>
 <p>ConvEngine remains config-first:</p>
 <ul>
-<li class="">DB control plane: <code>ce_intent*</code>, <code>ce_rule</code>, <code>ce_response</code>, <code>ce_prompt_template</code>, <code>ce_pending_action</code>, <code>ce_mcp_*</code></li>
+<li class="">DB control plane: <code>ce_intent*</code>, <code>ce_rule</code>, <code>ce_response</code>, <code>ce_prompt_template</code>, <code>ce_pending_action</code>, <code>ce_verbose</code>, <code>ce_mcp_*</code></li>
 <li class="">Runtime policy config: <code>convengine.flow.*</code></li>
 <li class="">Deterministic pipeline with audited stage output</li>
 </ul>

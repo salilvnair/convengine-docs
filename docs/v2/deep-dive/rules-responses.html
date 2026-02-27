@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.9.2">
-<title data-rh="true">Rules &amp; Responses | ConvEngine</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://salilvnair.com/docs/v2/deep-dive/rules-responses"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-v2-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-v2-current"><meta data-rh="true" property="og:title" content="Rules &amp; Responses | ConvEngine"><meta data-rh="true" name="description" content="Rule phases"><meta data-rh="true" property="og:description" content="Rule phases"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://salilvnair.com/docs/v2/deep-dive/rules-responses"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/deep-dive/rules-responses" hreflang="en"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/deep-dive/rules-responses" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Deep Dive","item":"https://salilvnair.com/docs/v2/deep-dive/"},{"@type":"ListItem","position":2,"name":"Rules & Responses","item":"https://salilvnair.com/docs/v2/deep-dive/rules-responses"}]}</script><link rel="stylesheet" href="/assets/css/styles.2c09cc6e.css">
-<script src="/assets/js/runtime~main.b255abdf.js" defer="defer"></script>
-<script src="/assets/js/main.70a3c585.js" defer="defer"></script>
+<title data-rh="true">Rules &amp; Responses | ConvEngine</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://salilvnair.com/docs/v2/deep-dive/rules-responses"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-v2-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-v2-current"><meta data-rh="true" property="og:title" content="Rules &amp; Responses | ConvEngine"><meta data-rh="true" name="description" content="Rule phases"><meta data-rh="true" property="og:description" content="Rule phases"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://salilvnair.com/docs/v2/deep-dive/rules-responses"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/deep-dive/rules-responses" hreflang="en"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/deep-dive/rules-responses" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Deep Dive","item":"https://salilvnair.com/docs/v2/deep-dive/"},{"@type":"ListItem","position":2,"name":"Rules & Responses","item":"https://salilvnair.com/docs/v2/deep-dive/rules-responses"}]}</script><link rel="stylesheet" href="/assets/css/styles.9dd5bf7e.css">
+<script src="/assets/js/runtime~main.1eee788d.js" defer="defer"></script>
+<script src="/assets/js/main.d6db34ec.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
 <svg style="display: none;"><defs>
@@ -19,14 +19,12 @@
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="rule-phases">Rule phases<a href="#rule-phases" class="hash-link" aria-label="Direct link to Rule phases" title="Direct link to Rule phases" translate="no">​</a></h2>
 <p><code>ce_rule.phase</code> supports:</p>
 <ul>
-<li class=""><code>PRE_EVAL</code></li>
-<li class=""><code>EVAL</code></li>
-<li class=""><code>POST_EVAL</code></li>
-<li class=""><code>AGENT_POST_INTENT</code></li>
-<li class=""><code>MCP_POST_LLM</code></li>
-<li class=""><code>TOOL_POST_EXECUTION</code></li>
+<li class=""><code>PRE_RESPONSE_RESOLUTION</code></li>
+<li class=""><code>POST_AGENT_INTENT</code></li>
+<li class=""><code>POST_AGENT_MCP</code></li>
+<li class=""><code>POST_TOOL_EXECUTION</code></li>
 </ul>
-<p><code>RulesStep</code> now writes phase/source/origin metadata into input params and audit payload for every pass.</p>
+<p><code>RulesStep</code> writes phase/source/origin metadata into input params and audit payload for every pass.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="rule-matching-behavior">Rule matching behavior<a href="#rule-matching-behavior" class="hash-link" aria-label="Direct link to Rule matching behavior" title="Direct link to Rule matching behavior" translate="no">​</a></h2>
 <p>For each pass:</p>
 <ol>
@@ -37,7 +35,16 @@
 <li class="">execute action resolver</li>
 <li class="">rerun pass if intent/state changed (max pass cap)</li>
 </ol>
-<p>Audit emitted even when not matched (<code>RULE_NO_MATCH</code>) with explicit reason.</p>
+<p>Audit emitted for both outcomes:</p>
+<ul>
+<li class=""><code>RULE_MATCH (AgentIntentResolver)</code></li>
+<li class=""><code>RULE_NO_MATCH (AgentIntentResolver)</code></li>
+<li class=""><code>RULE_MATCH (RulesStep)</code></li>
+<li class=""><code>RULE_NO_MATCH (RulesStep)</code></li>
+<li class=""><code>RULE_MATCH (McpToolStep)</code></li>
+<li class=""><code>RULE_NO_MATCH (McpToolStep)</code></li>
+</ul>
+<p><code>RULE_APPLIED (...)</code> is additionally emitted when action execution mutates/executes the matched rule.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="response-resolution-behavior">Response resolution behavior<a href="#response-resolution-behavior" class="hash-link" aria-label="Direct link to Response resolution behavior" title="Direct link to Response resolution behavior" translate="no">​</a></h2>
 <p><code>ResponseResolutionStep</code>:</p>
 <ol>
@@ -48,9 +55,9 @@
 </ol>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="operational-guidance">Operational guidance<a href="#operational-guidance" class="hash-link" aria-label="Direct link to Operational guidance" title="Direct link to Operational guidance" translate="no">​</a></h2>
 <ul>
-<li class="">Fallback state responses (<code>*</code>, <code>ANY</code>) are executed natively.</li>
-<li class="">keep at least one response for each terminal state</li>
-<li class="">use phase-scoped rules instead of overloading one monolithic <code>PIPELINE_RULES</code> pass</li>
+<li class="">Keep fallback state responses (<code>ANY</code>/<code>UNKNOWN</code>) for safety paths.</li>
+<li class="">Keep at least one response for each terminal state.</li>
+<li class="">Use phase-scoped rules instead of overloading one monolithic <code>PRE_RESPONSE_RESOLUTION</code> pass.</li>
 </ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/salilvnair/convengine-docs/tree/main/docs/v2/deep-dive/rules-responses.mdx" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/v2/deep-dive/intent-and-schema"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Intent &amp; Schema</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/v2/deep-dive/mcp-audit"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">MCP and Audit</div></a></nav></div></div><div class="col col--3 ce-toc-container"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#rule-phases" class="table-of-contents__link toc-highlight">Rule phases</a></li><li><a href="#rule-matching-behavior" class="table-of-contents__link toc-highlight">Rule matching behavior</a></li><li><a href="#response-resolution-behavior" class="table-of-contents__link toc-highlight">Response resolution behavior</a></li><li><a href="#operational-guidance" class="table-of-contents__link toc-highlight">Operational guidance</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/v2/overview">Overview</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/architecture">Architecture</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/local-development">Local Development</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Reference</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/v2/api/rest-api">REST API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/api/java-api">Java API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/deep-dive">Deep Dive</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 ConvEngine.</div></div></div></footer></div>
 </body>
 </html>
