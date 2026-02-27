@@ -162,7 +162,7 @@ Because Redis runs outside the active server JVM, it relies on network transmiss
 
 ## 4. Static Configuration Preloading
 
-Beyond dynamic conversational sessions, ConvEngine also permanently caches all non-transactional database rules (`ce_intent`, `ce_rule`, `ce_mcp_tool`, `ce_config`, etc.) into a generic `ce_static_configs` memory tree entirely upon JVM live initiation. This ensures that the engine never triggers synchronous relational fetches during the middle of a customer's turn.
+Beyond dynamic conversational sessions, ConvEngine also permanently caches all non-transactional database rules (`ce_intent`, `ce_rule`, `ce_mcp_tool`, `ce_mcp_planner`, `ce_config`, etc.) into a generic `ce_static_configs` memory tree entirely upon JVM live initiation. This ensures that the engine never triggers synchronous relational fetches during the middle of a customer's turn.
 
 If you connect to your database and update a `ce_rule` row manually using `SQL`, the active Java application won't automatically see it until you flush this static cache. 
 
@@ -236,6 +236,10 @@ If your CE IDE panel renders the JSON response, interpret each block as follows:
       "secondCallMs": 0,
       "firstCallMs": 0
     },
+    "ce_mcp_planner": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
     "ce_prompt_template": {
       "secondCallMs": 0,
       "firstCallMs": 0
@@ -283,6 +287,7 @@ If your CE IDE panel renders the JSON response, interpret each block as follows:
     "ce_container_config",
     "ce_mcp_tool",
     "ce_mcp_db_tool",
+    "ce_mcp_planner",
     "ce_conversation_cache",
     "ce_pending_action",
     "ce_intent",
@@ -308,6 +313,13 @@ If your CE IDE panel renders the JSON response, interpret each block as follows:
       "valueType": "java.util.ArrayList",
       "exists": true,
       "listSize": 2,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_mcp_planner": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 3,
       "hasSimpleKeyEntry": true,
       "nativeEntryCount": 1
     },

@@ -1,0 +1,56 @@
+---
+title: MCP Basics
+sidebar_position: 1
+---
+
+import { DbTable, Highlight } from "@site/src/components/convengine";
+
+# MCP Basics
+
+This page is the simple mental model for MCP in ConvEngine.
+
+## What MCP does
+
+MCP lets the engine decide and call tools during a chat turn.
+
+Basic flow:
+
+1. user asks a question
+2. planner chooses `CALL_TOOL` or `ANSWER`
+3. tool output is stored in `context.mcp.observations`
+4. planner eventually writes `context.mcp.finalAnswer`
+5. response resolver generates final user output
+
+## Core tables
+
+<DbTable
+  title="MCP table map"
+  columns={["Table", "Purpose", "Used by"]}
+  rows={[
+    ["ce_mcp_tool", "Tool registry and scope", "McpToolStep / ToolOrchestrationStep"],
+    ["ce_mcp_db_tool", "DB SQL template fallback config", "McpDbToolExecutor"],
+    ["ce_mcp_planner", "Planner prompts by intent/state", "McpPlanner"],
+  ]}
+/>
+
+## Two execution modes
+
+<DbTable
+  title="When each mode is used"
+  columns={["Mode", "Trigger", "Main output"]}
+  rows={[
+    ["Planner mode", "Natural chat request (no direct tool_request)", "context.mcp.observations + context.mcp.finalAnswer"],
+    ["Direct mode", "inputParams.tool_request provided", "inputParams.tool_result"],
+  ]}
+/>
+
+<Highlight type="tip" title="Start here for testing">
+Use planner mode first for real chat behavior. Use direct mode only for deterministic tool testing.
+</Highlight>
+
+## Read next
+
+- [MCP Advanced Guide](/docs/v2/consumer/mcp/advanced)
+- [MCP HTTP Tool](/docs/v2/consumer/mcp/http-tool)
+- [MCP Example 1 (Mockey + Demo)](/docs/v2/consumer/mcp/example1)
+- [MCP Example 2 - Loan Application](/docs/v2/consumer/mcp/example2)

@@ -1,0 +1,577 @@
+---
+title: MCP Example 2 - Loan Application
+sidebar_position: 4
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { DbTable, Highlight, EngineDebugFlow, ChatContainer, TraceChatBubble } from "@site/src/components/convengine";
+
+export const loanExampleNodes = [
+  { id: "u1", data: { label: "User Input: apply loan" } },
+  { id: "s1", data: { label: "SchemaExtractionStep" } },
+  { id: "r1", data: { label: "Rule: UNKNOWN/IDLE -> ELIGIBILITY_GATE" } },
+  { id: "m1", data: { label: "MCP plan #1" } },
+  { id: "t1", data: { label: "loan.credit.rating.check" } },
+  { id: "m2", data: { label: "MCP plan #2" } },
+  { id: "t2", data: { label: "loan.credit.fraud.check" } },
+  { id: "m3", data: { label: "MCP plan #3" } },
+  { id: "t3", data: { label: "loan.debt.credit.summary" } },
+  { id: "m4", data: { label: "MCP plan #4" } },
+  { id: "t4", data: { label: "loan.application.submit" } },
+  { id: "m5", data: { label: "MCP ANSWER" } },
+  { id: "r2", data: { label: "Rule: ELIGIBILITY_GATE -> COMPLETED (POST_AGENT_MCP)" } },
+  { id: "resp", data: { label: "ResponseResolutionStep (DERIVED TEXT)" } },
+  { id: "out", data: { label: "Assistant Output" } },
+];
+
+export const loanExampleEdges = [
+  { id: "e1", source: "u1", target: "s1" },
+  { id: "e2", source: "s1", target: "r1" },
+  { id: "e3", source: "r1", target: "m1" },
+  { id: "e4", source: "m1", target: "t1" },
+  { id: "e5", source: "t1", target: "m2" },
+  { id: "e6", source: "m2", target: "t2" },
+  { id: "e7", source: "t2", target: "m3" },
+  { id: "e8", source: "m3", target: "t3" },
+  { id: "e9", source: "t3", target: "m4" },
+  { id: "e10", source: "m4", target: "t4" },
+  { id: "e11", source: "t4", target: "m5" },
+  { id: "e12", source: "m5", target: "r2" },
+  { id: "e13", source: "r2", target: "resp" },
+  { id: "e14", source: "resp", target: "out" },
+];
+
+export const loanExampleDetails = {
+  u1: {
+    title: "User Input",
+    stage: "REQUEST",
+    summary: "User asks to apply for loan with customer and amount details.",
+    session: ["userText set", "inputParams initialized"],
+    tables: ["ce_audit (W)"]
+  },
+  s1: {
+    title: "SchemaExtractionStep",
+    stage: "SCHEMA",
+    summary: "Extracts customerId, requestedAmount, tenureMonths from user text.",
+    session: ["context updated with extracted schema fields"],
+    tables: ["ce_output_schema (R)", "ce_prompt_template (R)", "ce_audit (W)"]
+  },
+  r1: {
+    title: "Rule transition",
+    stage: "POST_AGENT_INTENT",
+    summary: "Rule moves LOAN_APPLICATION from UNKNOWN or IDLE into ELIGIBILITY_GATE.",
+    session: ["state=ELIGIBILITY_GATE -> COMPLETED"],
+    tables: ["ce_rule (R)", "ce_audit (W)"]
+  },
+  r2: {
+    title: "Post-MCP transition",
+    stage: "POST_AGENT_MCP",
+    summary: "After planner ANSWER, POST_AGENT_MCP rule checks context.mcp.finalAnswer and moves state from ELIGIBILITY_GATE to COMPLETED.",
+    session: ["state=COMPLETED"],
+    tables: ["ce_rule (R)", "ce_audit (W)"]
+  },
+  m1: {
+    title: "MCP plan #1",
+    stage: "MCP_PLAN_LLM_OUTPUT",
+    summary: "Planner decides first check must be credit rating.",
+    session: ["CALL_TOOL loan.credit.rating.check"],
+    tables: ["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]
+  },
+  t1: {
+    title: "loan.credit.rating.check",
+    stage: "MCP_TOOL_RESULT",
+    summary: "Mapped rating response appended to context.mcp.observations.",
+    session: ["observation[0]=rating"],
+    tables: ["ce_audit (W)"]
+  },
+  m2: {
+    title: "MCP plan #2",
+    stage: "MCP_PLAN_LLM_OUTPUT",
+    summary: "If rating > 750 planner proceeds to fraud check.",
+    session: ["CALL_TOOL loan.credit.fraud.check"],
+    tables: ["ce_mcp_planner (R)", "ce_audit (W)"]
+  },
+  t2: {
+    title: "loan.credit.fraud.check",
+    stage: "MCP_TOOL_RESULT",
+    summary: "Fraud result stored as second observation.",
+    session: ["observation[1]=fraud"],
+    tables: ["ce_audit (W)"]
+  },
+  m3: {
+    title: "MCP plan #3",
+    stage: "MCP_PLAN_LLM_OUTPUT",
+    summary: "If fraud false planner asks debt/credit summary.",
+    session: ["CALL_TOOL loan.debt.credit.summary"],
+    tables: ["ce_mcp_planner (R)", "ce_audit (W)"]
+  },
+  t3: {
+    title: "loan.debt.credit.summary",
+    stage: "MCP_TOOL_RESULT",
+    summary: "Debt metrics (dti, availableCredit) added to observations.",
+    session: ["observation[2]=debt"],
+    tables: ["ce_audit (W)"]
+  },
+  m4: {
+    title: "MCP plan #4",
+    stage: "MCP_PLAN_LLM_OUTPUT",
+    summary: "If affordability passes, planner triggers submit API.",
+    session: ["CALL_TOOL loan.application.submit"],
+    tables: ["ce_mcp_planner (R)", "ce_audit (W)"]
+  },
+  t4: {
+    title: "loan.application.submit",
+    stage: "MCP_TOOL_RESULT",
+    summary: "Submission response includes applicationId and status.",
+    session: ["observation[3]=submit result"],
+    tables: ["ce_audit (W)"]
+  },
+  m5: {
+    title: "MCP ANSWER",
+    stage: "MCP_FINAL_ANSWER",
+    summary: "Planner synthesizes final decision and stores context.mcp.finalAnswer.",
+    session: ["mcp_final_answer set", "mcp_status=ANSWER"],
+    tables: ["ce_audit (W)"]
+  },
+  resp: {
+    title: "ResponseResolutionStep",
+    stage: "RESOLVE_RESPONSE",
+    summary: "Selects LOAN_APPLICATION+COMPLETED DERIVED response and renders final text from MCP-enriched context.",
+    session: ["payload generated via TextOutputFormatResolver"],
+    tables: ["ce_response (R)", "ce_prompt_template (R)", "ce_audit (W)"]
+  },
+  out: {
+    title: "Assistant Output",
+    stage: "ASSISTANT_OUTPUT",
+    summary: "Final decision text returned and persisted.",
+    session: ["final payload returned"],
+    tables: ["ce_conversation (W)", "ce_conversation_history (W async)", "ce_audit (W)"]
+  }
+};
+
+# MCP Example 2 - Loan Application (Conditional API Chain)
+
+This example demonstrates a real-world conditional MCP chain:
+
+1. call Credit Union Rating API
+2. if `creditRating > 750`, call Credit Card Fraud API
+3. if not flagged, call Debt/Credit Summary API
+4. if debt profile is acceptable, call Loan Submit API
+
+All APIs are mocked through [mockey](https://github.com/salilvnair/mockey) with response delays to simulate real external systems.
+
+## Repos and files used
+
+## Mock APIs ([mockey](https://github.com/salilvnair/mockey))
+
+- `GET /api/mock/loan/credit-union/rating`
+- `GET /api/mock/loan/credit-card/fraud-check`
+- `GET /api/mock/loan/debt-credit/summary`
+- `POST /api/mock/loan/application/submit`
+
+Key files:
+
+- `mockey/src/resolver/provider/live-api.resolver.js`
+- `mockey/src/resolver/core/resolver.registry.js`
+- `mockey/src/route/mockey-route.json`
+- `mockey/src/response/loan/*.json` (includes delay via `responseDelayInMillis`)
+
+## Demo MCP handlers (`convengine-demo`)
+
+- `loan.credit.rating.check`
+- `loan.credit.fraud.check`
+- `loan.debt.credit.summary`
+- `loan.application.submit`
+
+Handler files:
+
+- `convengine-demo/.../LoanCreditRatingToolHandler.java`
+- `convengine-demo/.../LoanFraudCheckToolHandler.java`
+- `convengine-demo/.../LoanDebtSummaryToolHandler.java`
+- `convengine-demo/.../LoanApplicationSubmitToolHandler.java`
+
+## Seed packs
+
+- Postgres: `convengine-demo/src/main/resources/sql/example2_seed.sql`
+- SQLite: `convengine-demo/src/main/resources/sql/example2_sqlite_seed.sql`
+
+These seed files include all required DML:
+
+- `ce_intent`
+- `ce_intent_classifier`
+- `ce_output_schema`
+- `ce_prompt_template`
+- `ce_response`
+- `ce_rule`
+- `ce_mcp_tool` (with `intent_code` + `state_code`)
+- `ce_mcp_planner` scoped prompt rows (default + LOAN_APPLICATION/ELIGIBILITY_GATE)
+
+## Required rule/response rows for this flow
+
+Use these key rows so classifier + MCP + response resolution line up correctly:
+
+```sql
+-- 1) Bootstrap state after classifier picks LOAN_APPLICATION
+INSERT INTO ce_rule (intent_code, state_code, rule_type, match_pattern, action, action_value, phase, priority, enabled, description)
+VALUES
+('LOAN_APPLICATION', 'UNKNOWN', 'REGEX', '.*', 'SET_STATE', 'ELIGIBILITY_GATE', 'POST_AGENT_INTENT', 20, true,
+ 'Move LOAN_APPLICATION from UNKNOWN into ELIGIBILITY_GATE.');
+
+-- 2) After MCP planner returns ANSWER, close state for final response mapping
+INSERT INTO ce_rule (intent_code, state_code, rule_type, match_pattern, action, action_value, phase, priority, enabled, description)
+VALUES
+('LOAN_APPLICATION', 'ELIGIBILITY_GATE', 'JSON_PATH', '$[?(@.context.mcp.finalAnswer != null && @.context.mcp.finalAnswer != '''')]', 'SET_STATE', 'COMPLETED', 'POST_AGENT_MCP', 30, true,
+ 'Move loan flow to COMPLETED only when context.mcp.finalAnswer exists.');
+
+-- 3) Final response row should target COMPLETED and derive from MCP context
+INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled, description)
+VALUES
+('LOAN_APPLICATION', 'COMPLETED', 'TEXT', 'DERIVED',
+ 'Use context.mcp.finalAnswer as primary summary. Validate with context.mcp.observations (rating/fraud/debt/submit). Do not invent values.',
+ 20, true, 'Loan decision derived from MCP outputs.');
+
+-- 4) Prompt template should explicitly read context.mcp.*
+INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+VALUES
+('LOAN_APPLICATION', 'COMPLETED', 'TEXT',
+ 'You are a precise loan workflow summarizer. Use only MCP evidence from context JSON.',
+ 'Context JSON:\n{{context}}\n\nRead context.mcp.observations and context.mcp.finalAnswer. Return a concise final loan decision.',
+ true);
+```
+
+
+## Step-by-step test
+
+## 1) Start [mockey](https://github.com/salilvnair/mockey)
+
+```bash
+cd /Users/salilvnair/workspace/git/salilvnair/mockey
+npm install
+npm start
+```
+
+Expected:
+
+```text
+listening to 31333
+```
+
+## 2) Optional quick mock checks
+
+```bash
+curl -s "http://localhost:31333/api/mock/loan/credit-union/rating?customerId=CUST-1001"
+curl -s "http://localhost:31333/api/mock/loan/credit-card/fraud-check?customerId=CUST-1001"
+curl -s "http://localhost:31333/api/mock/loan/debt-credit/summary?customerId=CUST-1001"
+curl -s -X POST "http://localhost:31333/api/mock/loan/application/submit" -H "Content-Type: application/json" -d '{"customerId":"CUST-1001","requestedAmount":350000,"tenureMonths":36}'
+```
+
+## 3) Start convengine-demo
+
+```bash
+cd /Users/salilvnair/workspace/git/salilvnair/convengine-demo
+./mvnw spring-boot:run
+```
+
+## 4) Seed Example 2 DML
+
+For Postgres run:
+
+- `convengine-demo/src/main/resources/sql/example2_seed.sql`
+
+For SQLite run:
+
+- `convengine-demo/src/main/resources/sql/example2_sqlite_seed.sql`
+
+## 5) Run as chat-style walkthrough
+
+<Tabs groupId="example2-chat-flow">
+  <TabItem value="chat" label="Conversation" default>
+
+<ChatContainer>
+  <TraceChatBubble
+    role="user"
+    name="Turn 1 - User"
+    message="Apply loan for customer CUST-1001, amount 350000 for 36 months."
+    info={["SchemaExtractionStep pulls customerId, amount, tenure.", "Rule moves state to ELIGIBILITY_GATE."]}
+  />
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 1 - Assistant (internal MCP)"
+    message="Running eligibility chain: rating -> fraud -> debt summary -> submit."
+    json={{
+      mcp: {
+        observations: [
+          { toolCode: "loan.credit.rating.check", json: "{\"mapped\":{\"customerId\":\"CUST-1001\",\"creditRating\":782}}" },
+          { toolCode: "loan.credit.fraud.check", json: "{\"mapped\":{\"customerId\":\"CUST-1001\",\"flagged\":false}}" },
+          { toolCode: "loan.debt.credit.summary", json: "{\"mapped\":{\"dti\":0.31,\"availableCredit\":220000}}" },
+          { toolCode: "loan.application.submit", json: "{\"mapped\":{\"applicationId\":\"LA-90311\",\"status\":\"SUBMITTED\"}}" }
+        ]
+      }
+    }}
+    tables={["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]}
+    info={["Planner decides each next tool from previous observation.", "Observations are persisted in context.mcp.observations."]}
+  />
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 1 - Final Assistant Output"
+    message="Loan application submitted successfully. Application ID: LA-90311. Credit and fraud checks passed; debt profile is within threshold."
+    json={{ mcp: { finalAnswer: "Approved and submitted with applicationId LA-90311." } }}
+    tables={["ce_response (R)", "ce_prompt_template (R)", "ce_conversation (W)"]}
+    info={["Response is DERIVED TEXT for LOAN_APPLICATION + COMPLETED.", "TextOutputFormatResolver uses context + derivation_hint."]}
+  />
+</ChatContainer>
+
+  </TabItem>
+
+  <TabItem value="turn-table" label="Turn Table">
+
+<DbTable
+  title="Loan flow summary"
+  columns={["Phase", "What happens", "Tables touched", "Output"]}
+  rows={[
+    ["Schema + state", "Extract fields and switch to ELIGIBILITY_GATE.", "ce_output_schema(R), ce_rule(R), ce_audit(W)", "context fields + state"],
+    ["Post-MCP transition", "POST_AGENT_MCP rule moves state to COMPLETED only when context.mcp.finalAnswer is present.", "ce_rule(R), ce_audit(W)", "state=COMPLETED"],
+    ["MCP tool chain", "Rating, fraud, debt, submit executed conditionally.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "context.mcp.observations[]"],
+    ["MCP final answer", "Planner writes final decision text.", "ce_audit(W)", "context.mcp.finalAnswer"],
+    ["Response resolution", "DERIVED TEXT generated for user.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant payload"],
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="api" label="Request Payloads">
+
+Planner mode payload:
+
+```json
+{
+  "userInput": "Apply loan for customer CUST-1001, amount 350000 for 36 months",
+  "contextJson": "{}",
+  "inputParams": {}
+}
+```
+
+Direct branch payload (low rating):
+
+```json
+{
+  "userInput": "Apply loan",
+  "contextJson": "{}",
+  "inputParams": {
+    "tool_request": {
+      "tool_code": "loan.credit.rating.check",
+      "tool_group": "HTTP_API",
+      "args": { "customerId": "CUST-LOW" }
+    }
+  }
+}
+```
+
+Direct branch payload (fraud):
+
+```json
+{
+  "userInput": "Apply loan",
+  "contextJson": "{}",
+  "inputParams": {
+    "tool_request": {
+      "tool_code": "loan.credit.fraud.check",
+      "tool_group": "HTTP_API",
+      "args": { "customerId": "CUST-FRAUD" }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+## 6) Verify audit stages
+
+Look for:
+
+- `MCP_PLAN_LLM_INPUT`
+- `MCP_PLAN_LLM_OUTPUT`
+- `MCP_TOOL_CALL`
+- `MCP_TOOL_RESULT`
+- `MCP_FINAL_ANSWER`
+
+Also for direct tool requests:
+
+- `TOOL_ORCHESTRATION_REQUEST`
+- `TOOL_ORCHESTRATION_RESULT`
+
+## 7) Verify advanced HTTP execution metadata
+
+Mapped output includes framework execution details:
+
+```json
+{
+  "status": 200,
+  "attempt": 1,
+  "latencyMs": 1205,
+  "mapped": {
+    "customerId": "CUST-1001",
+    "creditRating": 782
+  }
+}
+```
+
+The latency reflects mock delays (`responseDelayInMillis`) configured in [mockey](https://github.com/salilvnair/mockey) responses.
+
+## How MCP Tool Output Is Used in Response Resolution (Step-by-Step)
+
+For this example, the final assistant text is not hardcoded. It is derived from MCP evidence in runtime context:
+
+1. `McpToolStep` starts and clears stale `context.mcp.finalAnswer` and `context.mcp.observations`.
+2. Every successful tool call appends one entry into `context.mcp.observations`:
+   - `toolCode`
+   - `json` (stringified mapped payload)
+3. When planner returns `ANSWER`, `McpToolStep` writes:
+   - `context.mcp.finalAnswer`
+   - input param `mcp_final_answer`
+4. `RulesStep` runs `POST_AGENT_MCP` phase and matches rule only when `context.mcp.finalAnswer` is present, then sets state to `COMPLETED`.
+5. `ResponseResolutionStep` selects `ce_response` for:
+   - `intent_code=LOAN_APPLICATION`
+   - `state_code=COMPLETED`
+   - response type `DERIVED`, output format `TEXT`
+6. It then selects matching `ce_prompt_template` (`TEXT`) for the same intent/state.
+7. `TextOutputFormatResolver` invokes LLM with:
+   - rendered system/user prompt
+   - `ce_response.derivation_hint`
+   - context payload (`session.contextDict()`), which includes MCP observations/finalAnswer
+8. LLM produces final summary text. Engine audits `RESOLVE_RESPONSE_LLM_OUTPUT` and `ASSISTANT_OUTPUT`, then persists conversation.
+
+<Highlight type="info" title="Practical implication">
+In this setup, the response LLM is grounded by two things together: `derivation_hint` policy from `ce_response` and MCP evidence from `context.mcp.*`. That is why the final answer reflects rating/fraud/debt/applicationId consistently.
+</Highlight>
+
+The provided Example 2 seed now makes this explicit in SQL as well:
+
+- `ce_prompt_template.user_prompt` explicitly instructs reading `context.mcp.observations` and `context.mcp.finalAnswer`
+- `ce_response.derivation_hint` explicitly references `context.mcp.*`
+
+## E2E Turn-by-Turn (Tab View)
+
+<Tabs groupId="loan-example-e2e">
+  <TabItem value="approved" label="Approved Path" default>
+
+<DbTable
+  title="Single request turn (approved branch)"
+  columns={["Loop/Step", "LLM deduction", "Tables touched", "Produced state/data"]}
+  rows={[
+    ["Schema extraction", "customerId/requestedAmount/tenure extracted.", "ce_output_schema(R), ce_prompt_template(R), ce_audit(W)", "context fields set"],
+    ["State rule", "loan flow evaluates in ELIGIBILITY_GATE (pre-MCP), then POST_AGENT_MCP moves to COMPLETED only when finalAnswer exists.", "ce_rule(R), ce_audit(W)", "state=ELIGIBILITY_GATE"],
+    ["MCP #1", "Need credit rating first.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL rating"],
+    ["Tool #1", "Rating available and > 750.", "ce_audit(W)", "obs[0]=creditRating"],
+    ["MCP #2", "Proceed to fraud check.", "ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL fraud"],
+    ["Tool #2", "Fraud clear.", "ce_audit(W)", "obs[1]=flagged:false"],
+    ["MCP #3", "Need affordability metrics.", "ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL debt summary"],
+    ["Tool #3", "DTI acceptable and credit sufficient.", "ce_audit(W)", "obs[2]=dti/availableCredit"],
+    ["MCP #4", "Submit application now.", "ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL submit"],
+    ["Tool #4", "Submission succeeded.", "ce_audit(W)", "obs[3]=applicationId/status"],
+    ["MCP ANSWER", "Enough evidence for final decision.", "ce_audit(W)", "context.mcp.finalAnswer"],
+    ["ResponseResolutionStep", "Generate final user-facing summary.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant text payload"]
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="low-rating" label="Low Rating">
+
+<DbTable
+  title="Early-stop branch: low credit score"
+  columns={["Loop/Step", "LLM deduction", "Tables touched", "Produced state/data"]}
+  rows={[
+    ["MCP #1", "Call rating check.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL rating"],
+    ["Tool #1", "creditRating <= 750.", "ce_audit(W)", "obs[0]=low rating"],
+    ["MCP ANSWER", "Stop chain; reject without fraud/debt/submit.", "ce_mcp_planner(R), ce_audit(W)", "context.mcp.finalAnswer (rejection)"],
+    ["ResponseResolutionStep", "Render low-score rejection summary.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant text payload"]
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="fraud" label="Fraud Flagged">
+
+<DbTable
+  title="Branch: fraud hit after good rating"
+  columns={["Loop/Step", "LLM deduction", "Tables touched", "Produced state/data"]}
+  rows={[
+    ["MCP #1 + Tool #1", "Rating is high enough to continue.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "obs[0]=rating"],
+    ["MCP #2 + Tool #2", "Fraud flagged=true.", "ce_mcp_planner(R), ce_audit(W)", "obs[1]=fraud flagged"],
+    ["MCP ANSWER", "Stop chain immediately; reject.", "ce_mcp_planner(R), ce_audit(W)", "context.mcp.finalAnswer (fraud rejection)"],
+    ["ResponseResolutionStep", "Produce fraud-specific final text.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant text payload"]
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="high-debt" label="High Debt">
+
+<DbTable
+  title="Branch: affordability fails after fraud clears"
+  columns={["Loop/Step", "LLM deduction", "Tables touched", "Produced state/data"]}
+  rows={[
+    ["MCP #1 + Tool #1", "Rating allows continuation.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "obs[0]=rating"],
+    ["MCP #2 + Tool #2", "Fraud clear.", "ce_mcp_planner(R), ce_audit(W)", "obs[1]=fraud false"],
+    ["MCP #3 + Tool #3", "DTI too high or available credit too low.", "ce_mcp_planner(R), ce_audit(W)", "obs[2]=poor affordability"],
+    ["MCP ANSWER", "Reject or mark manual review; skip submit.", "ce_mcp_planner(R), ce_audit(W)", "context.mcp.finalAnswer"],
+    ["ResponseResolutionStep", "Generate debt/affordability explanation.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant text payload"]
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+
+## ReactFlow Execution Map
+
+<EngineDebugFlow
+  title="Example 2 End-to-End Execution"
+  subtitle="Conditional MCP chain from eligibility checks to final response resolution."
+  nodes={loanExampleNodes}
+  edges={loanExampleEdges}
+  detailsById={loanExampleDetails}
+  defaultSelectedId="m1"
+/>
+
+## Response Field Provenance
+
+<DbTable
+  title="Where final response facts come from"
+  columns={["Response fact", "Primary source", "Stage where it enters context"]}
+  rows={[
+    ["creditRating", "loan.credit.rating.check mapped payload", "MCP_TOOL_RESULT #1"],
+    ["fraudFlag", "loan.credit.fraud.check mapped payload", "MCP_TOOL_RESULT #2"],
+    ["dti / availableCredit", "loan.debt.credit.summary mapped payload", "MCP_TOOL_RESULT #3"],
+    ["applicationId / submitStatus", "loan.application.submit mapped payload", "MCP_TOOL_RESULT #4 (approved path)"],
+    ["Final decision sentence", "planner answer + response derivation", "MCP_FINAL_ANSWER + RESOLVE_RESPONSE_LLM_OUTPUT"],
+  ]}
+/>
+
+## Notes on state and scope
+
+`ce_mcp_tool` rows in example2 are scoped as:
+
+- `intent_code = LOAN_APPLICATION`
+- `state_code = ELIGIBILITY_GATE`
+
+This ensures tools are visible only in the loan decision state.
+
+## Troubleshooting
+
+- Tool not resolved:
+  - verify `tool_code` in DB matches handler `toolCode()` exactly
+- No tool call in planner path:
+  - check `McpPlanner` prompt rows in `ce_mcp_planner`
+  - confirm active intent is `LOAN_APPLICATION`
+- Timeouts/retries unexpected:
+  - inspect handler-specific `HttpApiExecutionPolicy`
+  - inspect mock delay values in `mockey/src/response/loan/*.json`
+
+## Related docs
+
+- [MCP Basics](/docs/v2/consumer/mcp/basics)
+- [MCP Advanced Guide](/docs/v2/consumer/mcp/advanced)
+- [MCP Example 1 (Mockey + Demo)](/docs/v2/consumer/mcp/example1)

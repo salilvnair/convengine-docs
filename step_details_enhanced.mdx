@@ -1291,7 +1291,7 @@ Specifically iterates over `ce_mcp_tool` bindings. Instead of static grouped too
         }
 
         if (mcpTouched) {
-            rulesStep.applyRules(session, "McpToolStep PostMcp", RulePhase.MCP_POST_LLM.name());
+            rulesStep.applyRules(session, "McpToolStep", RulePhase.AGENT_POST_MCP.name());
         }
 
         session.syncToConversation();

@@ -21,6 +21,18 @@ const sidebars = {
         'consumer/annotations-reference',
         'consumer/extensions',
         'consumer/session-reset-and-continuity',
+        {
+          type: 'category',
+          label: 'MCP',
+          items: [
+            'consumer/mcp/basics',
+            'consumer/mcp/advanced',
+            'consumer/mcp/http-tool',
+            'consumer/mcp/deep-dive',
+            'consumer/mcp/example1',
+            'consumer/mcp/example2',
+          ],
+        },
       ],
     },
     {

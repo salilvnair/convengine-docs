@@ -6,7 +6,7 @@ export { SchemaBlock } from "./SchemaBlock";
 export { Highlight } from "./Highlight";
 export { CodeBlockToggle } from "./CodeBlockToggle";
 export { FileRef, MethodRef } from "./Refs";
-export { ChatBubble, ChatContainer } from "./ChatBubble";
+export { ChatBubble, ChatContainer, TraceChatBubble } from "./ChatBubble";
 export { CodeWindow } from "./CodeWindow";
 export { EngineDebugFlow } from "./EngineDebugFlow";
 export { CePopup } from "./CePopup";

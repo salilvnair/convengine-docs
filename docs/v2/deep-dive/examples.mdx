@@ -23,8 +23,8 @@ This page is intentionally dense. Each flow is shown as:
   <TabItem value="chat" label="Chat Transcript" default>
 
 <Conversation title="FAQ conversation">
-  <User>How do I transfer my electricity connection?</User>
-  <Assistant>Share customerId, phone, email, source city, and target city. Then confirm to submit transfer.</Assistant>
+  <User info={["Informational FAQ request.", "No pending action path required."]}>How do I transfer my electricity connection?</User>
+  <Assistant tables={["ce_intent", "ce_intent_classifier", "ce_response"]} info={["Intent=FAQ.", "FAQ response returned from configured mapping."]}>Share customerId, phone, email, source city, and target city. Then confirm to submit transfer.</Assistant>
 </Conversation>
 
 <DbTable
@@ -146,12 +146,12 @@ VALUES ('FAQ', 'IDLE', 'TEXT', 'DERIVED',
   <TabItem value="chat" label="Chat Transcript" default>
 
 <Conversation title="Connection transfer conversation">
-  <User>Move my electricity connection from City1 to City2.</User>
-  <Assistant>Please provide customerId, phone, email, sourceCity, and targetCity.</Assistant>
-  <User>customerId 9912, phone 9988776655, email user@zapper.com, sourceCity City1, targetCity City2</User>
-  <Assistant>Do you want to move this connection right away?</Assistant>
-  <User>yes please</User>
-  <Assistant>Connection transfer request submitted successfully.</Assistant>
+  <User info={["Initial transfer request.", "State expected to move to collection mode."]}>Move my electricity connection from City1 to City2.</User>
+  <Assistant tables={["ce_output_schema"]} info={["Required fields are missing.", "Assistant prompts for slots."]}>Please provide customerId, phone, email, sourceCity, and targetCity.</Assistant>
+  <User info={["All required fields provided.", "Schema should become complete."]}>customerId 9912, phone 9988776655, email user@zapper.com, sourceCity City1, targetCity City2</User>
+  <Assistant tables={["ce_rule", "ce_pending_action"]} info={["Transition to AWAITING_CONFIRMATION.", "Pending action staged."]}>Do you want to move this connection right away?</Assistant>
+  <User info={["AFFIRM dialogue act.", "Policy should execute pending action."]}>yes please</User>
+  <Assistant tables={["ce_audit", "ce_response"]} info={["Pending action executed.", "Final completion response emitted."]}>Connection transfer request submitted successfully.</Assistant>
 </Conversation>
 
   </TabItem>
@@ -223,11 +223,11 @@ VALUES
 
 INSERT INTO ce_rule (phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled)
 VALUES
-('PIPELINE_RULES', 'CONNECTION_TRANSFER', 'IDLE', 'REGEX', '.*', 'SET_STATE', 'COLLECT_INPUTS', 10, true),
-('PIPELINE_RULES', 'CONNECTION_TRANSFER', 'COLLECT_INPUTS', 'JSON_PATH',
+('PRE_RESPONSE_RESOLUTION', 'CONNECTION_TRANSFER', 'IDLE', 'REGEX', '.*', 'SET_STATE', 'COLLECT_INPUTS', 10, true),
+('PRE_RESPONSE_RESOLUTION', 'CONNECTION_TRANSFER', 'COLLECT_INPUTS', 'JSON_PATH',
  '$[?(@.state == ''COLLECT_INPUTS'' && @.customerId && @.phone && @.email && @.sourceCity && @.targetCity)]',
  'SET_STATE', 'AWAITING_CONFIRMATION', 100, true),
-('PIPELINE_RULES', 'CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'JSON_PATH',
+('PRE_RESPONSE_RESOLUTION', 'CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'JSON_PATH',
  '$[?(@.state == ''AWAITING_CONFIRMATION'' && (@.pending_action_result == ''EXECUTED'' || @.inputParams.pending_action_result == ''EXECUTED''))]',
  'SET_STATE', 'COMPLETED', 200, true);`}
 </CodeBlockToggle>
@@ -265,7 +265,7 @@ VALUES
 <CodeBlockToggle title="Audit payload checkpoint: RULE_APPLIED after execution" language="json">
 {`{
   "_meta": { "stage": "RULE_APPLIED" },
-  "rulePhase": "PIPELINE_RULES",
+  "rulePhase": "PRE_RESPONSE_RESOLUTION",
   "intent": "CONNECTION_TRANSFER",
   "ruleStateCode": "AWAITING_CONFIRMATION",
   "action": "SET_STATE",
@@ -290,12 +290,12 @@ If user says "yes" but flow loops back to confirmation, check in order:
   <TabItem value="chat" label="Chat Transcript" default>
 
 <Conversation title="Protected Order Cancellation">
-  <User>Cancel my shoe order.</User>
-  <Assistant>I can help you cancel your order. What is your order number?</Assistant>
-  <User>It's 48392.</User>
-  <Assistant>Are you sure you want to cancel order 48392? This action is irreversible.</Assistant>
-  <User>Yes please do that.</User>
-  <Assistant>Order 48392 has been completely cancelled.</Assistant>
+  <User info={["Cancellation intent request.", "Order number not yet present."]}>Cancel my shoe order.</User>
+  <Assistant tables={["ce_output_schema", "ce_response"]} info={["Missing field follow-up.", "Collect orderNumber before confirm step."]}>I can help you cancel your order. What is your order number?</Assistant>
+  <User info={["Provides required orderNumber.", "Unlocks confirmation stage."]}>It's 48392.</User>
+  <Assistant tables={["ce_rule", "ce_pending_action"]} info={["Awaiting explicit confirmation.", "Pending action in OPEN/IN_PROGRESS path."]}>Are you sure you want to cancel order 48392? This action is irreversible.</Assistant>
+  <User info={["AFFIRM turn.", "Interaction policy decides EXECUTE_PENDING_ACTION."]}>Yes please do that.</User>
+  <Assistant tables={["ce_audit", "ce_response"]} info={["Action executed and state transitioned.", "Cancellation response returned."]}>Order 48392 has been completely cancelled.</Assistant>
 </Conversation>
 
   </TabItem>
@@ -396,10 +396,10 @@ VALUES ('CANCEL_ORDER', 'CANCELLED', 'DERIVED', 'tmpl_cancelled', true);`}
   <TabItem value="chat" label="Chat Transcript" default>
 
 <Conversation title="DB Orchestration Flow">
-  <User>How many running shoes are left in warehouse B?</User>
-  <Assistant>Checking the inventory database...</Assistant>
-  <User>*[System delay executing Tool]*</User>
-  <Assistant>We currently have 421 units of running shoes allocated to warehouse B.</Assistant>
+  <User info={["Inventory question needing tool/data call.", "Intent resolves to DATABASE_QUERY flow."]}>How many running shoes are left in warehouse B?</User>
+  <Assistant tables={["ce_mcp_tool"]} info={["Tool dispatch started.", "Waiting for adapter/tool result."]}>Checking the inventory database...</Assistant>
+  <User info={["Represents in-flight tool call latency.", "No state mutation by user here."]}>*[System delay executing Tool]*</User>
+  <Assistant tables={["ce_audit", "ce_response"]} info={["tool_result consumed by response derivation.", "Final count rendered for user."]}>We currently have 421 units of running shoes allocated to warehouse B.</Assistant>
 </Conversation>
 
   </TabItem>
@@ -413,7 +413,7 @@ VALUES ('CANCEL_ORDER', 'CANCELLED', 'DERIVED', 'tmpl_cancelled', true);`}
     ["ToolOrchestrationStep", "Identifies `INVENTORY_DB` mapping. Routes payload to connected Java component adapting `McpToolExecutor`."],
     ["Tool Execution (Java Adapter)", "Adapter processes input, runs `SELECT count FROM inventory`. Returns JSON payload `{'count': 421}`."],
     ["ToolOrchestrationStep", "Writes returned JSON into engine session variable `tool_result.dbList`. Traces `TOOL_ORCHESTRATION_RESULT`."],
-    ["RulesStep", "Evaluates optional `TOOL_POST_EXECUTION` rules."],
+    ["RulesStep", "Evaluates optional `POST_TOOL_EXECUTION` rules."],
     ["ResponseResolutionStep", "Injects the `421` count into the derived template context and calls LLM."]
   ]}
 />
@@ -456,13 +456,13 @@ VALUES ('DATABASE_QUERY', 'IDLE', 'DERIVED', 'tmpl_inventory_gen', 10, true);`}
   <TabItem value="chat" label="Chat Transcript" default>
 
 <Conversation title="Long Context Support Thread">
-  <User>My router is broken.</User>
-  <Assistant>Let's check the lights. Are they green?</Assistant>
-  <User>*[12 more dialogue turns testing different cables and lights]*</User>
-  <Assistant>I suggest performing a factory reset via http://router.local/admin_reset with PIN 1234.</Assistant>
-  <User>*[User is quiet for minutes]*</User>
-  <User>[Turn 15]: Wait, what link did you tell me to use for the firmware reset again?</User>
-  <Assistant>Based on our previous troubleshooting, you should use http://router.local/admin_reset with the default PIN 1234.</Assistant>
+  <User info={["Initial problem statement.", "Starts long troubleshooting flow."]}>My router is broken.</User>
+  <Assistant info={["Assistant begins diagnostic questions.", "No tool/action execution yet."]}>Let's check the lights. Are they green?</Assistant>
+  <User info={["Represents many intermediate turns.", "Conversation memory grows significantly."]}>*[12 more dialogue turns testing different cables and lights]*</User>
+  <Assistant tables={["ce_conversation_history"]} info={["Assistant gives reset URL and PIN.", "Critical details should be retained in memory summary."]}>I suggest performing a factory reset via http://router.local/admin_reset with PIN 1234.</Assistant>
+  <User info={["Time gap before follow-up.", "Memory recall scenario."]}>*[User is quiet for minutes]*</User>
+  <User info={["Late-turn recall question.", "Requires memory-assisted response."]}>[Turn 15]: Wait, what link did you tell me to use for the firmware reset again?</User>
+  <Assistant tables={["ce_audit", "ce_conversation_history"]} info={["Memory summary injected.", "Assistant recalls prior URL and PIN correctly."]}>Based on our previous troubleshooting, you should use http://router.local/admin_reset with the default PIN 1234.</Assistant>
 </Conversation>
 
   </TabItem>
@@ -509,4 +509,3 @@ VALUES ('DATABASE_QUERY', 'IDLE', 'DERIVED', 'tmpl_inventory_gen', 10, true);`}
 
   </TabItem>
 </Tabs>
-

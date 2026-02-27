@@ -9,14 +9,12 @@ sidebar_position: 6
 
 `ce_rule.phase` supports:
 
-- `PRE_EVAL`
-- `EVAL`
-- `POST_EVAL`
-- `AGENT_POST_INTENT`
-- `MCP_POST_LLM`
-- `TOOL_POST_EXECUTION`
+- `PRE_RESPONSE_RESOLUTION`
+- `POST_AGENT_INTENT`
+- `POST_AGENT_MCP`
+- `POST_TOOL_EXECUTION`
 
-`RulesStep` now writes phase/source/origin metadata into input params and audit payload for every pass.
+`RulesStep` writes phase/source/origin metadata into input params and audit payload for every pass.
 
 ## Rule matching behavior
 
@@ -29,7 +27,16 @@ For each pass:
 5. execute action resolver
 6. rerun pass if intent/state changed (max pass cap)
 
-Audit emitted even when not matched (`RULE_NO_MATCH`) with explicit reason.
+Audit emitted for both outcomes:
+
+- `RULE_MATCH (AgentIntentResolver)`
+- `RULE_NO_MATCH (AgentIntentResolver)`
+- `RULE_MATCH (RulesStep)`
+- `RULE_NO_MATCH (RulesStep)`
+- `RULE_MATCH (McpToolStep)`
+- `RULE_NO_MATCH (McpToolStep)`
+
+`RULE_APPLIED (...)` is additionally emitted when action execution mutates/executes the matched rule.
 
 ## Response resolution behavior
 
@@ -42,6 +49,6 @@ Audit emitted even when not matched (`RULE_NO_MATCH`) with explicit reason.
 
 ## Operational guidance
 
-- Fallback state responses (`*`, `ANY`) are executed natively.
-- keep at least one response for each terminal state
-- use phase-scoped rules instead of overloading one monolithic `PIPELINE_RULES` pass
+- Keep fallback state responses (`ANY`/`UNKNOWN`) for safety paths.
+- Keep at least one response for each terminal state.
+- Use phase-scoped rules instead of overloading one monolithic `PRE_RESPONSE_RESOLUTION` pass.

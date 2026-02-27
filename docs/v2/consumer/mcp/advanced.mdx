@@ -1,0 +1,151 @@
+---
+title: MCP Advanced Guide
+sidebar_position: 2
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { DbTable, Highlight, CodeBlockToggle } from "@site/src/components/convengine";
+
+# MCP Advanced Guide (v2.0.7)
+
+This page documents the production MCP model in ConvEngine `2.0.7`, including planner guardrails, post-phase rules, and MCP context metadata used by `ce_rule` JSON_PATH.
+
+## Read order
+
+1. [MCP Basics](/docs/v2/consumer/mcp/basics)
+2. MCP Advanced Guide (this page)
+3. [MCP HTTP Tool](/docs/v2/consumer/mcp/http-tool)
+4. [MCP Deep Dive](/docs/v2/consumer/mcp/deep-dive)
+5. [MCP Example 1](/docs/v2/consumer/mcp/example1)
+6. [MCP Example 2](/docs/v2/consumer/mcp/example2)
+
+## Phase names (current)
+
+- `PRE_RESPONSE_RESOLUTION`
+- `POST_AGENT_INTENT`
+- `POST_AGENT_MCP`
+- `POST_TOOL_EXECUTION`
+
+Compatibility note: legacy values (`PIPELINE_RULES`, `AGENT_POST_INTENT`, `AGENT_POST_MCP`, `TOOL_POST_EXECUTION`) are normalized at runtime.
+
+## Tool execution paths
+
+### Planner MCP path (`McpToolStep`)
+
+1. Planner returns `CALL_TOOL` or `ANSWER`.
+2. Tool results are appended to `context.mcp.observations`.
+3. For `ANSWER`, final text is written to `context.mcp.finalAnswer`.
+4. Rules run in phase `POST_AGENT_MCP`.
+5. Response resolution runs after rule transitions.
+
+### Direct tool path (`ToolOrchestrationStep`)
+
+1. Request contains `tool_request`.
+2. Exactly one tool executes.
+3. Result stored in `inputParams.tool_result` and `context.mcp.toolExecution`.
+4. Rules run in phase `POST_TOOL_EXECUTION`.
+5. Response resolution runs with updated state/context.
+
+## Guardrail blocked answer semantics
+
+When `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
+
+1. `McpToolStep` writes fallback text (`McpConstants.FALLBACK_GUARDRAIL_BLOCKED`) to `context.mcp.finalAnswer`.
+2. Rules in `POST_AGENT_MCP` still execute.
+3. `ce_response` remains the final response authority (commonly `DERIVED` using `context.mcp.finalAnswer`).
+
+## MCP metadata model for rules
+
+`context.mcp.lifecycle`:
+
+- `phase`, `status`, `outcome`, `finished`
+- `blocked`, `error`, `errorMessage`
+- `lastAction`, `lastToolCode`, `lastToolGroup`, `lastToolArgs`
+- `toolExecuted`
+
+`context.mcp.toolExecution`:
+
+- `phase`, `status`, `outcome`, `finished`
+- `error`, `scopeMismatch`, `toolExecuted`
+- `toolCode`, `toolGroup`, `meta`, `result`, `errorMessage`
+
+## JSON_PATH patterns you can use in `ce_rule.match_pattern`
+
+```text
+$[?(@.context.mcp.lifecycle.finished == true && @.context.mcp.lifecycle.outcome == 'BLOCKED')]
+$[?(@.context.mcp.lifecycle.error == true)]
+$[?(@.context.mcp.toolExecution.phase == 'POST_TOOL_EXECUTION' && @.context.mcp.toolExecution.status == 'SUCCESS')]
+$[?(@.context.mcp.toolExecution.scopeMismatch == true)]
+```
+
+## Direct tool example (`POST_TOOL_EXECUTION`)
+
+User asks: `Check order ORD-7017 status.`
+
+```json
+{
+  "tool_request": {
+    "tool_code": "mock.order.status",
+    "tool_group": "HTTP_API",
+    "args": { "orderId": "ORD-7017" }
+  }
+}
+```
+
+Execution:
+
+- `ToolOrchestrationStep` executes one tool.
+- Writes `tool_result` + `tool_status=SUCCESS`.
+- Writes `context.mcp.toolExecution.*`.
+- Executes `POST_TOOL_EXECUTION` rules.
+- Example: rule sets state to `ORDER_SUBMITTED_DIAGNOSIS` when tool status is submitted.
+
+## `ce_mcp_tool` and `ce_mcp_planner` scoping rules
+
+`intent_code` and `state_code` are mandatory (no null/blank scope).
+
+Allowed values:
+
+- `intent_code`: defined `ce_intent.intent_code` or `ANY` or `UNKNOWN`
+- `state_code`: values present in `ce_rule.state_code` or `ANY` or `UNKNOWN`
+
+Invalid scope rows are blocked at startup by static scope validation.
+
+## Planner prompt source (`ce_mcp_planner`)
+
+Planner prompt selection:
+
+1. exact `intent_code + state_code`
+2. exact `intent_code + ANY`
+3. global `ANY + ANY`
+4. legacy fallback (`ce_config` `McpPlanner` keys) if planner rows are unavailable
+
+## SQL snippets
+
+<Tabs groupId="mcp-advanced-sql">
+  <TabItem value="planner" label="Planner Rows" default>
+
+```sql
+INSERT INTO ce_mcp_planner (planner_id, intent_code, state_code, system_prompt, user_prompt, enabled)
+VALUES
+(1001, 'ANY', 'ANY', '...', '...', true),
+(1002, 'LOAN_APPLICATION', 'ELIGIBILITY_GATE', '...', '...', true);
+```
+
+  </TabItem>
+  <TabItem value="tool" label="Tool Rows">
+
+```sql
+INSERT INTO ce_mcp_tool (tool_id, tool_code, tool_group, intent_code, state_code, enabled, description)
+VALUES
+(9001, 'db.knowledge.graph', 'DB', 'ANY', 'ANY', true, 'DB knowledge graph'),
+(9002, 'order.status.api', 'HTTP_API', 'ANY', 'ANY', true, 'Order status API');
+```
+
+  </TabItem>
+</Tabs>
+
+<Highlight type="info" title="Recommended response pattern">
+For MCP chains, keep final user text in `ce_response`/`ce_prompt_template` and treat `context.mcp.finalAnswer` as a derived source, not the final transport payload.
+</Highlight>

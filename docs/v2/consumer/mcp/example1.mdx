@@ -1,0 +1,451 @@
+---
+title: MCP Example 1 (Mockey + Demo)
+sidebar_position: 3
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { DbTable, Highlight, EngineDebugFlow, ChatContainer, TraceChatBubble } from "@site/src/components/convengine";
+
+export const liveExampleNodes = [
+  { id: "u1", data: { label: "User Input" } },
+  { id: "i1", data: { label: "Intent + State Resolution" } },
+  { id: "m1", data: { label: "McpToolStep: plan #1" } },
+  { id: "t1", data: { label: "Tool call: mock.order.status" } },
+  { id: "m2", data: { label: "McpToolStep: plan #2" } },
+  { id: "t2", data: { label: "Tool call: mock.order.async.trace" } },
+  { id: "m3", data: { label: "McpToolStep: ANSWER" } },
+  { id: "r2", data: { label: "Rule: ANALYZE -> COMPLETED (POST_AGENT_MCP)" } },
+  { id: "r1", data: { label: "ResponseResolutionStep" } },
+  { id: "out", data: { label: "Assistant Output" } },
+];
+
+export const liveExampleEdges = [
+  { id: "e1", source: "u1", target: "i1" },
+  { id: "e2", source: "i1", target: "m1" },
+  { id: "e3", source: "m1", target: "t1" },
+  { id: "e4", source: "t1", target: "m2" },
+  { id: "e5", source: "m2", target: "t2" },
+  { id: "e6", source: "t2", target: "m3" },
+  { id: "e7", source: "m3", target: "r2" },
+  { id: "e8", source: "r2", target: "r1" },
+  { id: "e9", source: "r1", target: "out" },
+];
+
+export const liveExampleDetails = {
+  u1: {
+    title: "User Input",
+    stage: "REQUEST",
+    summary: "User asks order status/callback question.",
+    session: ["userText captured"],
+    tables: ["ce_audit (W)"]
+  },
+  i1: {
+    title: "Intent + State Resolution",
+    stage: "INTENT",
+    summary: "Classifier and rules set runtime intent/state for tool eligibility.",
+    session: ["intent/state resolved"],
+    tables: ["ce_intent (R)", "ce_intent_classifier (R)", "ce_rule (R)", "ce_audit (W)"]
+  },
+  m1: {
+    title: "McpToolStep plan #1",
+    stage: "MCP_PLAN_LLM_OUTPUT",
+    summary: "Planner selects first tool based on prompt and available tools.",
+    session: ["mcp_action=CALL_TOOL", "mcp_tool_code=mock.order.status"],
+    tables: ["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]
+  },
+  t1: {
+    title: "Tool call: mock.order.status",
+    stage: "MCP_TOOL_RESULT",
+    summary: "HTTP tool executes via HttpApiToolInvoker and returns mapped payload.",
+    session: ["mcp.observations[0] written"],
+    tables: ["ce_audit (W)"]
+  },
+  m2: {
+    title: "McpToolStep plan #2",
+    stage: "MCP_PLAN_LLM_OUTPUT",
+    summary: "Planner sees first observation and requests async trace tool.",
+    session: ["mcp_tool_code=mock.order.async.trace"],
+    tables: ["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]
+  },
+  t2: {
+    title: "Tool call: mock.order.async.trace",
+    stage: "MCP_TOOL_RESULT",
+    summary: "Second observation appended to context.mcp.observations.",
+    session: ["mcp.observations[1] written"],
+    tables: ["ce_audit (W)"]
+  },
+  m3: {
+    title: "McpToolStep ANSWER",
+    stage: "MCP_FINAL_ANSWER",
+    summary: "Planner returns final answer and it is stored in context.mcp.finalAnswer.",
+    session: ["mcp_final_answer set", "mcp_status=ANSWER"],
+    tables: ["ce_audit (W)"]
+  },
+  r2: {
+    title: "Post-MCP transition",
+    stage: "POST_AGENT_MCP",
+    summary: "If context.mcp.finalAnswer exists, rule moves ORDER_DIAGNOSTICS from ANALYZE to COMPLETED.",
+    session: ["state=COMPLETED"],
+    tables: ["ce_rule (R)", "ce_audit (W)"]
+  },
+  r1: {
+    title: "ResponseResolutionStep",
+    stage: "RESOLVE_RESPONSE",
+    summary: "Resolves ce_response + ce_prompt_template for ORDER_DIAGNOSTICS+COMPLETED using MCP-enriched context.",
+    session: ["payload generated"],
+    tables: ["ce_response (R)", "ce_prompt_template (R)", "ce_audit (W)"]
+  },
+  out: {
+    title: "Assistant Output",
+    stage: "ASSISTANT_OUTPUT",
+    summary: "Resolved output is returned and persisted.",
+    session: ["finalResult returned"],
+    tables: ["ce_conversation (W)", "ce_conversation_history (W async)", "ce_audit (W)"]
+  }
+};
+
+# MCP Example 1 (ConvEngine Demo + Mockey)
+
+This guide shows a complete local test of ConvEngine `2.0.7` advanced MCP HTTP tools using `convengine-demo` and [mockey](https://github.com/salilvnair/mockey).
+
+It covers:
+
+1. starting mock APIs in [mockey](https://github.com/salilvnair/mockey)
+2. wiring demo MCP tools to [mockey](https://github.com/salilvnair/mockey) endpoints
+3. seeding `ce_mcp_tool` and planner prompts
+4. testing via SQL panel + chat requests
+
+## Prerequisites
+
+- [mockey](https://github.com/salilvnair/mockey) repo available locally
+- `convengine-demo` repo available locally
+- Postgres running for `convengine-demo`
+- ConvEngine dependency `2.0.7`
+
+## What is already wired in demo
+
+`convengine-demo` now includes four `HttpApiRequestingToolHandler` mappings:
+
+- `mock.order.submit` -> `POST /api/mock/order/submit`
+- `mock.order.status` -> `GET /api/mock/order/status`
+- `mock.order.async.trace` -> `GET /api/mock/order/async/trace`
+- `mock.customer.profile` -> `GET /api/mock/customer/profile`
+
+Base URL is configured by:
+
+```yaml
+convengine:
+  demo:
+    mockey:
+      base-url: http://localhost:31333
+      api-key: demo-live-key
+```
+
+## Step 1: Start [mockey](https://github.com/salilvnair/mockey)
+
+From [mockey](https://github.com/salilvnair/mockey) root:
+
+```bash
+npm install
+npm start
+```
+
+Expected log:
+
+```text
+listening to 31333
+```
+
+## Step 2: Quick endpoint smoke tests
+
+```bash
+curl -s "http://localhost:31333/api/mock/order/status?orderId=ORD-7017"
+curl -s "http://localhost:31333/api/mock/order/async/trace?orderId=ORD-7017"
+curl -s "http://localhost:31333/api/mock/customer/profile?customerId=CUST-1001"
+curl -s -X POST "http://localhost:31333/api/mock/order/submit" -H "Content-Type: application/json" -d '{"orderId":"ORD-7017","customerId":"CUST-1001","submittedByRole":"ADMIN"}'
+```
+
+## Step 3: Start convengine-demo
+
+From `convengine-demo` root:
+
+```bash
+./mvnw spring-boot:run
+```
+
+## Step 4: Seed MCP tools and planner prompts (SQL panel)
+
+Run `convengine-demo/src/main/resources/sql/seed.sql`.
+
+That seed includes the live MCP tools and ORDER_DIAGNOSTICS response/rule wiring (ANALYZE -> COMPLETED via POST_AGENT_MCP when context.mcp.finalAnswer exists):
+
+```sql
+INSERT INTO ce_mcp_tool (tool_id, tool_code, tool_group, intent_code, state_code, enabled, description)
+VALUES
+(3, 'mock.order.submit', 'HTTP_API', 'ORDER_DIAGNOSTICS', 'ANALYZE', true, 'Submit order through mockey live API'),
+(4, 'mock.order.status', 'HTTP_API', 'ORDER_DIAGNOSTICS', 'ANALYZE', true, 'Fetch order status from mockey live API'),
+(5, 'mock.order.async.trace', 'HTTP_API', 'ORDER_DIAGNOSTICS', 'ANALYZE', true, 'Fetch async callback trace from mockey live API'),
+(6, 'mock.customer.profile', 'HTTP_API', 'ORDER_DIAGNOSTICS', 'ANALYZE', true, 'Fetch customer profile from mockey live API');
+```
+
+Then seed planner prompts (framework seed) if your environment uses scoped MCP planner rows:
+
+- Postgres: `convengine/src/main/resources/sql/mcp_planner_seed.sql` (or `mcp_planner_seed_postgres.sql`)
+- SQLite: `convengine/src/main/resources/sql/mcp_planner_seed_sqlite.sql`
+
+## Step 5: Run as chat-style walkthrough
+
+<Tabs groupId="example1-chat-flow">
+  <TabItem value="chat" label="Conversation" default>
+
+<ChatContainer>
+  <TraceChatBubble
+    role="user"
+    name="Turn 1 - User"
+    message="Order ORD-7017 was submitted by admin, callback is still null. Can you check status and trace?"
+    info={["Intent resolves to diagnostics scope.", "Planner mode starts."]}
+  />
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 1 - Assistant (internal MCP)"
+    message="Calling tools: mock.order.status -> mock.order.async.trace"
+    json={{
+      mcp: {
+        observations: [
+          { toolCode: "mock.order.status", json: "{\"mapped\":{\"orderId\":\"ORD-7017\",\"status\":\"SUBMITTED\"}}" },
+          { toolCode: "mock.order.async.trace", json: "{\"mapped\":{\"orderId\":\"ORD-7017\",\"callbackAt\":null}}" }
+        ]
+      }
+    }}
+    tables={["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]}
+    info={["MCP loop runs until planner returns ANSWER.", "Observations are written in context.mcp.observations."]}
+  />
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 1 - Final Assistant Output"
+    message="Order ORD-7017 is submitted. Async callback is pending/missing, so no callback timestamp is available yet."
+    json={{ mcp: { finalAnswer: "Order submitted, callback pending." } }}
+    tables={["ce_rule (R)", "ce_response (R)", "ce_prompt_template (R)", "ce_conversation (W)"]}
+    info={["POST_AGENT_MCP moves ANALYZE -> COMPLETED when context.mcp.finalAnswer exists.", "ResponseResolutionStep uses context + derivation_hint."]}
+  />
+</ChatContainer>
+
+  </TabItem>
+
+  <TabItem value="turn-table" label="Turn Table">
+
+<DbTable
+  title="Turn-by-turn summary"
+  columns={["Turn/Phase", "What happens", "Tables touched", "Output"]}
+  rows={[
+    ["Turn 1 / Planner loop", "Planner selects status then async-trace tool.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "context.mcp.observations[]"],
+    ["Turn 1 / Planner answer", "Planner writes final MCP answer.", "ce_audit(W)", "context.mcp.finalAnswer"],
+    ["Turn 1 / Post-MCP rule", "POST_AGENT_MCP checks context.mcp.finalAnswer and moves state to COMPLETED.", "ce_rule(R), ce_audit(W)", "state=COMPLETED"],
+    ["Turn 1 / Response resolution", "DERIVED response rendered from context for COMPLETED state.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant text"],
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="api" label="Request Payloads">
+
+```json
+{
+  "userInput": "Order ORD-7017 was submitted by admin, callback is still null. Can you check status and trace?",
+  "contextJson": "{}",
+  "inputParams": {}
+}
+```
+
+Direct deterministic tool payload (optional):
+
+```json
+{
+  "userInput": "Check order status",
+  "contextJson": "{}",
+  "inputParams": {
+    "tool_request": {
+      "tool_code": "mock.order.status",
+      "tool_group": "HTTP_API",
+      "args": {
+        "orderId": "ORD-7017"
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+## Step 6: Validate advanced HTTP behavior
+
+`HttpApiRequestingToolHandler` calls are executed by framework `HttpApiToolInvoker`.
+
+Observation payload will include:
+
+- `status`
+- `attempt`
+- `latencyMs`
+- `mapped`
+
+Expected shape:
+
+```json
+{
+  "status": 200,
+  "attempt": 1,
+  "latencyMs": 40,
+  "mapped": {
+    "orderId": "ORD-7017",
+    "status": "SUBMITTED",
+    "api4AsyncStatus": null
+  }
+}
+```
+
+## Step 7: Verify MCP audit stages
+
+Check audit timeline in audit APIs for:
+
+- `TOOL_ORCHESTRATION_REQUEST`
+- `TOOL_ORCHESTRATION_RESULT`
+- `MCP_TOOL_CALL`
+- `MCP_TOOL_RESULT`
+
+## MCP Output to Final Response (Deep Dive)
+
+This is the exact handoff path from MCP tools to response text/json in the same request turn:
+
+1. `McpToolStep` clears stale `context.mcp.*` at start of turn.
+2. Planner (`McpPlanner`) receives `user_input`, `context`, `mcp_tools`, and current `mcp_observations`.
+3. Each `CALL_TOOL` result is appended into `context.mcp.observations[]` as `{toolCode, json}`.
+4. When planner returns `ANSWER`, step writes:
+   - `context.mcp.finalAnswer`
+   - input param `mcp_final_answer`
+5. `RulesStep` runs `POST_AGENT_MCP` phase; when context.mcp.finalAnswer exists, rule transitions ANALYZE -> COMPLETED.
+6. `ResponseResolutionStep` selects `ce_response` for current intent/state.
+7. If selected response is `DERIVED`, resolver selects matching `ce_prompt_template` and invokes LLM with:
+   - rendered prompt
+   - `derivation_hint` from `ce_response`
+   - `session.contextDict()` as context (includes the MCP block)
+8. Final assistant output is audited (`ASSISTANT_OUTPUT`) and persisted.
+
+<Highlight type="tip" title="Why this works">
+Even if your template does not explicitly reference `mcp_final_answer`, it still receives full context JSON. If `context.mcp.observations` and `context.mcp.finalAnswer` exist, response derivation can use them.
+</Highlight>
+
+## Turn-by-Turn E2E (Tab View)
+
+<Tabs groupId="mcp-live-e2e">
+  <TabItem value="planner-path" label="Planner Path" default>
+
+<DbTable
+  title="Natural language planner path (single request turn)"
+  columns={["Loop/Step", "What LLM deduces", "Tables touched", "Artifact produced"]}
+  rows={[
+    ["Intent+state phase", "Question is an order diagnostics request in tool-eligible scope.", "ce_intent(R), ce_intent_classifier(R), ce_rule(R), ce_audit(W)", "resolved intent/state"],
+    ["MCP loop #1", "Need order status first.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL mock.order.status"],
+    ["Tool exec #1", "HTTP mapped status payload available.", "ce_audit(W)", "context.mcp.observations[0]"],
+    ["MCP loop #2", "Need callback trace to confirm async issue.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL mock.order.async.trace"],
+    ["Tool exec #2", "Trace confirms callback missing/pending.", "ce_audit(W)", "context.mcp.observations[1]"],
+    ["MCP loop #3", "Enough evidence; produce conclusion.", "ce_mcp_planner(R), ce_audit(W)", "context.mcp.finalAnswer + mcp_final_answer"],
+    ["Post-MCP rule", "When context.mcp.finalAnswer exists, move ANALYZE to COMPLETED.", "ce_rule(R), ce_audit(W)", "state=COMPLETED"],
+    ["Response resolution", "Render user-facing answer with MCP evidence.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "final payload"]
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="direct-tool" label="Direct tool_request">
+
+<DbTable
+  title="Deterministic direct tool path"
+  columns={["Step", "What happens", "Tables touched", "Output source"]}
+  rows={[
+    ["ToolOrchestrationStep", "Executes exactly the requested tool without planner loop.", "ce_mcp_tool(R), ce_audit(W)", "inputParams.tool_request"],
+    ["HTTP execution", "Handler + HttpApiToolInvoker returns mapped response.", "ce_audit(W)", "tool_result"],
+    ["Response resolution", "Depending on response mapping, output may be EXACT or DERIVED.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "tool_result + context"],
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="response-internals" label="Response Internals">
+
+<DbTable
+  title="How response derivation consumes MCP data"
+  columns={["Resolver input", "Source", "Example"]}
+  rows={[
+    ["context", "session.contextJson (includes mcp.observations and mcp.finalAnswer)", "{\"mcp\":{\"observations\":[...],\"finalAnswer\":\"...\"}}"],
+    ["user_input", "current request text", "Order ORD-7017 was submitted by admin..."],
+    ["derivation_hint", "ce_response.derivation_hint", "Use MCP observations to explain status and callback condition."],
+    ["prompt template", "ce_prompt_template by intent/state/output format", "TEXT template for ORDER_DIAGNOSTICS + COMPLETED"],
+    ["LLM output", "TextOutputFormatResolver / JsonOutputFormatResolver", "final assistant payload"],
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+
+## Example 1: Explicit prompt wiring (recommended)
+
+Keep it simple:
+
+- direct `tool_request` path uses `inputParams.tool_result`
+- planner path uses `context.mcp.observations` and `context.mcp.finalAnswer`
+
+Use these SQL updates so prompt behavior is explicit:
+
+```sql
+-- Direct tool_request path (ToolOrchestrationStep output)
+UPDATE ce_prompt_template
+SET user_prompt = 'User input: {{user_input}}\nTool result: {{tool_result}}\nContext: {{context}}\nSummarize status and next action.'
+WHERE intent_code = 'FAQ' AND state_code = 'IDLE' AND response_type = 'JSON';
+
+-- Planner path (McpToolStep output)
+UPDATE ce_prompt_template
+SET user_prompt = 'Context JSON:\n{{context}}\n\nRead context.mcp.observations and context.mcp.finalAnswer. Produce a concise diagnostic summary.'
+WHERE intent_code = 'ORDER_DIAGNOSTICS' AND state_code = 'COMPLETED' AND response_type = 'TEXT';
+```
+
+ORDER_DIAGNOSTICS is now included in demo seed with POST_AGENT_MCP completion and DERIVED final response from context.mcp.finalAnswer.
+
+## ReactFlow View
+
+<EngineDebugFlow
+  title="MCP Live Request Execution"
+  subtitle="Planner loop, tool observations, and response resolution handoff."
+  nodes={liveExampleNodes}
+  edges={liveExampleEdges}
+  detailsById={liveExampleDetails}
+  defaultSelectedId="m1"
+/>
+
+## Optional planner-driven test
+
+After deterministic `tool_request` tests pass, ask natural prompts without `tool_request`, for example:
+
+- `Order ORD-7017 was submitted by admin but async callback is null. Check status and trace.`
+
+Planner should choose one or more `mock.*` tools based on descriptions and context.
+
+## Troubleshooting
+
+- `No HttpApiToolHandler...`:
+  - ensure `convengine-demo` depends on ConvEngine `2.0.7`
+  - ensure handler `toolCode()` matches DB `ce_mcp_tool.tool_code`
+- API not called:
+  - confirm [mockey](https://github.com/salilvnair/mockey) running on `31333`
+  - confirm `convengine.demo.mockey.base-url`
+- tool not found:
+  - re-run `seed.sql`
+  - verify `ce_mcp_tool.enabled=true`
+
+## Related pages
+
+- [MCP Basics](/docs/v2/consumer/mcp/basics)
+- [MCP Advanced Guide](/docs/v2/consumer/mcp/advanced)
+- [MCP Example 2 - Loan Application](/docs/v2/consumer/mcp/example2)
+- [Caching & Persistence](/docs/v2/consumer/caching-and-persistence)

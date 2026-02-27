@@ -51,10 +51,10 @@ export const transferEdges = [
 export const transferDetails = {
   t_intent: { title: "Intent resolution", file: "engine/steps/IntentResolutionStep.java", method: "execute(...) ", stage: "INTENT_RESOLVED", summary: "CONNECTION_TRANSFER locked.", session: ["state=IDLE"] },
   t_schema: { title: "Slot extraction", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_INCOMPLETE", summary: "Identifies missing slots.", session: ["missingFields tracked"] },
-  t_rules1: { title: "Bootstrap state", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "Transitions IDLE -> COLLECT_INPUTS.", session: ["state -> COLLECT_INPUTS"] },
+  t_rules1: { title: "Bootstrap state", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCH", summary: "Transitions IDLE -> COLLECT_INPUTS.", session: ["state -> COLLECT_INPUTS"] },
   t_resp1: { title: "Clarification", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Prompts for customerId, email, etc.", session: ["Prompt sent"] },
   t_schema2: { title: "Fill slots", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_COMPLETE", summary: "User provides all missing slots.", session: ["schema locked"] },
-  t_rules2: { title: "Advance", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "Transitions to AWAITING_CONFIRMATION.", session: ["state -> AWAITING_CONFIRMATION"] },
+  t_rules2: { title: "Advance", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCH", summary: "Transitions to AWAITING_CONFIRMATION.", session: ["state -> AWAITING_CONFIRMATION"] },
 };
 
 export const cancelNodes = [
@@ -79,7 +79,7 @@ export const cancelDetails = {
   c_policy: { title: "Policy lock", file: "engine/steps/InteractionPolicyStep.java", method: "execute(...) ", stage: "INTERACTION_POLICY_DECIDED", summary: "Routes to pending task over intent.", session: ["policyDecision=EXECUTE_PENDING_ACTION"] },
   c_guard: { title: "Safety check", file: "engine/steps/GuardrailStep.java", method: "execute(...) ", stage: "GUARDRAIL_ALLOW", summary: "Ensures benign operation.", session: ["result=ALLOW"] },
   c_pending: { title: "Task execute", file: "engine/steps/PendingActionStep.java", method: "execute(...) ", stage: "PENDING_ACTION_EXECUTED", summary: "Triggers API cancellation bean.", session: ["status=EXECUTED"] },
-  c_rules: { title: "Completion rule", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "EXECUTED -> CANCELLED state.", session: ["state -> CANCELLED"] },
+  c_rules: { title: "Completion rule", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCH", summary: "EXECUTED -> CANCELLED state.", session: ["state -> CANCELLED"] },
   c_resp: { title: "Response", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Completion text.", session: ["done"] },
 };
 
@@ -175,8 +175,8 @@ Step loop invokes each <MethodRef>execute(session)</MethodRef>. If a step return
   <TabItem value="conversation" label="Conversation + Flow" default>
 
 <Conversation title="FAQ">
-  <User>How do I transfer my electricity connection?</User>
-  <Assistant>Share customerId, phone, email, source city, and target city. Then confirm to submit transfer.</Assistant>
+  <User info={["FAQ style informational request.", "Triggers QUESTION dialogue act."]}>How do I transfer my electricity connection?</User>
+  <Assistant tables={["ce_intent", "ce_intent_classifier", "ce_response"]} info={["Intent resolved as FAQ.", "Response selected from FAQ mapping."]}>Share customerId, phone, email, source city, and target city. Then confirm to submit transfer.</Assistant>
 </Conversation>
 
 <EngineDebugFlow title="FAQ runtime flow" subtitle="Basic Intent + Memory retention" nodes={faqNodes} edges={faqEdges} detailsById={faqDetails} defaultSelectedId="faq_intent" />
@@ -228,10 +228,10 @@ VALUES ('FAQ', 'IDLE', 'TEXT', 'DERIVED',
   <TabItem value="conversation" label="Conversation + Flow" default>
 
 <Conversation title="Connection transfer conversation">
-  <User>Move my electricity connection from City1 to City2.</User>
-  <Assistant>Please provide customerId, phone, email, sourceCity, and targetCity.</Assistant>
-  <User>customerId 9912, phone 9988776655, email user@zapper.com, sourceCity City1, targetCity City2</User>
-  <Assistant>Do you want to move this connection right away?</Assistant>
+  <User info={["Initial transfer request.", "Intent should resolve to CONNECTION_TRANSFER."]}>Move my electricity connection from City1 to City2.</User>
+  <Assistant tables={["ce_output_schema", "ce_response"]} info={["Schema incomplete path.", "Assistant asks for required fields."]}>Please provide customerId, phone, email, sourceCity, and targetCity.</Assistant>
+  <User info={["User provides all required slots.", "Schema completeness expected = true."]}>customerId 9912, phone 9988776655, email user@zapper.com, sourceCity City1, targetCity City2</User>
+  <Assistant tables={["ce_rule", "ce_pending_action"]} info={["State moves to AWAITING_CONFIRMATION.", "Pending action staged for confirmation."]}>Do you want to move this connection right away?</Assistant>
 </Conversation>
 
 <EngineDebugFlow title="Connection Transfer Flow" subtitle="Slot fill auto advance" nodes={transferNodes} edges={transferEdges} detailsById={transferDetails} defaultSelectedId="t_schema" />
@@ -247,8 +247,8 @@ VALUES ('CONNECTION_TRANSFER', 'JSON', '{"properties":{"customerId":{},"phone":{
 
 INSERT INTO ce_rule (phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled)
 VALUES
-('PIPELINE_RULES', 'CONNECTION_TRANSFER', 'IDLE', 'REGEX', '.*', 'SET_STATE', 'COLLECT_INPUTS', 10, true),
-('PIPELINE_RULES', 'CONNECTION_TRANSFER', 'COLLECT_INPUTS', 'JSON_PATH',
+('PRE_RESPONSE_RESOLUTION', 'CONNECTION_TRANSFER', 'IDLE', 'REGEX', '.*', 'SET_STATE', 'COLLECT_INPUTS', 10, true),
+('PRE_RESPONSE_RESOLUTION', 'CONNECTION_TRANSFER', 'COLLECT_INPUTS', 'JSON_PATH',
  '$[?(@.state == ''COLLECT_INPUTS'' && @.customerId && @.phone && @.email && @.sourceCity && @.targetCity)]',
  'SET_STATE', 'AWAITING_CONFIRMATION', 100, true);
 
@@ -268,7 +268,7 @@ VALUES ('CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'DERIVED', 'TEXT', true)
   rows={[
     ["INTENT_RESOLVED", "Intent locked to CONNECTION_TRANSFER"],
     ["SCHEMA_INCOMPLETE", "Signals partial JSON payload extraction"],
-    ["RULE_MATCHED", "Initial IDLE -> COLLECT_INPUTS switch"],
+    ["RULE_MATCH", "Initial IDLE -> COLLECT_INPUTS switch"],
     ["ASSISTANT_OUTPUT", "Prompts for slot filling"]
   ]}
 />
@@ -282,12 +282,12 @@ VALUES ('CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'DERIVED', 'TEXT', true)
   <TabItem value="conversation" label="Conversation + Flow" default>
 
 <Conversation title="Protected Order Cancellation">
-  <User>Cancel my shoe order.</User>
-  <Assistant>What is your order number?</Assistant>
-  <User>It's 48392.</User>
-  <Assistant>Are you sure you want to cancel order 48392?</Assistant>
-  <User>Yes please do that.</User>
-  <Assistant>Order 48392 has been completely cancelled.</Assistant>
+  <User info={["Cancellation intent request.", "Order id missing in this turn."]}>Cancel my shoe order.</User>
+  <Assistant tables={["ce_output_schema", "ce_response"]} info={["Missing-field follow-up.", "Collect order number before execution."]}>What is your order number?</Assistant>
+  <User info={["Provides order number.", "Enables confirmation state transition."]}>It's 48392.</User>
+  <Assistant tables={["ce_rule", "ce_pending_action"]} info={["Action moved to confirmation state.", "Awaiting explicit AFFIRM from user."]}>Are you sure you want to cancel order 48392?</Assistant>
+  <User info={["AFFIRM dialogue act.", "Interaction policy should execute pending action."]}>Yes please do that.</User>
+  <Assistant tables={["ce_audit", "ce_response"]} info={["Pending action executed.", "Final cancelled response generated."]}>Order 48392 has been completely cancelled.</Assistant>
 </Conversation>
 
 <EngineDebugFlow title="Action Execution Flow (Turn 3)" subtitle="Interaction Policy executing Pending Action" nodes={cancelNodes} edges={cancelEdges} detailsById={cancelDetails} defaultSelectedId="c_policy" />
@@ -331,10 +331,10 @@ VALUES ('CANCEL_ORDER', 'DERIVED', 'Format cleanly.', 'Order {{context.orderNumb
   <TabItem value="conversation" label="Conversation + Flow" default>
 
 <Conversation title="DB Orchestration Flow">
-  <User>How many running shoes are left in warehouse B?</User>
-  <Assistant>Checking the inventory database...</Assistant>
-  <User>*[System delay executing Tool]*</User>
-  <Assistant>We currently have 421 units of running shoes allocated to warehouse B.</Assistant>
+  <User info={["Tool-backed inventory lookup request.", "Expected tool group: DB/INVENTORY."]}>How many running shoes are left in warehouse B?</User>
+  <Assistant tables={["ce_mcp_tool"]} info={["Tool orchestration starts.", "System preparing DB call."]}>Checking the inventory database...</Assistant>
+  <User info={["Represents async tool latency.", "No new user data provided."]}>*[System delay executing Tool]*</User>
+  <Assistant tables={["ce_audit", "ce_response"]} info={["tool_result injected into response derivation.", "Final value rendered from tool output."]}>We currently have 421 units of running shoes allocated to warehouse B.</Assistant>
 </Conversation>
 
 <EngineDebugFlow title="Tool Request Flow" subtitle="Tool orchestration injects payload" nodes={invNodes} edges={invEdges} detailsById={invDetails} defaultSelectedId="i_orch" />
@@ -375,8 +375,8 @@ VALUES ('DATABASE_QUERY', 'IDLE', 'DERIVED', 'tmpl_inventory_gen', 10, true);`}
   <TabItem value="conversation" label="Conversation + Flow" default>
 
 <Conversation title="Long Context Support Thread">
-  <User>[Turn 15]: Wait, what link did you tell me to use for the firmware reset again?</User>
-  <Assistant>Based on our previous troubleshooting, you should use http://router.local/admin_reset with the default PIN 1234.</Assistant>
+  <User info={["Late-turn follow-up question.", "Requires memory/session summary recall."]}>[Turn 15]: Wait, what link did you tell me to use for the firmware reset again?</User>
+  <Assistant tables={["ce_conversation_history", "ce_audit"]} info={["Memory-assisted recall response.", "References earlier troubleshooting context."]}>Based on our previous troubleshooting, you should use http://router.local/admin_reset with the default PIN 1234.</Assistant>
 </Conversation>
 
 <EngineDebugFlow title="Memory Summary Flow" subtitle="Long-context retrieval during turn evaluation" nodes={supportNodes} edges={supportEdges} detailsById={supportDetails} defaultSelectedId="s_mem1" />

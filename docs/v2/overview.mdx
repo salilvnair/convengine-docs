@@ -26,16 +26,17 @@ ConvEngine is a deterministic conversation workflow engine with explicit turn-co
   - `MemoryStep`
   - `ConversationReplayService`
 - Rule phases expanded with post-tool/post-mcp execution:
-  - `MCP_POST_LLM`
-  - `TOOL_POST_EXECUTION`
-- New control table:
+  - `POST_AGENT_MCP`
+  - `POST_TOOL_EXECUTION`
+- New control tables:
   - `ce_pending_action`
+  - `ce_verbose` (runtime progress/error messaging)
 
 ## Runtime model
 
 ConvEngine remains config-first:
 
-- DB control plane: `ce_intent*`, `ce_rule`, `ce_response`, `ce_prompt_template`, `ce_pending_action`, `ce_mcp_*`
+- DB control plane: `ce_intent*`, `ce_rule`, `ce_response`, `ce_prompt_template`, `ce_pending_action`, `ce_verbose`, `ce_mcp_*`
 - Runtime policy config: `convengine.flow.*`
 - Deterministic pipeline with audited stage output
 

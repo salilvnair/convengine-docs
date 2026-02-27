@@ -53,10 +53,10 @@ export const transferEdges = [
 export const transferDetails = {
   t_intent: { title: "Intent resolution", file: "engine/steps/IntentResolutionStep.java", method: "execute(...) ", stage: "INTENT_RESOLVED", summary: "CONNECTION_TRANSFER locked.", session: ["state=IDLE"] },
   t_schema: { title: "Slot extraction", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_INCOMPLETE", summary: "Identifies missing slots.", session: ["missingFields tracked"] },
-  t_rules1: { title: "Bootstrap state", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "Transitions IDLE -> COLLECT_INPUTS.", session: ["state -> COLLECT_INPUTS"] },
+  t_rules1: { title: "Bootstrap state", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCH", summary: "Transitions IDLE -> COLLECT_INPUTS.", session: ["state -> COLLECT_INPUTS"] },
   t_resp1: { title: "Clarification", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Prompts for customerId, email, etc.", session: ["Prompt sent"] },
   t_schema2: { title: "Fill slots", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_COMPLETE", summary: "User provides all missing slots.", session: ["schema locked"] },
-  t_rules2: { title: "Advance", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "Transitions to AWAITING_CONFIRMATION.", session: ["state -> AWAITING_CONFIRMATION"] },
+  t_rules2: { title: "Advance", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCH", summary: "Transitions to AWAITING_CONFIRMATION.", session: ["state -> AWAITING_CONFIRMATION"] },
 };
 
 export const cancelNodes = [
@@ -81,7 +81,7 @@ export const cancelDetails = {
   c_policy: { title: "Policy lock", file: "engine/steps/InteractionPolicyStep.java", method: "execute(...) ", stage: "INTERACTION_POLICY_DECIDED", summary: "Routes to pending task over intent.", session: ["policyDecision=EXECUTE_PENDING_ACTION"] },
   c_guard: { title: "Safety check", file: "engine/steps/GuardrailStep.java", method: "execute(...) ", stage: "GUARDRAIL_ALLOW", summary: "Ensures benign operation.", session: ["result=ALLOW"] },
   c_pending: { title: "Task execute", file: "engine/steps/PendingActionStep.java", method: "execute(...) ", stage: "PENDING_ACTION_EXECUTED", summary: "Triggers API cancellation bean.", session: ["status=EXECUTED"] },
-  c_rules: { title: "Completion rule", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "EXECUTED -> CANCELLED state.", session: ["state -> CANCELLED"] },
+  c_rules: { title: "Completion rule", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCH", summary: "EXECUTED -> CANCELLED state.", session: ["state -> CANCELLED"] },
   c_resp: { title: "Response", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Completion text.", session: ["done"] },
 };
 
@@ -270,7 +270,7 @@ VALUES ('CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'DERIVED', 'TEXT', true)
   rows={[
     ["INTENT_RESOLVED", "Intent locked to CONNECTION_TRANSFER"],
     ["SCHEMA_INCOMPLETE", "Signals partial JSON payload extraction"],
-    ["RULE_MATCHED", "Initial IDLE -> COLLECT_INPUTS switch"],
+    ["RULE_MATCH", "Initial IDLE -> COLLECT_INPUTS switch"],
     ["ASSISTANT_OUTPUT", "Prompts for slot filling"]
   ]}
 />

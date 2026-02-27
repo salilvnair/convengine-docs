@@ -1,0 +1,108 @@
+---
+title: MCP HTTP Tool
+sidebar_position: 3
+---
+
+import { DbTable, Highlight } from "@site/src/components/convengine";
+
+# MCP HTTP Tool
+
+ConvEngine supports two HTTP MCP integration models.
+
+## Two ways
+
+<DbTable
+  title="HTTP MCP models"
+  columns={["Model", "Use when", "How it executes"]}
+  rows={[
+    ["HttpApiRequestingToolHandler", "You want framework-managed retries/timeouts/circuit/auth/mapping", "HttpApiToolInvoker (framework HttpClient)"],
+    ["HttpApiApiProcessorToolHandler", "You already use [api-processor](https://github.com/salilvnair/api-processor) in your app", "RestWebServiceFacade -> delegate.invoke -> processResponse"],
+  ]}
+/>
+
+Related libraries:
+- [api-processor](https://github.com/salilvnair/api-processor)
+- [ccf-core](https://github.com/salilvnair/ccf-core)
+
+## Model A: HttpApiRequestingToolHandler
+
+### Flow
+
+1. Handler returns `HttpApiRequestSpec`
+2. Framework executes HTTP call
+3. Mapping mode resolves output
+4. MCP observation is stored
+
+Supported mapping modes:
+
+- `RAW_JSON`
+- `JSON_PATH`
+- `FIELD_TEMPLATE`
+- `MAPPER_CLASS`
+- `TEXT`
+
+`MAPPER_CLASS` example:
+
+```java
+new HttpApiResponseMapping(
+        HttpApiResponseMappingMode.MAPPER_CLASS,
+        null,
+        Map.of(),
+        "com.acme.api.OrderStatusResponse");
+```
+
+## Model B: HttpApiApiProcessorToolHandler
+
+### Flow
+
+1. `wsContext(...)` builds tool context
+2. `wsHandler(...)` returns `RestWebServiceHandler`
+3. Framework calls `RestWebServiceFacade.initiate(...)`
+4. `prepareRequest(...)` runs
+5. delegate `invoke(...)` runs
+6. `processResponse(...)` maps output
+7. framework calls `extractResponse(...)` and stores MCP observation
+
+## convengine-demo package convention
+
+In demo we now keep each [api-processor](https://github.com/salilvnair/api-processor) MCP tool in its own folder tree with dedicated handler/delegate:
+
+- `mcp/handler/loan/credit/rating/...`
+- `mcp/handler/loan/credit/fraud/...`
+- `mcp/handler/loan/application/submit/...`
+- `mcp/handler/mock/customer/profile/...`
+- `mcp/handler/mock/order/status/...`
+- `mcp/handler/mock/order/async/trace/...`
+- `mcp/handler/mock/order/submit/...`
+
+Each tool folder contains:
+
+- `<Tool>ToolHandler` (MCP SPI class)
+- `handler/<Tool>WsHandler`
+- `delegate/<Tool>WsDelegate`
+
+Shared lightweight helper types are in:
+
+- `mcp/handler/common/...`
+
+<Highlight type="tip" title="Debt tool intentionally unchanged">
+As requested, `LoanDebtSummaryToolHandler` remains `HttpApiRequestingToolHandler` to demonstrate the framework-managed HTTP model side-by-side with [api-processor](https://github.com/salilvnair/api-processor) mode.
+</Highlight>
+
+## What MockOrderAsyncTraceToolHandler does
+
+`mock.order.async.trace` fetches async callback trace details for an order:
+
+- `traceId`
+- `api4AsyncStatus`
+- `callbackReceivedAt`
+- `message`
+
+It is used in order diagnostics flow to explain why an order can be submitted while async callback is still pending or null.
+
+## Related
+
+- [MCP Basics](/docs/v2/consumer/mcp/basics)
+- [MCP Advanced Guide](/docs/v2/consumer/mcp/advanced)
+- [MCP Example 1](/docs/v2/consumer/mcp/example1)
+- [MCP Example 2](/docs/v2/consumer/mcp/example2)

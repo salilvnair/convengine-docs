@@ -5,52 +5,62 @@ sidebar_position: 10
 
 # MCP, Tool Orchestration, and Audit (v2)
 
-## Two tool paths in v2
+## Two tool paths
 
-1. `ToolOrchestrationStep`
-- direct request path via `tool_request`
-- executes exactly one tool request
-- runs `TOOL_POST_EXECUTION` rules
+1. `ToolOrchestrationStep` (direct tool mode)
+- request-driven via `tool_request`
+- executes one tool
+- runs `POST_TOOL_EXECUTION` rules
+- writes `context.mcp.toolExecution.*`
 
-2. `McpToolStep`
-- planner loop path (`CALL_TOOL`/`ANSWER`)
-- supports up to bounded loops
-- writes observations/final answer to `context.mcp`
-- runs `MCP_POST_LLM` rules
+2. `McpToolStep` (planner loop mode)
+- planner loop (`CALL_TOOL`/`ANSWER`)
+- writes `context.mcp.observations[]` and `context.mcp.finalAnswer`
+- runs `POST_AGENT_MCP` rules
+- writes `context.mcp.lifecycle.*`
 
-## Executor model
+## Guardrail blocked branch
 
-Both paths dispatch to `McpToolExecutor` implementations by normalized `tool_group`.
+If planner proposes a blocked next tool:
 
-Built-in groups:
+- `mcp_status=GUARDRAIL_BLOCKED_NEXT_TOOL`
+- fallback final text is written to `context.mcp.finalAnswer`
+- `POST_AGENT_MCP` rules still run
+- response is still finalized by `ce_response` resolution
 
-- `DB`
-- `HTTP_API`
-- `WORKFLOW_ACTION`
-- `DOCUMENT_RETRIEVAL`
-- `CALCULATOR_TRANSFORM`
-- `NOTIFICATION`
-- `FILES`
+## Rule-ready MCP metadata
 
-Adapter interfaces exist so consumers can plug business implementations without editing engine steps.
+`context.mcp.lifecycle` includes:
 
-## Guardrail integration
+- `phase`, `status`, `outcome`, `finished`
+- `blocked`, `error`, `errorMessage`
+- `lastAction`, `lastToolCode`, `lastToolGroup`, `lastToolArgs`
+- `toolExecuted`
 
-If guardrail blocks execution:
+`context.mcp.toolExecution` includes:
 
-- `skip_tool_execution=true`
-- MCP/tool steps safely skip
-- no unhandled errors required for this branch
+- `phase`, `status`, `outcome`, `finished`
+- `error`, `scopeMismatch`, `toolExecuted`
+- `toolCode`, `toolGroup`, `meta`, `result`, `errorMessage`
+
+## JSON_PATH examples for `ce_rule.match_pattern`
+
+```text
+$[?(@.context.mcp.lifecycle.finished == true && @.context.mcp.lifecycle.outcome == 'BLOCKED')]
+$[?(@.context.mcp.lifecycle.error == true)]
+$[?(@.context.mcp.toolExecution.phase == 'POST_TOOL_EXECUTION' && @.context.mcp.toolExecution.status == 'SUCCESS')]
+$[?(@.context.mcp.toolExecution.scopeMismatch == true)]
+```
 
 ## Audit stages to watch
 
-Tool orchestration:
+Tool orchestration path:
 
 - `TOOL_ORCHESTRATION_REQUEST`
 - `TOOL_ORCHESTRATION_RESULT`
 - `TOOL_ORCHESTRATION_ERROR`
 
-MCP planner:
+Planner MCP path:
 
 - `MCP_PLAN_LLM_INPUT`
 - `MCP_PLAN_LLM_OUTPUT`
@@ -59,15 +69,17 @@ MCP planner:
 - `MCP_TOOL_ERROR`
 - `MCP_FINAL_ANSWER`
 
-## MCP tool scope filtering
+Rule phases around these paths:
 
-`ce_mcp_tool` supports optional runtime scope columns:
+- `RULE_MATCH (McpToolStep)` / `RULE_NO_MATCH (McpToolStep)`
+- `RULE_MATCH (ToolOrchestrationStep PostTool)` / `RULE_NO_MATCH (ToolOrchestrationStep PostTool)`
+- `RULE_MATCH (AgentIntentResolver)` / `RULE_NO_MATCH (AgentIntentResolver)`
+- `RULE_MATCH (RulesStep)` / `RULE_NO_MATCH (RulesStep)`
 
-- `intent_code`
-- `state_code`
+## Scope enforcement
 
-Eligibility rules:
+`ce_mcp_tool` and `ce_mcp_planner` are scope-validated at startup:
 
-- `NULL` scope values are wildcards
-- non-null scope values must match current `session.intent` and `session.state`
-- if no MCP tool matches current scope, MCP step skips safely and emits `MCP_NO_TOOLS_AVAILABLE`
+- null/blank scope rows are rejected
+- `intent_code` must be `ANY`, `UNKNOWN`, or defined in `ce_intent`
+- `state_code` must be `ANY`, `UNKNOWN`, or present in `ce_rule.state_code`

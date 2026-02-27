@@ -55,7 +55,7 @@ export const disconnectDetails = {
   d_schema: { title: "Schema extraction", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_INCOMPLETE", summary: "Missing fields are detected and intent is locked.", session: ["missingFields tracked"], tables: ["ce_output_schema, ce_prompt_template"] },
   d_followup: { title: "Clarification", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Returns follow-up for missing fields.", session: ["follow-up payload"], tables: ["ce_response"] },
   d_turn2: { title: "Session continuity", file: "engine/steps/LoadOrCreateConversationStep.java", method: "execute(...) ", stage: "SESSION_REHYDRATE", summary: "Restores same conversation context.", session: ["existing context loaded"], tables: ["ce_conversation"] },
-  d_rules: { title: "Transition", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "Applies state transition once schema complete.", session: ["state moved"], tables: ["ce_rule"] },
+  d_rules: { title: "Transition", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCH", summary: "Applies state transition once schema complete.", session: ["state moved"], tables: ["ce_rule"] },
   d_done: { title: "Finalization", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "CONVERSATION_PERSIST", summary: "Sends final message and persists.", session: ["final payload"], tables: ["ce_response, ce_conversation"] },
 };
 
@@ -75,7 +75,7 @@ export const logEdges = [
 export const logDetails = {
   l_intent: { title: "Intent", file: "engine/steps/IntentResolutionStep.java", method: "execute(...) ", stage: "INTENT_RESOLVED", summary: "LOG_ANALYSIS selected.", session: ["intent=LOG_ANALYSIS"], tables: ["ce_intent"] },
   l_schema: { title: "Extracted facts", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_EVALUATED", summary: "Extracts structured fields from logs.", session: ["schemaJson prepared"], tables: ["ce_output_schema"] },
-  l_rules: { title: "Rule action", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "GET_SCHEMA_JSON action reads extracted values.", session: ["rule context enriched"], tables: ["ce_rule"] },
+  l_rules: { title: "Rule action", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCH", summary: "GET_SCHEMA_JSON action reads extracted values.", session: ["rule context enriched"], tables: ["ce_rule"] },
   l_resp: { title: "Derived answer", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Prompt template creates RCA summary.", session: ["derived response"], tables: ["ce_prompt_template, ce_response"] },
 };
 
@@ -95,7 +95,7 @@ export const trackerEdges = [
 export const trackerDetails = {
   t_intent: { title: "Intent", file: "engine/steps/IntentResolutionStep.java", method: "execute(...) ", stage: "INTENT_RESOLVED", summary: "REQUEST_TRACKER selected.", session: ["intent=REQUEST_TRACKER"], tables: ["ce_intent"] },
   t_schema: { title: "Extraction", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...) ", stage: "SCHEMA_EVALUATED", summary: "Extracts requestId.", session: ["requestId available"], tables: ["ce_output_schema"] },
-  t_rules: { title: "Task assignment", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCHED", summary: "SET_TASK marks consumer work.", session: ["task set"], tables: ["ce_rule"] },
+  t_rules: { title: "Task assignment", file: "engine/steps/RulesStep.java", method: "execute(...) ", stage: "RULE_MATCH", summary: "SET_TASK marks consumer work.", session: ["task set"], tables: ["ce_rule"] },
   t_resp: { title: "Output", file: "engine/steps/ResponseResolutionStep.java", method: "execute(...) ", stage: "ASSISTANT_OUTPUT", summary: "Builds final status message.", session: ["payload finalized"], tables: ["ce_response"] },
 };
 
@@ -249,7 +249,7 @@ public EngineResult process(EngineContext engineContext) {
       }
       RuleOutcome outcome = actionExecutor.apply(rule, session);
       changed = changed || outcome.mutatedIntentOrState();
-      audit.audit("RULE_MATCHED", session.getConversationId(), Map.of("ruleId", rule.getId(), "action", rule.getAction()));
+      audit.audit("RULE_MATCH", session.getConversationId(), Map.of("ruleId", rule.getId(), "action", rule.getAction()));
     }
   } while (changed && pass < 4);
 
@@ -295,8 +295,8 @@ public EngineResult process(EngineContext engineContext) {
   <TabItem value="conversation" label="Conversation + Flow" default>
 
 <Conversation title="FAQ">
-  <User>Can I move my connection within Zapper?</User>
-  <Assistant>Yes. You can request relocation from the support portal.</Assistant>
+  <User info={["FAQ request.", "Classifier should map to FAQ intent."]}>Can I move my connection within Zapper?</User>
+  <Assistant tables={["ce_intent", "ce_response"]} info={["Exact FAQ response returned.", "No pending action required."]}>Yes. You can request relocation from the support portal.</Assistant>
 </Conversation>
 
 <EngineDebugFlow title="FAQ runtime flow" subtitle="Classifier-first deterministic path" nodes={faqNodes} edges={faqEdges} detailsById={faqDetails} defaultSelectedId="faq_intent" />
@@ -349,10 +349,10 @@ values ('ResetConversationStep', 'RESET_COMMAND', 'RESET_SESSION', true);`}
   <TabItem value="conversation" label="Conversation + Flow" default>
 
 <Conversation title="DISCONNECT_ELECTRICITY">
-  <User>Disconnect electricity for account 10004567.</User>
-  <Assistant>Please share disconnect date and reason.</Assistant>
-  <User>Date is 2026-03-31, reason moving out.</User>
-  <Assistant>Done. Request submitted.</Assistant>
+  <User info={["Disconnect request with partial fields.", "Follow-up expected for missing values."]}>Disconnect electricity for account 10004567.</User>
+  <Assistant tables={["ce_output_schema", "ce_response"]} info={["Schema incomplete.", "Assistant requests missing fields."]}>Please share disconnect date and reason.</Assistant>
+  <User info={["Provides disconnectDate and reason.", "Schema expected to complete."]}>Date is 2026-03-31, reason moving out.</User>
+  <Assistant tables={["ce_rule", "ce_response"]} info={["Rules advance flow.", "Final submission response generated."]}>Done. Request submitted.</Assistant>
 </Conversation>
 
 <EngineDebugFlow title="Disconnect flow" subtitle="Incomplete schema -> follow-up -> complete -> finalize" nodes={disconnectNodes} edges={disconnectEdges} detailsById={disconnectDetails} defaultSelectedId="d_schema" />
@@ -383,7 +383,7 @@ values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED', 'DERIVED', 'TEXT', true);`
     ["SCHEMA_INCOMPLETE", "Missing fields detected"],
     ["ASSISTANT_OUTPUT", "Follow-up asked"],
     ["SCHEMA_COMPLETE", "All required fields present"],
-    ["RULE_MATCHED", "State transition executed"],
+    ["RULE_MATCH", "State transition executed"],
     ["CONVERSATION_PERSIST", "Final state stored"],
   ]}
 />
@@ -397,8 +397,8 @@ values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED', 'DERIVED', 'TEXT', true);`
   <TabItem value="conversation" label="Conversation + Flow" default>
 
 <Conversation title="LOG_ANALYSIS">
-  <User>Analyze timeout logs and tell root cause.</User>
-  <Assistant>Root cause is DB connection pool saturation from 11:02 to 11:07 UTC.</Assistant>
+  <User info={["Analysis request.", "Intent should resolve to LOG_ANALYSIS."]}>Analyze timeout logs and tell root cause.</User>
+  <Assistant tables={["ce_prompt_template", "ce_response"]} info={["Derived response generated from analysis context.", "Outputs probable root cause window."]}>Root cause is DB connection pool saturation from 11:02 to 11:07 UTC.</Assistant>
 </Conversation>
 
 <EngineDebugFlow title="Log analysis flow" subtitle="GET_SCHEMA_JSON rule and DERIVED output" nodes={logNodes} edges={logEdges} detailsById={logDetails} defaultSelectedId="l_rules" />
@@ -426,7 +426,7 @@ values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED', 'DERIVED', 'TEXT', true);`
   rows={[
     ["INTENT_RESOLVED", "LOG_ANALYSIS selected"],
     ["SCHEMA_EVALUATED", "Structured facts extracted"],
-    ["RULE_MATCHED", "GET_SCHEMA_JSON evaluated"],
+    ["RULE_MATCH", "GET_SCHEMA_JSON evaluated"],
     ["ASSISTANT_OUTPUT", "Derived explanation produced"],
   ]}
 />
@@ -440,8 +440,8 @@ values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED', 'DERIVED', 'TEXT', true);`
   <TabItem value="conversation" label="Conversation + Flow" default>
 
 <Conversation title="REQUEST_TRACKER">
-  <User>Track request REQ-778102.</User>
-  <Assistant>REQ-778102 is IN_REVIEW and assigned to Queue-3.</Assistant>
+  <User info={["Tracking request with requestId.", "Task/rule lookup path expected."]}>Track request REQ-778102.</User>
+  <Assistant tables={["ce_rule", "ce_response"]} info={["Tracker task resolved.", "Status response returned from derived flow."]}>REQ-778102 is IN_REVIEW and assigned to Queue-3.</Assistant>
 </Conversation>
 
 <EngineDebugFlow title="Tracker flow" subtitle="SET_TASK driven state path" nodes={trackerNodes} edges={trackerEdges} detailsById={trackerDetails} defaultSelectedId="t_rules" />
@@ -468,7 +468,7 @@ values ('DISCONNECT_ELECTRICITY', 'COLLECT_REQUIRED', 'DERIVED', 'TEXT', true);`
   columns={["Stage", "Meaning"]}
   rows={[
     ["INTENT_RESOLVED", "REQUEST_TRACKER selected"],
-    ["RULE_MATCHED", "SET_TASK applied"],
+    ["RULE_MATCH", "SET_TASK applied"],
     ["ASSISTANT_OUTPUT", "Status response emitted"],
     ["CONVERSATION_PERSIST", "Turn persisted"],
   ]}

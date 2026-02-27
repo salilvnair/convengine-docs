@@ -3,9 +3,87 @@ title: Version History
 sidebar_position: 30
 ---
 
+## 2.0.8
+
+2.0.8 is the runtime observability and deterministic-progress release line. Compared to 2.0.7, this adds database-driven verbose messaging, step telemetry in session context, stream envelope upgrades, and tighter MCP schema completeness behavior.
+
+- New control-plane table for runtime verbose messaging:
+  - `ce_verbose` added across DDLs (`ddl.sql`, `ddl_postgres.sql`, `ddl_oracle.sql`, `ddl_sqlite.sql`).
+  - seed rows added across seeds (`seed.sql`, `seed_postgres.sql`, `seed_oracle.sql`, `seed_sqlite.sql`).
+  - standalone SQL assets added:
+    - `src/main/resources/sql/verbose_ddl.sql`
+    - `src/main/resources/sql/verbose_seed.sql`
+- Static cache integration for verbose table:
+  - `StaticConfigurationCacheService#getAllVerboses()` with cache key `ce_verbose`.
+  - preload and integrity validation wired into startup (`StaticTableCachePreloader`, `StaticScopeIntegrityValidator`).
+  - validation now enforces `step_match` in `EXACT|REGEX|JSON_PATH` and non-empty `step_value` / `determinant`.
+- New verbose runtime transport model:
+  - `VerboseStreamPayload` DTO added.
+  - stream envelope (`AuditStreamEventResponse`) now includes:
+    - `eventType`
+    - optional `verbose` payload
+  - both SSE and STOMP publish `AUDIT` and `VERBOSE` events on conversation channel.
+- Step telemetry model added to session:
+  - new `StepInfo` model
+  - `EngineSession.stepInfos` now stores per-step status/timing/outcome/error metadata
+  - pipeline writes deterministic step markers (`STEP_ENTER`, `STEP_EXIT`, `STEP_ERROR`).
+- Verbose publishing across core pipeline and resolvers:
+  - step lifecycle (`EnginePipelineFactory` hook path)
+  - intent lifecycle (`AgentIntentResolver`)
+  - rule lifecycle (`RulesStep`, `RuleActionResolverFactory`)
+  - response/output resolver selection (`ResponseTypeResolverFactory`, `OutputFormatResolverFactory`)
+  - tool + MCP lifecycle (`ToolOrchestrationStep`, `McpToolStep`)
+  - response resolution (`ResponseResolutionStep`)
+- MCP schema completeness hardening:
+  - new stage `MCP_SKIPPED_SCHEMA_INCOMPLETE`
+  - new status `STATUS_SKIPPED_SCHEMA_INCOMPLETE`
+  - `McpToolStep` now skips MCP execution when schema-required fields are missing and writes lifecycle metadata deterministically.
+
+## 2.0.7
+
+2.0.7 is the MCP revamp release line. Compared to 2.0.6, this adds planner-scoped prompts, advanced tool execution modes, stricter static scope validation, richer MCP runtime metadata, and renamed rule phases.
+
+- Advanced MCP execution model:
+  - DB handler-first path (`DbToolHandler`) with SQL-template fallback.
+  - HTTP handler models:
+    - `HttpApiApiProcessorToolHandler` ([api-processor](https://github.com/salilvnair/api-processor) / RestWebServiceFacade path)
+    - `HttpApiRequestingToolHandler` (framework-managed request policy path)
+    - classic `HttpApiToolHandler`.
+- HTTP policy support in framework invoker:
+  - timeout, retry/backoff, in-memory circuit breaker, auth providers, response mapping.
+- MCP planner scoping table:
+  - `ce_mcp_planner` with intent/state scoped prompt selection.
+  - seed support added for Postgres/SQLite planner rows.
+- MCP context metadata model for rule branching:
+  - `context.mcp.lifecycle.*`
+  - `context.mcp.toolExecution.*`
+  - enables deterministic `ce_rule.match_pattern` JSON_PATH checks.
+- Guardrail behavior clarity:
+  - when planner proposes blocked next tool, fallback answer is written to `context.mcp.finalAnswer`.
+  - `POST_AGENT_MCP` rules still run, then normal response resolution.
+- MCP guardrail + determinism upgrades:
+  - planner output is validated against allowed-next-tool policy before execution.
+  - blocked decisions emit deterministic lifecycle metadata for rule branching.
+- Tool execution observability upgrade:
+  - direct tool mode writes rich metadata into `context.mcp.toolExecution.*` including `toolCode`, `toolGroup`, status/outcome, scope mismatch flags, and tool row metadata.
+- Scope consistency hardening in static config:
+  - `ce_mcp_tool` / `ce_mcp_planner` scope values are validated at load/startup (`intent_code`, `state_code`) against allowed forms (`ANY`, `UNKNOWN`, configured values).
+  - invalid scope rows fail fast to prevent cross-intent tool leakage.
+- `ce_intent_classifier` enhancement:
+  - `state_code` support (default `UNKNOWN`) so classifier can set state directly without extra transition rules.
+- Rule phase naming update:
+  - `PRE_RESPONSE_RESOLUTION` (old `PIPELINE_RULES`)
+  - `POST_AGENT_INTENT` (old `AGENT_POST_INTENT`)
+  - `POST_AGENT_MCP` (old `AGENT_POST_MCP`)
+  - `POST_TOOL_EXECUTION` (old `TOOL_POST_EXECUTION`)
+  - runtime normalization keeps old phase values compatible during migration.
+- MCP docs expansion:
+  - advanced guide updates for metadata and rule patterns.
+  - new dedicated [MCP Deep Dive](/docs/v2/consumer/mcp/deep-dive) with chat-by-chat flow, table impact, and step graph.
+
 ## 2.0.6
 
-Ships cache diagnostics and proxy hardening so cache behavior is observable and deterministic across environments.
+2.0.6 focused on cache reliability and diagnostics to eliminate static-table query noise in consumer environments.
 
 - **Proxy hygiene for static caches**: `StaticConfigurationCacheService` helper paths now resolve through the Spring proxied bean so `@Cacheable` consistently suppresses repeated `ce_*` static table SQL after warmup.
 - **`ConvEngineCacheAnalyzer` + diagnostics endpoint**: Added `GET /api/v1/cache/analyze` (with optional `warmup` flag) to expose active `CacheManager` metadata, Spring cache properties, cache infrastructure beans, runtime AOP proxy/advisor diagnostics, `SimpleKey.EMPTY` entry visibility, native cache counts, and warmup timing deltas.
@@ -152,8 +230,8 @@ Major runtime engine evolution focused on production-grade turn control, tool or
 
 ### Added new rule phases
 
-- `MCP_POST_LLM`
-- `TOOL_POST_EXECUTION`
+- `POST_AGENT_MCP`
+- `POST_TOOL_EXECUTION`
 
 ### Added tool execution architecture
 

@@ -43,6 +43,10 @@ source.addEventListener("STEP_ENTER", (event) => {
 
 source.addEventListener("ASSISTANT_OUTPUT", (event) => {
   console.log("ASSISTANT_OUTPUT:", JSON.parse(event.data));
+});
+
+source.addEventListener("VERBOSE", (event) => {
+  console.log("VERBOSE:", JSON.parse(event.data));
 });`}
 </CodeBlockToggle>
 
@@ -68,10 +72,16 @@ const client = new Client({
 client.activate();`}
 </CodeBlockToggle>
 
-## Socket audit payload contract
+## Socket payload contract (v2.0.8)
 
-<CodeBlockToggle title="SSE/STOMP audit event payload" language="json">
+`2.0.8` introduces envelope type separation in the stream payload.
+
+- `eventType: "AUDIT"` for audit stage events
+- `eventType: "VERBOSE"` for verbose runtime progress/error events
+
+<CodeBlockToggle title="AUDIT envelope example" language="json">
 {`{
+  "eventType": "AUDIT",
   "auditId": 12031,
   "stage": "STEP_ENTER",
   "createdAt": "2026-02-14T10:22:01.102Z",
@@ -82,6 +92,38 @@ client.activate();`}
       "intent": "FAQ",
       "state": "IDLE"
     }
+  },
+  "verbose": null
+}`}
+</CodeBlockToggle>
+
+<CodeBlockToggle title="VERBOSE envelope example" language="json">
+{`{
+  "eventType": "VERBOSE",
+  "auditId": null,
+  "stage": "VERBOSE",
+  "createdAt": "2026-02-27T13:40:24.250Z",
+  "payload": {
+    "verbose": {
+      "verboseId": 4,
+      "eventType": "VERBOSE_PROGRESS",
+      "stepName": "McpToolStep",
+      "determinant": "MCP_TOOL_CALL",
+      "intent": "LOAN_APPLICATION",
+      "state": "COLLECTING_DETAILS",
+      "ruleId": null,
+      "toolCode": "loan.credit.rating.check",
+      "level": "INFO",
+      "text": "Checking credit rating from credit union."
+    }
+  },
+  "verbose": {
+    "verboseId": 4,
+    "eventType": "VERBOSE_PROGRESS",
+    "stepName": "McpToolStep",
+    "determinant": "MCP_TOOL_CALL",
+    "level": "INFO",
+    "text": "Checking credit rating from credit union."
   }
 }`}
 </CodeBlockToggle>

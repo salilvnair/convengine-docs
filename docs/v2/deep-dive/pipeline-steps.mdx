@@ -28,7 +28,7 @@ import { DbTable, Highlight, CodeBlockToggle } from "@site/src/components/conven
     ["AddContainerDataStep", "Fetch and attach container data", "containerData/context merge", "ce_container_config"],
     ["PendingActionStep", "Execute/reject pending action task", "pending_action_runtime status/result", "ce_pending_action, CeTaskExecutor, ce_audit"],
     ["ToolOrchestrationStep", "Run tool_group based orchestration", "tool_request/tool_result fields", "ce_tool, ce_mcp_tool, ce_audit"],
-    ["McpToolStep", "MCP planner/tool loop", "context_json.mcp.*", "ce_mcp_tool, ce_mcp_db_tool, ce_config"],
+    ["McpToolStep", "MCP planner/tool loop", "context_json.mcp.*", "ce_mcp_tool, ce_mcp_db_tool, ce_mcp_planner (fallback ce_config)"],
     ["SchemaExtractionStep", "Schema-driven extraction and lock handling", "schema facts/context/lock", "ce_output_schema, ce_prompt_template"],
     ["AutoAdvanceStep", "Compute schema status facts", "schemaComplete/hasAny", "resolved schema + context"],
     ["RulesStep", "Match and apply transitions/actions", "intent/state/input params", "ce_rule"],
@@ -47,7 +47,7 @@ import { DbTable, Highlight, CodeBlockToggle } from "@site/src/components/conven
 :::
 
 <Highlight type="info" title="Rule phases">
-Rules execute by phase. Available native phases include `PIPELINE_RULES`, `AGENT_POST_INTENT`, `MCP_POST_LLM`, and `TOOL_POST_EXECUTION`.
+Rules execute by phase. Available native phases include `PRE_RESPONSE_RESOLUTION`, `POST_AGENT_INTENT`, `POST_AGENT_MCP`, and `POST_TOOL_EXECUTION`.
 </Highlight>
 
 <Highlight type="warning" title="Don’t hardcode transitions in steps">
@@ -1269,7 +1269,7 @@ The gateway for Model Context Protocol (MCP) tooling. If `ce_tool` specifies tha
             session.putInputParam(ConvEngineInputParamKey.TOOL_STATUS, "SUCCESS");
             audit.audit(ConvEngineAuditStage.TOOL_ORCHESTRATION_RESULT, session.getConversationId(), result);
 
-            rulesStep.applyRules(session, "ToolOrchestrationStep PostTool", RulePhase.TOOL_POST_EXECUTION.name());
+            rulesStep.applyRules(session, "ToolOrchestrationStep PostTool", RulePhase.POST_TOOL_EXECUTION.name());
         } catch (IllegalStateException e) {
             if (e.getMessage() != null && e.getMessage().contains("Missing enabled MCP tool for current intent/state")) {
                 Map<String, Object> result = new LinkedHashMap<>();
@@ -1317,7 +1317,7 @@ The gateway for Model Context Protocol (MCP) tooling. If `ce_tool` specifies tha
 
 **Responsibility:** MCP planner/tool loop  
 **Session Mutations:** `context_json.mcp.*`  
-**Config/Table Dependencies:** `ce_mcp_tool, ce_mcp_db_tool, ce_config`  
+**Config/Table Dependencies:** `ce_mcp_tool, ce_mcp_db_tool, ce_mcp_planner (fallback ce_config)`  
 
 <details open>
 <summary>Detailed Execution Logic</summary>
@@ -1427,7 +1427,7 @@ Specifically iterates over `ce_mcp_tool` bindings. Instead of static grouped too
         }
 
         if (mcpTouched) {
-            rulesStep.applyRules(session, "McpToolStep PostMcp", RulePhase.MCP_POST_LLM.name());
+            rulesStep.applyRules(session, "McpToolStep", RulePhase.POST_AGENT_MCP.name());
         }
 
         session.syncToConversation();
@@ -1557,7 +1557,7 @@ If a rule matches, it executes the target `action` (e.g. `SET_STATE` to `CONFIRM
 
 <CodeBlockToggle title="RulesStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/RulesStep.java" defaultOpen={true}>
 {`public StepResult execute(EngineSession session) {
-        applyRules(session, "RulesStep", RulePhase.PIPELINE_RULES.name());
+        applyRules(session, "RulesStep", RulePhase.PRE_RESPONSE_RESOLUTION.name());
         session.syncToConversation();
         return new StepResult.Continue();
     }`}

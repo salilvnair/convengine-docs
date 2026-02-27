@@ -1246,7 +1246,7 @@ If conditions require the pipeline to halt early, it generates a `Stop` result. 
         }
 
         if (mcpTouched) {
-            rulesStep.applyRules(session, "McpToolStep PostMcp", RulePhase.MCP_POST_LLM.name());
+            rulesStep.applyRules(session, "McpToolStep", RulePhase.AGENT_POST_MCP.name());
         }
 
         session.syncToConversation();

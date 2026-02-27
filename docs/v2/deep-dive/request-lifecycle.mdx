@@ -355,7 +355,8 @@ public class MyHook implements EngineStepHook {
     ["ce_prompt_template", "SchemaExtractionStep / ResponseResolutionStep", "-"],
     ["ce_rule", "RulesStep", "-"],
     ["ce_response", "ResponseResolutionStep", "-"],
-    ["ce_config", "intent/reset/mcp/sql-agent config lookup", "-"],
+    ["ce_config", "intent/reset/sql-agent config lookup", "-"],
+    ["ce_mcp_planner", "McpToolStep planner prompt lookup (with ce_config fallback)", "-"],
     ["ce_audit", "-", "all stage audits via DbAuditService"],
   ]}
 />

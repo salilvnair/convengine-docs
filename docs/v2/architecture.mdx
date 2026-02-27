@@ -92,7 +92,7 @@ You can intercept any step via <MethodRef>EngineStepHook</MethodRef> (<MethodRef
 :::
 
 <Highlight type="info" title="Control phases">
-Rules execute by phase: <MethodRef>PIPELINE_RULES</MethodRef>, <MethodRef>AGENT_POST_INTENT</MethodRef>, <MethodRef>MCP_POST_LLM</MethodRef>, and <MethodRef>TOOL_POST_EXECUTION</MethodRef>.
+Rules execute by phase: <MethodRef>PRE_RESPONSE_RESOLUTION</MethodRef>, <MethodRef>POST_AGENT_INTENT</MethodRef>, <MethodRef>POST_AGENT_MCP</MethodRef>, and <MethodRef>POST_TOOL_EXECUTION</MethodRef>.
 </Highlight>
 
 <Highlight type="warning" title="Deterministic boundary">

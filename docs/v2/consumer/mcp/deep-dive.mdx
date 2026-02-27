@@ -1,0 +1,255 @@
+---
+title: MCP Deep Dive
+sidebar_position: 4
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { DbTable, Highlight, EngineDebugFlow, ChatContainer, TraceChatBubble, CodeBlockToggle } from "@site/src/components/convengine";
+
+export const mcpDeepNodes = [
+  { id: "u", data: { label: "User input" } },
+  { id: "i", data: { label: "Intent + State" } },
+  { id: "p1", data: { label: "Planner loop" } },
+  { id: "t1", data: { label: "Tool calls" } },
+  { id: "p2", data: { label: "Planner ANSWER" } },
+  { id: "r1", data: { label: "POST_AGENT_MCP rules" } },
+  { id: "r2", data: { label: "PRE_RESPONSE_RESOLUTION rules" } },
+  { id: "rr", data: { label: "ResponseResolutionStep" } },
+  { id: "o", data: { label: "Assistant output" } }
+];
+
+export const mcpDeepEdges = [
+  { id: "e1", source: "u", target: "i" },
+  { id: "e2", source: "i", target: "p1" },
+  { id: "e3", source: "p1", target: "t1" },
+  { id: "e4", source: "t1", target: "p2" },
+  { id: "e5", source: "p2", target: "r1" },
+  { id: "e6", source: "r1", target: "r2" },
+  { id: "e7", source: "r2", target: "rr" },
+  { id: "e8", source: "rr", target: "o" }
+];
+
+export const mcpDeepDetails = {
+  u: {
+    title: "User input",
+    stage: "REQUEST",
+    summary: "Loan application request enters the engine.",
+    session: ["userText"],
+    tables: ["ce_audit (W)"]
+  },
+  i: {
+    title: "Intent + State",
+    stage: "INTENT",
+    summary: "Classifier resolves LOAN_APPLICATION, state transitions into ELIGIBILITY_GATE.",
+    session: ["intent=LOAN_APPLICATION", "state=ELIGIBILITY_GATE"],
+    tables: ["ce_intent (R)", "ce_intent_classifier (R)", "ce_rule (R)"]
+  },
+  p1: {
+    title: "Planner loop",
+    stage: "MCP_PLAN_LLM_OUTPUT",
+    summary: "Planner selects next action CALL_TOOL/ANSWER from scoped tools and planner prompt.",
+    session: ["mcp_action", "mcp_tool_code", "mcp_tool_args"],
+    tables: ["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]
+  },
+  t1: {
+    title: "Tool calls",
+    stage: "MCP_TOOL_RESULT",
+    summary: "Loan chain runs: rating -> fraud -> debt -> submit (conditionally).",
+    session: ["context.mcp.observations[]"],
+    tables: ["ce_audit (W)"]
+  },
+  p2: {
+    title: "Planner ANSWER",
+    stage: "MCP_FINAL_ANSWER",
+    summary: "Planner writes final result into context.mcp.finalAnswer.",
+    session: ["mcp_final_answer", "context.mcp.lifecycle.*"],
+    tables: ["ce_audit (W)"]
+  },
+  r1: {
+    title: "POST_AGENT_MCP rules",
+    stage: "RULES",
+    summary: "Post-MCP rules react to context.mcp.finalAnswer and MCP metadata.",
+    session: ["state mutation candidates"],
+    tables: ["ce_rule (R)", "ce_audit (W)"]
+  },
+  r2: {
+    title: "PRE_RESPONSE_RESOLUTION rules",
+    stage: "RULES",
+    summary: "General pre-response rule pass runs after POST_AGENT_MCP.",
+    session: ["final state/context before resolution"],
+    tables: ["ce_rule (R)", "ce_audit (W)"]
+  },
+  rr: {
+    title: "ResponseResolutionStep",
+    stage: "RESOLVE_RESPONSE",
+    summary: "Resolves ce_response + ce_prompt_template from final intent/state/context.",
+    session: ["payload"],
+    tables: ["ce_response (R)", "ce_prompt_template (R)"]
+  },
+  o: {
+    title: "Assistant output",
+    stage: "ASSISTANT_OUTPUT",
+    summary: "Final response is returned and conversation/audit persisted.",
+    session: ["finalResult"],
+    tables: ["ce_conversation (W)", "ce_conversation_history (W async)", "ce_audit (W)"]
+  }
+};
+
+# MCP Deep Dive (v2.0.7)
+
+This page shows the exact MCP execution order using the Loan Application flow.
+
+## Exact phase order after MCP planner finishes
+
+1. `POST_AGENT_MCP` rules run first.
+2. `PRE_RESPONSE_RESOLUTION` rules run next (RulesStep pre-response pass).
+3. `ResponseResolutionStep` runs after both rule passes.
+
+So yes, both rule passes execute for MCP turns.
+
+## Guardrail blocked path
+
+For `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
+
+1. `McpToolStep` writes `McpConstants.FALLBACK_GUARDRAIL_BLOCKED` to `context.mcp.finalAnswer`.
+2. `POST_AGENT_MCP` rules run.
+3. `PRE_RESPONSE_RESOLUTION` rules run.
+4. `ce_response` + `ce_prompt_template` still shape final user text.
+
+## End-to-end walkthrough (Loan Application)
+
+<Tabs groupId="mcp-deep-dive-main">
+  <TabItem value="chat" label="Chat + Internal Trace" default>
+
+<ChatContainer>
+  <TraceChatBubble
+    role="user"
+    name="Turn 1 - User"
+    message="Apply loan for customer CUST-1001, amount 350000, tenure 36 months."
+    info={["Intent resolves to LOAN_APPLICATION.", "State enters ELIGIBILITY_GATE."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 1 - Internal MCP Loop"
+    message="Planner executes rating -> fraud -> debt -> submit chain."
+    json={{
+      mcp: {
+        observations: [
+          { toolCode: "loan.credit.rating.check", json: "{\"creditRating\":782}" },
+          { toolCode: "loan.credit.fraud.check", json: "{\"flagged\":false}" },
+          { toolCode: "loan.debt.credit.summary", json: "{\"dti\":0.31,\"availableCredit\":220000}" },
+          { toolCode: "loan.application.submit", json: "{\"applicationId\":\"LA-90311\",\"status\":\"SUBMITTED\"}" }
+        ],
+        lifecycle: {
+          phase: "POST_AGENT_MCP",
+          status: "TOOL_RESULT",
+          outcome: "IN_PROGRESS",
+          finished: false,
+          toolExecuted: true,
+          lastToolCode: "loan.application.submit"
+        }
+      }
+    }}
+    tables={["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]}
+    info={["Tool results append to context.mcp.observations."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 1 - Rules + Final"
+    message="Loan application submitted. Application ID LA-90311."
+    json={{
+      mcp: {
+        finalAnswer: "Loan approved and submitted with applicationId LA-90311.",
+        lifecycle: {
+          phase: "POST_AGENT_MCP",
+          status: "ANSWER",
+          outcome: "ANSWERED",
+          finished: true,
+          blocked: false,
+          error: false
+        }
+      }
+    }}
+    tables={["ce_rule (R)", "ce_response (R)", "ce_prompt_template (R)", "ce_conversation (W)"]}
+    info={[
+      "POST_AGENT_MCP can move ELIGIBILITY_GATE -> COMPLETED using JSON_PATH on context.mcp.finalAnswer.",
+      "PRE_RESPONSE_RESOLUTION runs after that and can still apply final state/context adjustments."
+    ]}
+  />
+</ChatContainer>
+
+  </TabItem>
+
+  <TabItem value="flow" label="Step Graph">
+
+<EngineDebugFlow
+  title="Loan MCP flow"
+  subtitle="Planner/tool loop -> POST_AGENT_MCP -> PRE_RESPONSE_RESOLUTION -> response"
+  nodes={mcpDeepNodes}
+  edges={mcpDeepEdges}
+  detailsById={mcpDeepDetails}
+  defaultSelectedId="p1"
+/>
+
+  </TabItem>
+
+  <TabItem value="table" label="Turn Table">
+
+<DbTable
+  title="Table impact by stage"
+  columns={["Stage", "Reads", "Writes", "Context impact"]}
+  rows={[
+    ["Intent/State", "ce_intent, ce_intent_classifier, ce_rule", "ce_audit", "session.intent/session.state"],
+    ["MCP planner", "ce_mcp_tool, ce_mcp_planner", "ce_audit", "mcp_action/mcp_tool_code"],
+    ["Tool execution", "(tool-specific)", "ce_audit", "context.mcp.observations[]"],
+    ["Planner ANSWER", "ce_mcp_planner", "ce_audit", "context.mcp.finalAnswer + lifecycle"],
+    ["POST_AGENT_MCP", "ce_rule", "ce_audit", "MCP-driven transition"],
+    ["PRE_RESPONSE_RESOLUTION", "ce_rule", "ce_audit", "Final pre-response transition"],
+    ["Response resolution", "ce_response, ce_prompt_template", "ce_audit, ce_conversation", "assistant payload"]
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="direct" label="Direct Tool Mode">
+
+<CodeBlockToggle title="Direct tool request" language="json">
+{`{
+  "tool_request": {
+    "tool_code": "loan.credit.rating.check",
+    "tool_group": "HTTP_API",
+    "args": { "customerId": "CUST-1001" }
+  }
+}`}
+</CodeBlockToggle>
+
+<DbTable
+  title="`POST_TOOL_EXECUTION` sequence"
+  columns={["Step", "What happens"]}
+  rows={[
+    ["ToolOrchestrationStep", "Executes exactly one tool and writes inputParams.tool_result."],
+    ["Context metadata", "Writes context.mcp.toolExecution with status/outcome/meta/result."],
+    ["Rules", "Runs `POST_TOOL_EXECUTION` rules for direct-tool mode."],
+    ["RulesStep", "Runs `PRE_RESPONSE_RESOLUTION` rules before response resolution."],
+    ["Response", "ResponseResolutionStep uses final state/context."]
+  ]}
+/>
+
+  </TabItem>
+</Tabs>
+
+## Rule-ready JSON_PATH recipes
+
+```text
+$[?(@.context.mcp.lifecycle.finished == true && @.context.mcp.lifecycle.outcome == 'BLOCKED')]
+$[?(@.context.mcp.lifecycle.error == true)]
+$[?(@.context.mcp.toolExecution.phase == 'POST_TOOL_EXECUTION' && @.context.mcp.toolExecution.status == 'SUCCESS')]
+$[?(@.context.mcp.toolExecution.scopeMismatch == true)]
+```
+
+<Highlight type="tip" title="Recommended production pattern">
+Use `ce_rule` for deterministic transitions and keep final wording in `ce_response`/`ce_prompt_template`. Use `context.mcp.*` as rule evidence, then let response resolution produce final output.
+</Highlight>

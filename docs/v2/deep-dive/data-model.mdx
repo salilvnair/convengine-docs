@@ -20,7 +20,9 @@ ConvEngine relies entirely on configuration over code. State, relationships, and
 - `ce_policy`
 - `ce_mcp_tool`
 - `ce_mcp_db_tool`
+- `ce_mcp_planner`
 - `ce_pending_action`
+- `ce_verbose`
 
 ## Runtime tables
 
@@ -71,6 +73,34 @@ Important:
 - runtime status (`OPEN/IN_PROGRESS/EXECUTED/REJECTED/EXPIRED`) is not stored in this table
 - runtime status is stored in `context.pending_action_runtime`
 
+## `ce_verbose`
+
+Introduced in `2.0.8` for deterministic runtime progress/error messages emitted by the Java pipeline.
+
+Purpose:
+
+- declarative message mapping by runtime context (intent/state/step/determinant/rule/tool)
+
+Key columns:
+
+- `verbose_id`
+- `intent_code`
+- `state_code`
+- `step_match` (`EXACT|REGEX|JSON_PATH`)
+- `step_value`
+- `determinant`
+- `rule_id` (optional)
+- `tool_code` (optional)
+- `message`
+- `error_message`
+- `priority`
+- `enabled`
+- `created_at`
+
+Lookup index:
+
+- `(enabled, intent_code, state_code, determinant, step_match, step_value, rule_id, tool_code, priority)`
+
 ## Rule phase compatibility
 
 `ce_rule.phase` includes phases:
@@ -78,10 +108,10 @@ Important:
 - `PRE_EVAL`
 - `EVAL`
 - `POST_EVAL`
-- `PIPELINE_RULES`
-- `AGENT_POST_INTENT`
-- `MCP_POST_LLM`
-- `TOOL_POST_EXECUTION`
+- `PRE_RESPONSE_RESOLUTION`
+- `POST_AGENT_INTENT`
+- `POST_AGENT_MCP`
+- `POST_TOOL_EXECUTION`
 
 ## Tool-group compatibility
 
@@ -107,3 +137,20 @@ Behavior:
 - if both are `NULL`, the tool is globally eligible
 - if set, tool eligibility is constrained to matching runtime `session.intent` and `session.state`
 - non-matching scoped tools are skipped from MCP planning/execution
+
+## MCP planner scope columns
+
+`ce_mcp_planner` supports scoped planner prompts:
+
+- `intent_code` (nullable)
+- `state_code` (nullable)
+- `system_prompt`
+- `user_prompt`
+- `enabled`
+
+Behavior:
+
+- exact intent/state row wins
+- intent-only row is next
+- global default row (`NULL/NULL`) is fallback
+- if not found, planner uses legacy `ce_config` prompts
