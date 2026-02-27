@@ -174,3 +174,224 @@ You can do this by hitting the integrated Admin Controller endpoint mapped gener
 </CodeBlockToggle>
 
 This endpoint executes `@CacheEvict(value = "ce_static_configs", allEntries = true)` and immediately re-triggers the Spring Data Preloader, locking in your latest SQL tweaks live.
+
+---
+
+## 5. Cache Analyzer API (`/api/v1/cache/analyze`)
+
+Use this endpoint when you want to validate cache health without guessing whether misses are caused by provider, proxying, or runtime wiring.
+
+<DbTable
+  title="Analyzer endpoint contract"
+  columns={["Method", "Path", "Query Param", "Purpose"]}
+  rows={[
+    ["GET", "/api/v1/cache/analyze", "warmup=true|false", "Returns cache/provider/proxy diagnostics and cache entry visibility."],
+  ]}
+/>
+
+<CodeBlockToggle title="Example calls" language="bash">
+{`# Deep probe (runs warmup timing first-call vs second-call)
+curl "http://localhost:8080/api/v1/cache/analyze?warmup=true"
+
+# Passive snapshot (no extra warmup/timing calls)
+curl "http://localhost:8080/api/v1/cache/analyze?warmup=false"`}
+</CodeBlockToggle>
+
+<Highlight type="info" title="warmup flag behavior">
+`warmup=true` actively calls static cache loaders before reporting timing metrics. `warmup=false` only inspects current state and does not trigger additional warmup calls.
+</Highlight>
+
+### CE IDE Panel: How the Response Should Be Read
+
+If your CE IDE panel renders the JSON response, interpret each block as follows:
+
+<DbTable
+  title="Field-by-field meaning in CE IDE"
+  columns={["Field", "What it means", "Healthy signal", "When to investigate"]}
+  rows={[
+    ["warmupAndTimingEnabled", "Whether analyzer executed active timing probe.", "Matches your request flag.", "Unexpected value indicates wrong request or proxy/caching to old endpoint."],
+    ["cacheManagerClass", "Actual Spring cache provider at runtime.", "`ConcurrentMapCacheManager`, Caffeine, Redis, etc. as expected.", "Unexpected provider means environment config drift."],
+    ["registeredCacheNames", "Caches currently known to provider.", "Includes static `ce_*` and runtime caches.", "Missing cache names means cache operations are not being registered/hit."],
+    ["warmupTimingMs", "First vs second invocation latency by static cache.", "Second call <= first call, usually much faster.", "Both large or growing means repeated misses or backend latency."],
+    ["staticCaches.*.hasSimpleKeyEntry", "Whether no-arg `@Cacheable` entry exists.", "`true` for all static `ce_*` datasets.", "`false` means static caches were not populated/hit."],
+    ["staticCaches.*.listSize", "Rows currently held in memory for each static table.", "Non-zero sizes matching expected SQL data.", "Unexpected zero/low values indicates seed/data/environment mismatch."],
+    ["runtimeCaches.*.nativeEntryCount", "Current conversation/history cache occupancy.", "Grows when conversations run.", "Always zero during active traffic indicates runtime cache path not used."],
+  ]}
+/>
+
+<CodeBlockToggle title="Sample response (from CE IDE)" language="json">
+{`{
+  "warmupAndTimingEnabled": true,
+  "cacheManagerClass": "org.springframework.cache.concurrent.ConcurrentMapCacheManager",
+  "warmupTimingMs": {
+    "ce_config": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_mcp_tool": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_mcp_db_tool": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_prompt_template": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_policy": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_pending_action": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_intent": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_output_schema": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_response": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_rule": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_intent_classifier": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    },
+    "ce_container_config": {
+      "secondCallMs": 0,
+      "firstCallMs": 0
+    }
+  },
+  "registeredCacheNames": [
+    "ce_config",
+    "ce_prompt_template",
+    "ce_policy",
+    "ce_output_schema",
+    "ce_conversation_history_cache",
+    "ce_rule",
+    "ce_container_config",
+    "ce_mcp_tool",
+    "ce_mcp_db_tool",
+    "ce_conversation_cache",
+    "ce_pending_action",
+    "ce_intent",
+    "ce_response",
+    "ce_intent_classifier"
+  ],
+  "staticCaches": {
+    "ce_config": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 12,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_mcp_tool": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 2,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_mcp_db_tool": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 2,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_prompt_template": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 4,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_policy": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 1,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_pending_action": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 1,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_intent": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 4,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_output_schema": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 2,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_response": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 7,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_rule": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 4,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_intent_classifier": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 3,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    },
+    "ce_container_config": {
+      "valueType": "java.util.ArrayList",
+      "exists": true,
+      "listSize": 1,
+      "hasSimpleKeyEntry": true,
+      "nativeEntryCount": 1
+    }
+  },
+  "runtimeCaches": {
+    "ce_conversation_cache": {
+      "exists": true,
+      "nativeEntryCount": 0
+    },
+    "ce_conversation_history_cache": {
+      "exists": true,
+      "nativeEntryCount": 0
+    }
+  }
+}`}
+</CodeBlockToggle>
+
+### Interpreting the sample you shared
+
+- `cacheManagerClass=ConcurrentMapCacheManager`: Local in-memory cache provider is active and valid.
+- Static caches all show `exists=true`, `hasSimpleKeyEntry=true`, `nativeEntryCount=1`: static `ce_*` cache population is healthy.
+- Static `listSize` values are non-zero: static rows are loaded into cache as expected.
+- `firstCallMs=0` and `secondCallMs=0`: data is tiny and runtime is fast enough to round to 0 ms; this is normal.
+- Runtime caches at `nativeEntryCount=0`: no conversation/historical entries cached yet at capture time, or traffic was not running when the snapshot was taken.

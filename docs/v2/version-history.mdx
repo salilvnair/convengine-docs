@@ -3,6 +3,14 @@ title: Version History
 sidebar_position: 30
 ---
 
+## 2.0.6
+
+Ships cache diagnostics and proxy hardening so cache behavior is observable and deterministic across environments.
+
+- **Proxy hygiene for static caches**: `StaticConfigurationCacheService` helper paths now resolve through the Spring proxied bean so `@Cacheable` consistently suppresses repeated `ce_*` static table SQL after warmup.
+- **`ConvEngineCacheAnalyzer` + diagnostics endpoint**: Added `GET /api/v1/cache/analyze` (with optional `warmup` flag) to expose active `CacheManager` metadata, Spring cache properties, cache infrastructure beans, runtime AOP proxy/advisor diagnostics, `SimpleKey.EMPTY` entry visibility, native cache counts, and warmup timing deltas.
+- **Operational debugging uplift**: Teams can now validate cache hit/miss behavior directly in runtime and quickly detect provider/proxy misconfiguration in enterprise deployments.
+
 ## 2.0.5
 
 Introduces massive execution path optimizations targeting latency removal, background history persistence, and static framework component caching.

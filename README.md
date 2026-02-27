@@ -4,7 +4,7 @@ Documentation site for ConvEngine (Java).
 
 ## Version Alignment
 
-- Current ConvEngine artifact documented here: `1.0.15`
+- Current ConvEngine artifact documented here: `2.0.6`
 
 ## Sections
 
