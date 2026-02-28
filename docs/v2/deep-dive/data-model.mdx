@@ -75,7 +75,7 @@ Important:
 
 ## `ce_verbose`
 
-Introduced in `2.0.8` for deterministic runtime progress/error messages emitted by the Java pipeline.
+Introduced in `2.0.8` for deterministic runtime progress/error messages emitted by the Java pipeline. In `2.0.9`, the same resolver path can also be triggered from consumer code through `ConvEngineVerboseAdapter`.
 
 Purpose:
 
@@ -101,17 +101,95 @@ Lookup index:
 
 - `(enabled, intent_code, state_code, determinant, step_match, step_value, rule_id, tool_code, priority)`
 
+## `ce_prompt_template`
+
+`ce_prompt_template` is used for both schema extraction prompts and derived response generation.
+
+Key columns:
+
+- `template_id`
+- `intent_code`
+- `state_code`
+- `response_type`
+- `system_prompt`
+- `user_prompt`
+- `temperature`
+- `interaction_mode`
+- `interaction_contract`
+- `enabled`
+- `created_at`
+
+Runtime notes:
+
+- prompts are rendered through the shared `ThymeleafTemplateRenderer`
+- legacy `{{...}}` placeholders still work, but Thymeleaf expressions are the native path
+- common runtime vars include `user_input`, `resolved_user_input`, `standalone_query`, `intent`, `state`, `context`, and `inputParams`
+- see [Thymeleaf and SpEL](/docs/v2/deep-dive/thymeleaf-spel) for expression examples across prompts and `ce_verbose`
+
+`interaction_mode` is the coarse semantic contract for the turn. Supported values:
+
+- `NORMAL`
+- `IDLE`
+- `COLLECT`
+- `CONFIRM`
+- `PROCESSING`
+- `FINAL`
+- `ERROR`
+- `DISAMBIGUATE`
+- `FOLLOW_UP`
+- `PENDING_ACTION`
+- `REVIEW`
+
+`interaction_contract` is extensible JSON text for concrete capabilities and expectations. Recommended shape:
+
+```json
+{"allows":["affirm","edit","retry","reset"],"expects":["structured_input"]}
+```
+
+Current conventions:
+
+- `allows`: turn capabilities such as `affirm`, `edit`, `retry`, `reset`
+- `expects`: input expectations such as `structured_input`
+
+Design note:
+
+- prefer extending `interaction_contract` arrays for new capabilities instead of adding new columns
+- use `interaction_mode` for broad semantics and `interaction_contract` for fine-grained runtime behavior
+
 ## Rule phase compatibility
 
 `ce_rule.phase` includes phases:
 
-- `PRE_EVAL`
-- `EVAL`
-- `POST_EVAL`
+- `POST_DIALOGUE_ACT`
 - `PRE_RESPONSE_RESOLUTION`
 - `POST_AGENT_INTENT`
+- `POST_SCHEMA_EXTRACTION`
+- `PRE_AGENT_MCP`
 - `POST_AGENT_MCP`
 - `POST_TOOL_EXECUTION`
+
+## Rule action compatibility
+
+`ce_rule.action` includes:
+
+- `SET_INTENT`
+- `SET_STATE`
+- `SET_DIALOGUE_ACT`
+- `SET_JSON`
+- `GET_CONTEXT`
+- `GET_SCHEMA_JSON`
+- `GET_SESSION`
+- `SET_TASK`
+- `SET_INPUT_PARAM`
+
+`SET_INPUT_PARAM` is the lightweight runtime-flag action. Use it for values like:
+
+- `awaiting_confirmation=true`
+- `confirmation_key=LOAN_APPLICATION_CONFIRM`
+- `skip_schema_extraction=true`
+- `routing_decision=PROCEED_CONFIRMED`
+
+`SET_DIALOGUE_ACT` is the lightweight post-classification override action. Use it when a `POST_DIALOGUE_ACT` rule should replace the final `dialogue_act` with a more appropriate normalized value (for example promoting a guarded `NEW_REQUEST` back to `EDIT`).
 
 ## Tool-group compatibility
 

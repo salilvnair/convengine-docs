@@ -4,7 +4,7 @@ Documentation site for ConvEngine (Java).
 
 ## Version Alignment
 
-- Current ConvEngine artifact documented here: `2.0.6`
+- Current ConvEngine artifact documented here: `2.0.9`
 
 ## Sections
 
@@ -31,4 +31,4 @@ npm run build
 
 ## Notes
 
-This docs content is aligned to the latest ConvEngine runtime code (pipeline hooks, reset behavior, audit trace DTOs, intent-lock schema flow, cross-database persistence hardening, scoped sticky intent behavior, audit metadata split between `inputParams` and `userInputParams`, schema resolver provider refactor, centralized audit stages, and centralized payload/input-param keys).
+This docs content is aligned to the latest ConvEngine runtime code (database-driven verbose telemetry, Thymeleaf-backed prompt and verbose rendering, correction routing, `SET_INPUT_PARAM`, `POST_SCHEMA_EXTRACTION` / `PRE_AGENT_MCP`, `ANSWER` dialogue-act support, `resolved_user_input`, prompt-template `interaction_mode` / `interaction_contract`, and the consumer-facing `ConvEngineVerboseAdapter`).

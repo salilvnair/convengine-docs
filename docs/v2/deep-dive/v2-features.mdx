@@ -13,7 +13,11 @@ sidebar_position: 11
   - `LLM_ONLY`
 - Fast-path regex classification remains primary.
 - LLM path used for ambiguity based on configured threshold.
-- Emits: `DIALOGUE_ACT_CLASSIFIED` audit.
+- Emits:
+  - `DIALOGUE_ACT_LLM_INPUT`
+  - `DIALOGUE_ACT_LLM_OUTPUT`
+  - `DIALOGUE_ACT_LLM_ERROR`
+  - `DIALOGUE_ACT_CLASSIFIED`
 
 ## 2. InteractionPolicyStep
 

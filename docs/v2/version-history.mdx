@@ -3,6 +3,46 @@ title: Version History
 sidebar_position: 30
 ---
 
+## 2.0.9
+
+2.0.9 is the prompt-control and correction-routing release line. Compared to 2.0.8, this adds Thymeleaf-backed prompt rendering, richer runtime routing for confirmations/corrections, new rule capabilities, and a consumer-friendly verbose adapter.
+
+- Shared Thymeleaf rendering path:
+  - prompts now render through `ThymeleafTemplateRenderer`
+  - `ce_verbose.message` / `ce_verbose.error_message` render through the same engine
+  - supported prompt styles:
+    - legacy `{{var}}`
+    - `#{...}`
+    - `[${...}]`
+  - session-aware template variables include `session`, `inputParams`, `rawInputParams`, `context`, `schema`, `schemaJson`, `promptVars`, and metadata.
+- Prompt/session variable upgrades:
+  - `PromptTemplateContext` now includes `standalone_query` and `resolved_user_input`
+  - `resolved_user_input` is derived from `standaloneQuery` first, then `user_input`
+- Rule engine expansion:
+  - new action: `SET_INPUT_PARAM`
+  - new phases:
+    - `POST_SCHEMA_EXTRACTION`
+    - `PRE_AGENT_MCP`
+  - phase/state rule lookup now uses a dedicated cache path for faster repeated evaluation
+- Dialogue and correction flow upgrades:
+  - new `DialogueAct`: `ANSWER`
+  - new `CorrectionStep` inserted before intent/schema resolution
+  - confirmation routing now uses `routing_decision`
+  - confirmation `AFFIRM` can skip reclassification/re-extraction and continue to MCP
+  - confirmation `EDIT` can patch a single field in existing context without full schema extraction
+- Verbose and audit coverage expansion:
+  - added LLM input/output/error verbose events across:
+    - dialogue act
+    - intent resolution
+    - schema extraction
+    - MCP planning
+    - response generation
+  - `MCP_TOOL_CALL` now emits richer metadata (`tool_code`, args, action, intent, state, routing decision, observation context)
+- Consumer extension support:
+  - new `ConvEngineVerboseAdapter` allows hooks, container transformers, response transformers, and custom beans to emit either:
+    - DB-resolved `ce_verbose` events
+    - direct UI verbose text events
+
 ## 2.0.8
 
 2.0.8 is the runtime observability and deterministic-progress release line. Compared to 2.0.7, this adds database-driven verbose messaging, step telemetry in session context, stream envelope upgrades, and tighter MCP schema completeness behavior.
@@ -46,7 +86,7 @@ sidebar_position: 30
 - Advanced MCP execution model:
   - DB handler-first path (`DbToolHandler`) with SQL-template fallback.
   - HTTP handler models:
-    - `HttpApiApiProcessorToolHandler` ([api-processor](https://github.com/salilvnair/api-processor) / RestWebServiceFacade path)
+    - `HttpApiProcessorToolHandler` ([api-processor](https://github.com/salilvnair/api-processor) / RestWebServiceFacade path)
     - `HttpApiRequestingToolHandler` (framework-managed request policy path)
     - classic `HttpApiToolHandler`.
 - HTTP policy support in framework invoker:
@@ -257,6 +297,8 @@ Major runtime engine evolution focused on production-grade turn control, tool or
 Expanded audit visibility for:
 
 - dialogue act and interaction policy
+- dialogue-act LLM input/output/error checkpoints (`DIALOGUE_ACT_LLM_INPUT`, `DIALOGUE_ACT_LLM_OUTPUT`, `DIALOGUE_ACT_LLM_ERROR`)
+- post-dialogue-act override hook via `POST_DIALOGUE_ACT` and `SET_DIALOGUE_ACT`
 - pending action lifecycle and execution
 - disambiguation requirements
 - guardrail allow/deny

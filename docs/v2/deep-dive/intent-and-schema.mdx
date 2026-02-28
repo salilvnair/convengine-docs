@@ -22,6 +22,7 @@ import { CodeBlockToggle, Highlight, DbTable } from "@site/src/components/conven
   rows={[
     ["AFFIRM", "User agrees or confirms", "(?i)^\\\\s*(yes|yep|yeah|sure)\\\\s*$"],
     ["NEGATE", "User disagrees or cancels", "(?i)^\\\\s*(no|nope|cancel)\\\\s*$"],
+    ["ANSWER", "User answers an active clarification or slot question", "short direct answer in active flow"],
     ["EDIT", "User requests a correction", "(?i)^\\\\s*(edit|change|modify)\\\\s*$"],
     ["RESET", "User requests a fresh start", "(?i)^\\\\s*(reset|start over)\\\\s*$"],
     ["QUESTION", "User asks a clarifying question", "text ending in '?'"],
@@ -29,7 +30,7 @@ import { CodeBlockToggle, Highlight, DbTable } from "@site/src/components/conven
   ]}
 />
 
-When the LLM path is engaged (confidence below `llm-threshold`), it must return a strict JSON payload containing the act and confidence to be parsed by the engine.
+When the LLM path is engaged (confidence below `llm-threshold`), it must return a strict JSON payload containing the act and confidence to be parsed by the engine. It can also derive `standaloneQuery`, which becomes `resolved_user_input` when present.
 
 ## Interaction policy decision
 
@@ -45,6 +46,14 @@ When the LLM path is engaged (confidence below `llm-threshold`), it must return 
     ["RECLASSIFY_INTENT", "DialogueAct=NEW_REQUEST (or no pending state)", "Forces standard Intent Resolution"],
   ]}
 />
+
+## Confirmation routing and correction
+
+`CorrectionStep` runs after `InteractionPolicyStep` and before intent/schema rework. It handles confirmation-state turns without forcing full re-extraction:
+
+- `AFFIRM` in confirmation state can set `routing_decision=PROCEED_CONFIRMED`
+- `EDIT` in confirmation state can patch a single field in-place and keep the flow in `CONFIRMATION`
+- downstream rules can use `POST_SCHEMA_EXTRACTION` and `PRE_AGENT_MCP` to route the next state deterministically
 
 ## Intent resolver behavior
 
@@ -82,6 +91,8 @@ Runtime facts are evaluated and written into the `EngineSession` context by `Aut
 - `missing_field_options`
 - `schema_json`
 - `schema_complete`
+
+Once extraction is complete, `POST_SCHEMA_EXTRACTION` rules can move the flow into confirmation without waiting for MCP execution.
 
 <Highlight type="success" title="Practical design rule">
 Use **schema extraction** for required slot collection, and use **dialogue acts + interaction policies** for short confirmations (like replying "yes" to "Are you sure?"). This ensures intent reclassification does not disrupt your active multi-turn flows.

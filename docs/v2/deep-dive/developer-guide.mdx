@@ -136,7 +136,7 @@ public class CustomMemoryStore implements ConversationMemoryStore {
 ## Operational safety checklist
 
 - **Configure Fallbacks**: Configure fallback response rows for `UNKNOWN` / `ANY`.
-- **Phase Targeting**: Do not depend on one rule only; cleanly separate constraints into `PRE_EVAL`, `EVAL`, and `POST_EVAL` rule phases.
+- **Phase Targeting**: Do not depend on one rule only; split constraints across the actual runtime phases (`POST_AGENT_INTENT`, `POST_SCHEMA_EXTRACTION`, `PRE_AGENT_MCP`, `POST_AGENT_MCP`, `POST_TOOL_EXECUTION`, `PRE_RESPONSE_RESOLUTION`) so each transition happens at the correct boundary.
 - **Priority Bounds**: Verify pending-action catalog priorities to avoid ambiguous execution hooks during interaction policy overlaps.
 - **Guardrails**: Monitor the `ce_audit` log for `GUARDRAIL_VIOLATION` to track potential malicious end-user prompt injection.
 - **Strict Bounds**: Enable `state-graph` validation before promoting a new flow to production.

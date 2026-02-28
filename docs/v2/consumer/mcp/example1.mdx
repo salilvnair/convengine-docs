@@ -209,6 +209,8 @@ Then seed planner prompts (framework seed) if your environment uses scoped MCP p
   <TraceChatBubble
     role="assistant"
     name="Turn 1 - Assistant (internal MCP)"
+    intent="ORDER_DIAGNOSTICS"
+    state="ANALYZE"
     message="Calling tools: mock.order.status -> mock.order.async.trace"
     json={{
       mcp: {
@@ -224,6 +226,8 @@ Then seed planner prompts (framework seed) if your environment uses scoped MCP p
   <TraceChatBubble
     role="assistant"
     name="Turn 1 - Final Assistant Output"
+    intent="ORDER_DIAGNOSTICS"
+    state="COMPLETED"
     message="Order ORD-7017 is submitted. Async callback is pending/missing, so no callback timestamp is available yet."
     json={{ mcp: { finalAnswer: "Order submitted, callback pending." } }}
     tables={["ce_rule (R)", "ce_response (R)", "ce_prompt_template (R)", "ce_conversation (W)"]}

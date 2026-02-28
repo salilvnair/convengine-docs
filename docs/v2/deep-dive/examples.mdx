@@ -334,8 +334,8 @@ VALUES ('CANCEL_ORDER', 'JSON', '{"type":"object","properties":{"orderNumber":{"
 INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, enabled)
 VALUES ('CANCEL_ORDER', 'SCHEMA_COLLECTION', 'Extract JSON schema fields.', true);
 
-INSERT INTO ce_rule (phase, intent_code, rule_type, action, priority, enabled)
-VALUES ('POST_EVAL', 'CANCEL_ORDER', 'CONDITION', 'TRANSITION_STATE:CONFIRM_CANCEL', 10, true);
+INSERT INTO ce_rule (intent_code, state_code, rule_type, rule_value, action, action_value, phase, priority, enabled)
+VALUES ('CANCEL_ORDER', 'IDLE', 'JSON_PATH', '$[?(@.context.orderNumber != null && @.context.orderNumber != '''')]', 'SET_STATE', 'CONFIRM_CANCEL', 'PRE_RESPONSE_RESOLUTION', 10, true);
 
 INSERT INTO ce_response (intent_code, state_code, response_type, exact_text, enabled)
 VALUES ('CANCEL_ORDER', 'IDLE', 'EXACT', 'I can help you cancel your order. What is your order number?', true);
@@ -346,11 +346,11 @@ VALUES ('CANCEL_ORDER', 'DERIVED', 'Format order number cleanly.', 'Are you sure
 INSERT INTO ce_response (intent_code, state_code, response_type, template_id, enabled)
 VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'DERIVED', 'tmpl_confirm_cancel', true);
 
-INSERT INTO ce_pending_action (intent_code, state_code, action_name, expiration_turns, priority, enabled)
-VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'stripeCancelTask', 3, 10, true);
+INSERT INTO ce_pending_action (intent_code, state_code, action_key, bean_name, method_names, priority, enabled, description)
+VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'stripe_cancel', 'stripeCancelTask', 'execute', 10, true, 'Cancel the order in the provider system');
 
-INSERT INTO ce_rule (phase, intent_code, rule_type, action, priority, enabled)
-VALUES ('POST_EVAL', 'CANCEL_ORDER', 'CONDITION', 'TRANSITION_STATE:CANCELLED', 10, true);
+INSERT INTO ce_rule (intent_code, state_code, rule_type, rule_value, action, action_value, phase, priority, enabled)
+VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'EXACT', 'ANY', 'SET_STATE', 'CANCELLED', 'PRE_RESPONSE_RESOLUTION', 20, true);
 
 INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, user_prompt, template_id, enabled)
 VALUES ('CANCEL_ORDER', 'DERIVED', 'Format cleanly.', 'Order {{context.orderNumber}} has been completely cancelled.', 'tmpl_cancelled', true);

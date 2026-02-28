@@ -87,11 +87,49 @@ After Execute:
 - enrich session input params for downstream rule checks`}
 </CodeBlockToggle>
 
-## Rule Action Playbook (`SET_TASK`, `SET_JSON`, `GET_CONTEXT`, `GET_SESSION`) {#5-rule-action-playbook-set_task-set_json-get_context-get_session}
+## `ConvEngineVerboseAdapter` - publish UI verbose messages from consumer code {#5-convengineverboseadapter---publish-ui-verbose-messages-from-consumer-code}
+
+Use this when hooks, transformers, or custom Spring beans need to emit progress/error messages to the UI without embedding transport code.
+
+<CodeBlockToggle title="Verbose adapter example" language="java" packagePath="com.zapper.convengine.hooks">
+{`@Component
+@RequiredArgsConstructor
+public class LoanConfirmationHook implements EngineStepHook {
+
+    private final ConvEngineVerboseAdapter verboseAdapter;
+
+    @Override
+    public void beforeStep(EngineStep.Name stepName, EngineSession session) {
+        verboseAdapter.publish(session, this, "PRECHECK_STARTED");
+
+        verboseAdapter.publishText(
+            session,
+            this,
+            "PRECHECK_NOTE",
+            "Reviewing customer [[\${context.customerId}]] in state [[\${state}]]."
+        );
+    }
+}`}
+</CodeBlockToggle>
+
+What it gives you:
+
+- `publish(session, this, "TOKEN")`: DB-backed `ce_verbose` lookup using `this.getClass().getSimpleName()`
+- `publish(session, this, "TOKEN", metadata)`: same, with extra metadata for resolver matching and rendering
+- `publishError(...)`: same path, error branch
+- `publishText(...)`: bypasses `ce_verbose` row lookup and sends direct text, still rendered through Thymeleaf
+
+Recommended pattern:
+
+- use `publish(...)` when the wording should be controlled by `ce_verbose`
+- use `publishText(...)` when the wording should come directly from consumer Java
+
+## Rule Action Playbook (`SET_TASK`, `SET_JSON`, `GET_CONTEXT`, `GET_SESSION`, `SET_INPUT_PARAM`, `SET_DIALOGUE_ACT`) {#6-rule-action-playbook-set_task-set_json-get_context-get_session-set_input_param-set_dialogue_act}
 
 These actions execute inside <MethodRef>RulesStep.execute(...)</MethodRef> and mutate the live <MethodRef>EngineSession</MethodRef>.
 
 Set <MethodRef>ce_rule.phase</MethodRef> based on where you want the action to run:
+- <MethodRef>POST_DIALOGUE_ACT</MethodRef>: immediately after <MethodRef>DialogueActStep</MethodRef>, before <MethodRef>InteractionPolicyStep</MethodRef>.
 - <MethodRef>PRE_RESPONSE_RESOLUTION</MethodRef>: normal <MethodRef>RulesStep</MethodRef> pass.
 - <MethodRef>POST_AGENT_INTENT</MethodRef>: post-intent pass inside <MethodRef>AgentIntentResolver</MethodRef>.
 
@@ -103,6 +141,8 @@ Set <MethodRef>ce_rule.phase</MethodRef> based on where you want the action to r
     ["SET_JSON", "targetKey:jsonPath", "Extracts JSONPath from session eject and stores into inputParams[targetKey]"],
     ["GET_CONTEXT", "targetKey (optional)", "Stores session.contextDict() into inputParams[targetKey] (default key=context)"],
     ["GET_SESSION", "targetKey (optional)", "Stores session.sessionDict() into inputParams[targetKey] (default key=session)"],
+    ["SET_INPUT_PARAM", "{\"key\":value,...}", "Writes literal runtime flags directly into inputParams"],
+    ["SET_DIALOGUE_ACT", "\"EDIT\" or {\"dialogueAct\":\"EDIT\",...}", "Overrides final dialogue_act / confidence / source and can sync standalone_query"],
   ]}
 />
 
@@ -197,6 +237,63 @@ VALUES
 
 If `action_value` is blank, engine uses default key `session`.
 
+### `SET_INPUT_PARAM` - write runtime flags directly {#65-set_input_param---write-runtime-flags-directly}
+
+Use this when you need lightweight runtime variables for later rules/steps without creating a custom task bean.
+
+<CodeBlockToggle title="SET_INPUT_PARAM rule example (SQL)" language="sql">
+{`INSERT INTO ce_rule
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('POST_SCHEMA_EXTRACTION', 'LOAN_APPLICATION', 'ELIGIBILITY_GATE', 'JSON_PATH', '$[?(@.schemaComplete == true)]',
+   'SET_INPUT_PARAM', '{"awaiting_confirmation":true,"confirmation_key":"LOAN_APPLICATION_CONFIRM"}', 11, true,
+   'Mark confirmation flags after schema becomes complete');`}
+</CodeBlockToggle>
+
+Typical uses:
+
+- `awaiting_confirmation`
+- `confirmation_key`
+- `skip_schema_extraction`
+- `routing_decision`
+- `correction_applied`
+
+This is the clean way to make later `ce_rule` phases react to:
+
+- confirmation answers (`AFFIRM` / `NEGATE`)
+- correction routing
+- post-schema, pre-MCP gating
+
+### `SET_DIALOGUE_ACT` - override final dialogue-act after classification {#66-set_dialogue_act---override-final-dialogue-act-after-classification}
+
+Use this when `DialogueActStep` correctly preserves an LLM candidate (for example `dialogue_act_llm_candidate=EDIT`) but the final guarded result should be overridden before `InteractionPolicyStep`.
+
+This is especially useful in `POST_DIALOGUE_ACT`.
+
+<CodeBlockToggle title="SET_DIALOGUE_ACT rule example (SQL)" language="sql">
+{`INSERT INTO ce_rule
+  (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
+VALUES
+  ('POST_DIALOGUE_ACT', 'LOAN_APPLICATION', 'ANY', 'JSON_PATH',
+   '$[?(@.inputParams.dialogue_act == ''NEW_REQUEST'' && @.inputParams.dialogue_act_source == ''REGEX_GUARD'' && @.inputParams.dialogue_act_llm_candidate == ''EDIT'')]',
+   'SET_DIALOGUE_ACT', '{"dialogueAct":"EDIT","source":"POST_DIALOGUE_ACT_RULE"}', 5, true,
+   'Promote guarded LLM EDIT back to EDIT before interaction policy');`}
+</CodeBlockToggle>
+
+Accepted `action_value` formats:
+
+- simple string:
+  `EDIT`
+- structured JSON:
+  `{"dialogueAct":"EDIT","confidence":0.99,"source":"POST_DIALOGUE_ACT_RULE","standaloneQuery":"..."}`
+
+`SET_DIALOGUE_ACT` updates:
+
+- `dialogue_act`
+- `dialogue_act_confidence`
+- `dialogue_act_source`
+- optional `standalone_query` (which also refreshes `resolved_user_input`)
+
 <Highlight type="warning" title="Operational guardrails">
 `SET_TASK` methods run during rule execution. Keep methods deterministic and idempotent.  
 For side-effecting calls (ticket creation, webhook dispatch), guard with strict rule conditions and add idempotency keys from <MethodRef>conversationId</MethodRef>.
@@ -211,6 +308,7 @@ For side-effecting calls (ticket creation, webhook dispatch), guard with strict 
       <span className="ce-chip-item"><FileRef>engine/rule/type/provider/SetJsonActionResolver.java</FileRef></span>
       <span className="ce-chip-item"><FileRef>engine/rule/type/provider/GetContextActionResolver.java</FileRef></span>
       <span className="ce-chip-item"><FileRef>engine/rule/type/provider/GetSessionActionResolver.java</FileRef></span>
+      <span className="ce-chip-item"><FileRef>engine/rule/type/provider/SetDialogueActActionResolver.java</FileRef></span>
     </div>
   </div>
 
@@ -230,7 +328,7 @@ For side-effecting calls (ticket creation, webhook dispatch), guard with strict 
 </div>
 </Highlight>
 
-### Custom action resolver (`RuleActionResolver`) {#55-custom-action-resolver-ruleactionresolver}
+### Custom action resolver (`RuleActionResolver`) {#66-custom-action-resolver-ruleactionresolver}
 
 Consumer can define a brand-new rule action without changing framework core.
 

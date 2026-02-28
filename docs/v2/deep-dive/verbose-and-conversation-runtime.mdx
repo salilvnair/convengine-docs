@@ -59,25 +59,68 @@ If a conversation row does not exist, `EngineSessionFactory` creates a minimal r
 1. Load eligible rows from static cache (`ce_verbose`) by intent/state.
 2. Filter by determinant, step match, rule/tool constraints.
 3. Score candidates by specificity (`intent`, `state`, `determinant`, step match type, `rule_id`, `tool_code`) and priority.
-4. Build `VerboseStreamPayload` with `level=INFO|ERROR`.
-5. If no row matches and the event is error path, fallback publishes:
+4. Render `message` / `error_message` through the shared Thymeleaf text renderer using current session/runtime variables.
+5. Build `VerboseStreamPayload` with `level=INFO|ERROR`.
+6. If no row matches and the event is error path, fallback publishes:
    `Something went wrong while processing <step>.`
 
 ## Determinants currently emitted by runtime
+
+These emitted determinant values are the same values you should use in `ce_verbose.determinant`.
 
 <DbTable
   title="Common emitted determinants"
   columns={["Source", "Determinants"]}
   rows={[
     ["Step hook", "STEP_ENTER, STEP_EXIT, STEP_ERROR"],
-    ["Intent resolver", "AGENT_INTENT_START, AGENT_INTENT_ACCEPTED, AGENT_INTENT_REJECTED, AGENT_INTENT_COLLISION, AGENT_INTENT_NEEDS_CLARIFICATION"],
-    ["Rules", "RULE_MATCH, RULE_APPLIED"],
-    ["MCP/tool", "MCP_TOOL_CALL, MCP_TOOL_RESULT, MCP_TOOL_ERROR, MCP_FINAL_ANSWER, TOOL_ORCHESTRATION_REQUEST, TOOL_ORCHESTRATION_RESULT, TOOL_ORCHESTRATION_ERROR"],
+    ["Intent resolver", "AGENT_INTENT_START, AGENT_INTENT_ACCEPTED, AGENT_INTENT_REJECTED, AGENT_INTENT_COLLISION, AGENT_INTENT_NEEDS_CLARIFICATION, INTENT_AGENT_LLM_INPUT, INTENT_AGENT_LLM_OUTPUT, INTENT_AGENT_LLM_ERROR"],
+    ["Dialogue act", "DIALOGUE_ACT_LLM_INPUT, DIALOGUE_ACT_LLM_OUTPUT, DIALOGUE_ACT_LLM_ERROR"],
+    ["Rules", "RULE_MATCH, RULE_APPLIED, RULE_NO_MATCH"],
+    ["Schema", "SCHEMA_EXTRACTION_START, SCHEMA_EXTRACTION_LLM_INPUT, SCHEMA_EXTRACTION_LLM_OUTPUT, SCHEMA_EXTRACTION_LLM_ERROR, SCHEMA_STATUS"],
+    ["MCP/tool", "MCP_PLAN_LLM_INPUT, MCP_PLAN_LLM_OUTPUT, MCP_PLAN_LLM_ERROR, MCP_TOOL_CALL, MCP_TOOL_RESULT, MCP_TOOL_ERROR, MCP_FINAL_ANSWER, TOOL_ORCHESTRATION_REQUEST, TOOL_ORCHESTRATION_RESULT, TOOL_ORCHESTRATION_ERROR"],
     ["Resolver factories", "RULE_ACTION_RESOLVER_SELECTED/NOT_FOUND, RESPONSE_TYPE_RESOLVER_SELECTED/NOT_FOUND, OUTPUT_FORMAT_RESOLVER_SELECTED/NOT_FOUND"],
-    ["Response step", "RESOLVE_RESPONSE"],
+    ["Response step", "RESOLVE_RESPONSE, RESOLVE_RESPONSE_SELECTED, RESOLVE_RESPONSE_LLM_INPUT, RESOLVE_RESPONSE_LLM_OUTPUT, RESOLVE_RESPONSE_LLM_ERROR"],
     ["Intent step", "INTENT_RESOLVED"]
   ]}
 />
+
+## Consumer-side verbose emission
+
+Consumer hooks, container transformers, response transformers, and other Spring beans can emit UI verbose messages through `ConvEngineVerboseAdapter`.
+
+<CodeBlockToggle title="Consumer verbose adapter usage" language="java">
+{`@Component
+@RequiredArgsConstructor
+public class LoanResponseTransformer implements ResponseTransformerHandler {
+
+  private final ConvEngineVerboseAdapter verboseAdapter;
+
+  @Override
+  public OutputPayload transform(OutputPayload responsePayload, EngineSession session, Map<String, Object> inputParams) {
+    verboseAdapter.publish(session, this, "POST_TRANSFORM_START");
+    verboseAdapter.publishText(
+        session,
+        this,
+        "POST_TRANSFORM_NOTE",
+        "Preparing final response for [[\${intent}]] in state [[\${state}]]."
+    );
+    return responsePayload;
+  }
+}`}
+</CodeBlockToggle>
+
+For `publish(session, this, "POST_TRANSFORM_START")`, `ce_verbose` resolution uses:
+
+- `step_value = LoanResponseTransformer`
+- `determinant = POST_TRANSFORM_START`
+- current `intent_code` and `state_code`
+
+Adapter behavior:
+
+- `publish(session, this, "...")` uses `this.getClass().getSimpleName()` as `step_value`
+- `publish(session, ..., metadata)` and `publishError(...)` flow through the same DB-backed `ce_verbose` resolver with extra metadata
+- if no `ce_verbose` row matches, no custom verbose message is emitted from the DB path
+- `publishText(...)` bypasses DB lookup and sends the provided text directly, still rendered through Thymeleaf against session + metadata
 
 ## Stream envelope contract (`AUDIT` + `VERBOSE`)
 

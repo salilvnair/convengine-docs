@@ -13,8 +13,9 @@ export const v2PipelineSteps = [
   { name: "PersistConversationBootstrapStep", description: "Persists conversation bootstrap row before persisted-required steps." },
   { name: "AuditUserInputStep", description: "Writes raw user input audit event." },
   { name: "PolicyEnforcementStep", description: "Applies pre-intent policy checks and safe short-circuit when required." },
-  { name: "DialogueActStep", description: "Classifies turn as AFFIRM/NEGATE/EDIT/RESET/QUESTION/NEW_REQUEST." },
+  { name: "DialogueActStep", description: "Classifies turn as AFFIRM/NEGATE/ANSWER/EDIT/RESET/QUESTION/NEW_REQUEST and can derive standalone_query." },
   { name: "InteractionPolicyStep", description: "Decides EXECUTE_PENDING_ACTION / REJECT_PENDING_ACTION / FILL_PENDING_SLOT / RECLASSIFY_INTENT." },
+  { name: "CorrectionStep", description: "Applies confirmation routing and in-place schema correction before intent/schema rework." },
   { name: "ActionLifecycleStep", description: "Maintains pending_action_runtime status with TTL semantics." },
   { name: "DisambiguationStep", description: "When multiple actions are eligible, asks targeted clarification and pauses execution." },
   { name: "GuardrailStep", description: "Sanitization + sensitive checks + approval gate hooks." },
@@ -85,7 +86,7 @@ public EngineResult process(EngineContext engineContext) {
 <PipelineStepList ariaLabel="Pipeline step-by-step (v2)" steps={v2PipelineSteps} />
 
 <Highlight type="info" title="Core path vs conditional steps">
-`DialogueActStep`, `InteractionPolicyStep`, `ActionLifecycleStep`, `DisambiguationStep`, `PendingActionStep`, `ToolOrchestrationStep`, `McpToolStep`, `StateGraphStep`, and `MemoryStep` are route-conditional and execute only when their prerequisites are met.
+`DialogueActStep`, `InteractionPolicyStep`, `CorrectionStep`, `ActionLifecycleStep`, `DisambiguationStep`, `PendingActionStep`, `ToolOrchestrationStep`, `McpToolStep`, `StateGraphStep`, and `MemoryStep` are route-conditional and execute only when their prerequisites are met.
 </Highlight>
 
 <Highlight type="success" title="Audit Trail + Real-world trace">

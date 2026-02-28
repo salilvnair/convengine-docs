@@ -1,0 +1,195 @@
+---
+title: Thymeleaf and SpEL
+sidebar_position: 6
+---
+
+import { CodeBlockToggle, Highlight, DbTable } from "@site/src/components/convengine";
+
+# Thymeleaf and SpEL in Prompts and Verbose Messages
+
+ConvEngine `2.0.9` routes prompt rendering and verbose text rendering through the shared `ThymeleafTemplateRenderer`.
+
+This applies to:
+
+- `ce_prompt_template.system_prompt`
+- `ce_prompt_template.user_prompt`
+- `ce_verbose.message`
+- `ce_verbose.error_message`
+
+It means you can use Thymeleaf text expressions backed by Spring Expression Language (SpEL) against live session/runtime data.
+
+## Where it is used
+
+<DbTable
+  title="Rendering surfaces"
+  columns={["Surface", "Rendered by", "Typical use"]}
+  rows={[
+    ["ce_prompt_template.system_prompt", "PromptTemplateRenderer -> ThymeleafTemplateRenderer", "LLM behavior instructions"],
+    ["ce_prompt_template.user_prompt", "PromptTemplateRenderer -> ThymeleafTemplateRenderer", "Current request/context assembly"],
+    ["ce_verbose.message", "DbVerboseMessageResolver -> ThymeleafTemplateRenderer", "Progress text shown to UI"],
+    ["ce_verbose.error_message", "DbVerboseMessageResolver -> ThymeleafTemplateRenderer", "Error text shown to UI"],
+    ["ConvEngineVerboseAdapter.publishText(...)", "VerboseMessagePublisher -> ThymeleafTemplateRenderer", "Direct consumer-emitted UI verbose text"]
+  ]}
+/>
+
+## Available runtime variables
+
+Common variables available during rendering:
+
+- `user_input`
+- `resolved_user_input`
+- `standalone_query`
+- `intent`
+- `state`
+- `context`
+- `inputParams`
+- `schema`
+- `session`
+
+`resolved_user_input` is the preferred current-turn input when query rewrite / standalone query is present.
+
+## What Spring Expression Language (SpEL) means here
+
+Thymeleaf is the text templating layer. SpEL is the expression language inside the `${...}` part.
+
+In other words:
+
+- `[[${intent}]]`
+  - `[[...]]` is Thymeleaf text rendering
+  - `${intent}` is a SpEL expression
+
+ConvEngine uses this so templates can read values, branch on conditions, and apply simple defaults without writing Java.
+
+## Common SpEL patterns
+
+<DbTable
+  title="SpEL patterns you can use"
+  columns={["Pattern", "Example", "What it does"]}
+  rows={[
+    ["Property access", "[[${context.customerId}]]", "Reads a nested value from runtime context."],
+    ["Boolean check", "[[${inputParams.awaiting_confirmation == true}]]", "Evaluates a true/false condition."],
+    ["Ternary", "[[${state == 'CONFIRMATION' ? 'Please confirm.' : 'Continuing.'}]]", "Chooses one of two strings based on a condition."],
+    ["Null/default fallback", "[[${context.customerId != null ? context.customerId : 'UNKNOWN_CUSTOMER'}]]", "Supplies a fallback value when the real value is absent."],
+    ["Logical operators", "[[${context.mcp != null && context.mcp.finalAnswer != null ? context.mcp.finalAnswer : 'Pending'}]]", "Combines multiple checks before rendering."]
+  ]}
+/>
+
+Supported practical operators you will use most:
+
+- equality: `==`, `!=`
+- logical: `&&`, `||`, `!`
+- comparisons: `>`, `<`, `>=`, `<=`
+- ternary: `condition ? a : b`
+
+<Highlight type="info" title="Recommended scope for SpEL">
+Use SpEL for lightweight reads, conditionals, and defaults. Keep business routing in `ce_rule` and pipeline steps, not in large prompt expressions.
+</Highlight>
+
+## Recommended syntax
+
+Use Thymeleaf text expressions for new templates:
+
+- `[[${intent}]]`
+- `[[${state}]]`
+- `[[${context.customerId}]]`
+- `[[${inputParams.confirmation_key}]]`
+
+Legacy placeholders still work:
+
+- `{{user_input}}`
+- `{{context}}`
+
+But Thymeleaf expressions are the native path now.
+
+<Highlight type="tip" title="Practical rule">
+Use `[[...]]` for rendered text output. Use `${...}` inside conditions and default expressions.
+</Highlight>
+
+## Prompt examples
+
+<CodeBlockToggle title="ce_prompt_template.user_prompt example" language="text">
+{`User input:
+[[\${resolved_user_input}]]
+
+Current intent/state:
+- intent: [[\${intent}]]
+- state: [[\${state}]]
+
+Loan draft:
+- customerId: [[\${context.customerId}]]
+- requestedAmount: [[\${context.requestedAmount}]]
+- tenureMonths: [[\${context.tenureMonths}]]
+
+If awaiting confirmation is true, ask for confirmation only.
+Awaiting confirmation: [[\${inputParams.awaiting_confirmation}]]`}
+</CodeBlockToggle>
+
+## Conditional/default examples
+
+You can use SpEL-backed Thymeleaf expressions for simple branching and fallbacks:
+
+<CodeBlockToggle title="Conditional and fallback examples" language="text">
+{`[[\${context.customerId != null ? context.customerId : 'UNKNOWN_CUSTOMER'}]]
+[[\${inputParams.correction_applied == true ? 'Updated value captured.' : 'No correction applied.'}]]
+[[\${context.mcp != null && context.mcp.finalAnswer != null ? context.mcp.finalAnswer : 'Processing is still in progress.'}]]`}
+</CodeBlockToggle>
+
+## SpEL examples for confirmation-first flows
+
+These are the kinds of checks that pair well with `SET_INPUT_PARAM`, `DialogueActStep`, and `CorrectionStep`:
+
+<CodeBlockToggle title="Confirmation-focused SpEL examples" language="text">
+{`[[\${inputParams.awaiting_confirmation == true ? 'Awaiting user confirmation.' : 'No confirmation gate active.'}]]
+[[\${inputParams.routing_decision == 'PROCEED_CONFIRMED' ? 'User confirmed. Start processing.' : 'Still waiting for confirmation.'}]]
+[[\${inputParams.correction_applied == true ? 'Updated ' + inputParams.correction_target_field + '.' : 'No correction applied.'}]]`}
+</CodeBlockToggle>
+
+## Verbose message examples
+
+<CodeBlockToggle title="ce_verbose.message example" language="sql">
+{`INSERT INTO ce_verbose
+  (intent_code, state_code, step_match, step_value, determinant, message, error_message, priority, enabled)
+VALUES
+  ('LOAN_APPLICATION', 'CONFIRMATION', 'EXACT', 'CorrectionStep', 'CORRECTION_PATCH_APPLIED',
+   'Updated [[\${correction_target_field}]]. Please confirm customer [[\${context.customerId}]] again.',
+   'Could not apply the requested correction for [[\${context.customerId}]].',
+   10, true);`}
+</CodeBlockToggle>
+
+## Direct adapter example
+
+<CodeBlockToggle title="ConvEngineVerboseAdapter with Thymeleaf text" language="java">
+{`@Component
+@RequiredArgsConstructor
+public class LoanHook implements EngineStepHook {
+
+  private final ConvEngineVerboseAdapter verboseAdapter;
+
+  @Override
+  public void beforeStep(EngineStep.Name stepName, EngineSession session) {
+    verboseAdapter.publishText(
+        session,
+        this,
+        "PRECHECK_STARTED",
+        "Starting review for [[\${context.customerId}]] in state [[\${state}]]."
+    );
+  }
+}`}
+</CodeBlockToggle>
+
+## What happens when variables are missing
+
+- Legacy `{{...}}` placeholders are validated.
+- If a required legacy variable cannot be resolved, prompt rendering can fail with unresolved prompt metadata.
+- For Thymeleaf expressions, prefer explicit fallbacks when a value may be absent.
+
+<Highlight type="warning" title="Avoid brittle templates">
+Do not assume every nested node exists. For optional values, use fallback expressions instead of hard-failing on deep property chains.
+</Highlight>
+
+## Best practices
+
+- Use `resolved_user_input` instead of `user_input` when current-turn rewrites matter.
+- Keep business control in `ce_rule`; use templates for wording, not state transitions.
+- Use `ce_verbose` / `ConvEngineVerboseAdapter` for UI progress text, not to mutate runtime state.
+- Prefer compact expressions; large branching logic belongs in rules or Java, not prompt text.

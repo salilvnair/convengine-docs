@@ -22,6 +22,7 @@ import { FlowStep, Highlight, CodeBlockToggle, FileRef, MethodRef } from "@site/
 ### Decision + Control Layer
 - dialogue act: <MethodRef>DialogueActStep</MethodRef>
 - policy: <MethodRef>InteractionPolicyStep</MethodRef>
+- correction routing: <MethodRef>CorrectionStep</MethodRef>
 - pending action lifecycle: <MethodRef>ActionLifecycleStep</MethodRef>, <MethodRef>DisambiguationStep</MethodRef>, <MethodRef>PendingActionStep</MethodRef>
 - guard + transition validation: <MethodRef>GuardrailStep</MethodRef>, <MethodRef>StateGraphStep</MethodRef>
 - core intent/schema/rules/response path
@@ -45,7 +46,7 @@ Builds <MethodRef>EngineContext</MethodRef> from <MethodRef>conversationId</Meth
 </FlowStep>
 
 <FlowStep step="3" title="Control steps run">
-Dialogue act + interaction policy + pending-action lifecycle decide whether to execute task, clarify, or continue standard intent flow.
+Dialogue act + interaction policy + correction routing + pending-action lifecycle decide whether to execute task, clarify, confirm, patch, or continue standard intent flow.
 </FlowStep>
 
 <FlowStep step="4" title="Core flow resolves output">
@@ -92,7 +93,7 @@ You can intercept any step via <MethodRef>EngineStepHook</MethodRef> (<MethodRef
 :::
 
 <Highlight type="info" title="Control phases">
-Rules execute by phase: <MethodRef>PRE_RESPONSE_RESOLUTION</MethodRef>, <MethodRef>POST_AGENT_INTENT</MethodRef>, <MethodRef>POST_AGENT_MCP</MethodRef>, and <MethodRef>POST_TOOL_EXECUTION</MethodRef>.
+Rules execute by phase: <MethodRef>PRE_RESPONSE_RESOLUTION</MethodRef>, <MethodRef>POST_AGENT_INTENT</MethodRef>, <MethodRef>POST_SCHEMA_EXTRACTION</MethodRef>, <MethodRef>PRE_AGENT_MCP</MethodRef>, <MethodRef>POST_AGENT_MCP</MethodRef>, and <MethodRef>POST_TOOL_EXECUTION</MethodRef>.
 </Highlight>
 
 <Highlight type="warning" title="Deterministic boundary">

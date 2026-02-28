@@ -143,30 +143,32 @@ Step loop invokes each <MethodRef>execute(session)</MethodRef>. If a step return
 
 <div className="ce-step-badge-list" role="list" aria-label="Canonical runtime step set">
   <div className="ce-step-badge-item"><span className="ce-step-badge-index">1</span><span className="ce-step-badge-label">LoadOrCreateConversationStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">2</span><span className="ce-step-badge-label">ResetConversationStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">3</span><span className="ce-step-badge-label">PersistConversationBootstrapStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">4</span><span className="ce-step-badge-label">AuditUserInputStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">5</span><span className="ce-step-badge-label">PolicyEnforcementStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">6</span><span className="ce-step-badge-label">DialogueActStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">7</span><span className="ce-step-badge-label">InteractionPolicyStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">8</span><span className="ce-step-badge-label">ActionLifecycleStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">9</span><span className="ce-step-badge-label">DisambiguationStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">10</span><span className="ce-step-badge-label">GuardrailStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">11</span><span className="ce-step-badge-label">IntentResolutionStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">12</span><span className="ce-step-badge-label">ResetResolvedIntentStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">13</span><span className="ce-step-badge-label">FallbackIntentStateStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">14</span><span className="ce-step-badge-label">AddContainerDataStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">15</span><span className="ce-step-badge-label">PendingActionStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">16</span><span className="ce-step-badge-label">ToolOrchestrationStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">17</span><span className="ce-step-badge-label">McpToolStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">18</span><span className="ce-step-badge-label">SchemaExtractionStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">19</span><span className="ce-step-badge-label">AutoAdvanceStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">20</span><span className="ce-step-badge-label">RulesStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">21</span><span className="ce-step-badge-label">StateGraphStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">22</span><span className="ce-step-badge-label">ResponseResolutionStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">23</span><span className="ce-step-badge-label">MemoryStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">24</span><span className="ce-step-badge-label">PersistConversationStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">25</span><span className="ce-step-badge-label">PipelineEndGuardStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">2</span><span className="ce-step-badge-label">CacheInspectAuditStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">3</span><span className="ce-step-badge-label">ResetConversationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">4</span><span className="ce-step-badge-label">PersistConversationBootstrapStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">5</span><span className="ce-step-badge-label">AuditUserInputStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">6</span><span className="ce-step-badge-label">PolicyEnforcementStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">7</span><span className="ce-step-badge-label">DialogueActStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">8</span><span className="ce-step-badge-label">InteractionPolicyStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">9</span><span className="ce-step-badge-label">CorrectionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">10</span><span className="ce-step-badge-label">ActionLifecycleStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">11</span><span className="ce-step-badge-label">DisambiguationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">12</span><span className="ce-step-badge-label">GuardrailStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">13</span><span className="ce-step-badge-label">IntentResolutionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">14</span><span className="ce-step-badge-label">ResetResolvedIntentStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">15</span><span className="ce-step-badge-label">FallbackIntentStateStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">16</span><span className="ce-step-badge-label">AddContainerDataStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">17</span><span className="ce-step-badge-label">PendingActionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">18</span><span className="ce-step-badge-label">ToolOrchestrationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">19</span><span className="ce-step-badge-label">McpToolStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">20</span><span className="ce-step-badge-label">SchemaExtractionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">21</span><span className="ce-step-badge-label">AutoAdvanceStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">22</span><span className="ce-step-badge-label">RulesStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">23</span><span className="ce-step-badge-label">StateGraphStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">24</span><span className="ce-step-badge-label">ResponseResolutionStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">25</span><span className="ce-step-badge-label">MemoryStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">26</span><span className="ce-step-badge-label">PersistConversationStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">27</span><span className="ce-step-badge-label">PipelineEndGuardStep</span></div>
 </div>
 
 ## FAQ
@@ -298,11 +300,11 @@ VALUES ('CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'DERIVED', 'TEXT', true)
 <CodeBlockToggle title="Pending Action Assignment SQL" language="sql" defaultOpen={true}>
 {`INSERT INTO ce_intent (intent_code, enabled) VALUES ('CANCEL_ORDER', true);
 
-INSERT INTO ce_pending_action (intent_code, state_code, action_name, expiration_turns, priority, enabled)
-VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'stripeCancelTask', 3, 10, true);
+INSERT INTO ce_pending_action (intent_code, state_code, action_key, bean_name, method_names, priority, enabled, description)
+VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'stripe_cancel', 'stripeCancelTask', 'execute', 10, true, 'Cancel the order in the provider system');
 
-INSERT INTO ce_rule (phase, intent_code, rule_type, action, priority, enabled)
-VALUES ('POST_EVAL', 'CANCEL_ORDER', 'CONDITION', 'TRANSITION_STATE:CANCELLED', 10, true);
+INSERT INTO ce_rule (intent_code, state_code, rule_type, rule_value, action, action_value, phase, priority, enabled)
+VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'EXACT', 'ANY', 'SET_STATE', 'CANCELLED', 'PRE_RESPONSE_RESOLUTION', 10, true);
 
 INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, user_prompt, template_id, enabled)
 VALUES ('CANCEL_ORDER', 'DERIVED', 'Format cleanly.', 'Order {{context.orderNumber}} has been completely cancelled.', 'tmpl_cancelled', true);`}

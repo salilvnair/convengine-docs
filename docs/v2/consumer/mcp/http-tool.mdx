@@ -16,7 +16,7 @@ ConvEngine supports two HTTP MCP integration models.
   columns={["Model", "Use when", "How it executes"]}
   rows={[
     ["HttpApiRequestingToolHandler", "You want framework-managed retries/timeouts/circuit/auth/mapping", "HttpApiToolInvoker (framework HttpClient)"],
-    ["HttpApiApiProcessorToolHandler", "You already use [api-processor](https://github.com/salilvnair/api-processor) in your app", "RestWebServiceFacade -> delegate.invoke -> processResponse"],
+    ["HttpApiProcessorToolHandler", "You already use [api-processor](https://github.com/salilvnair/api-processor) in your app", "RestWebServiceFacade -> delegate.invoke -> processResponse"],
   ]}
 />
 
@@ -51,7 +51,7 @@ new HttpApiResponseMapping(
         "com.acme.api.OrderStatusResponse");
 ```
 
-## Model B: HttpApiApiProcessorToolHandler
+## Model B: HttpApiProcessorToolHandler
 
 ### Flow
 

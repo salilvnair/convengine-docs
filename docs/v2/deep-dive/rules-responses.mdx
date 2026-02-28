@@ -3,18 +3,52 @@ title: Rules & Responses
 sidebar_position: 6
 ---
 
+import { DbTable, Highlight } from "@site/src/components/convengine";
+
 # Rules and Response Resolution
 
 ## Rule phases
 
 `ce_rule.phase` supports:
 
+- `POST_DIALOGUE_ACT`
 - `PRE_RESPONSE_RESOLUTION`
 - `POST_AGENT_INTENT`
+- `POST_SCHEMA_EXTRACTION`
+- `PRE_AGENT_MCP`
 - `POST_AGENT_MCP`
 - `POST_TOOL_EXECUTION`
 
 `RulesStep` writes phase/source/origin metadata into input params and audit payload for every pass.
+
+`ce_rule.action` supports:
+
+- `SET_INTENT`
+- `SET_STATE`
+- `SET_DIALOGUE_ACT`
+- `SET_JSON`
+- `GET_CONTEXT`
+- `GET_SCHEMA_JSON`
+- `GET_SESSION`
+- `SET_TASK`
+- `SET_INPUT_PARAM`
+
+## Why `POST_SCHEMA_EXTRACTION` and `PRE_AGENT_MCP` both matter
+
+Use the two phases for different boundaries:
+
+- `POST_SCHEMA_EXTRACTION`: immediate shaping right after schema merge and schema-completeness recompute
+- `PRE_AGENT_MCP`: last deterministic gate before planner/tool execution starts
+
+Typical confirmation-first flow:
+
+1. `POST_SCHEMA_EXTRACTION` sees `schemaComplete=true`
+2. rule sets `state=CONFIRMATION`
+3. optional `SET_INPUT_PARAM` writes `awaiting_confirmation=true` and `confirmation_key=...`
+4. user responds with `AFFIRM` / `EDIT`
+5. `POST_DIALOGUE_ACT` can use `SET_DIALOGUE_ACT` if the final guarded act should be overridden before policy routing
+6. `CorrectionStep` sets runtime flags such as `routing_decision` or `correction_applied`
+7. `PRE_AGENT_MCP` checks those flags and decides whether MCP should start
 
 ## Rule matching behavior
 
@@ -47,8 +81,30 @@ Audit emitted for both outcomes:
 3. emits `RESOLVE_RESPONSE*` audit stages
 4. writes final payload (`EXACT` or `DERIVED`)
 
+## `SET_INPUT_PARAM` patterns
+
+Use `SET_INPUT_PARAM` when you need lightweight runtime variables persisted in `inputParams` instead of writing custom Java.
+
+<DbTable
+  title="Common runtime-flag patterns"
+  columns={["Scenario", "Example action_value", "Why it helps"]}
+  rows={[
+    ["Confirmation required", "{\"awaiting_confirmation\":true,\"confirmation_key\":\"LOAN_APPLICATION_CONFIRM\"}", "Marks the next turn as a confirmation-bound reply."],
+    ["Skip re-extraction", "{\"skip_schema_extraction\":true}", "Avoids another schema LLM call on confirm-accept or deterministic patch."],
+    ["Route after AFFIRM", "{\"routing_decision\":\"PROCEED_CONFIRMED\"}", "Lets PRE_AGENT_MCP or PRE_RESPONSE_RESOLUTION rules branch without parsing raw user text."],
+    ["Patch feedback", "{\"correction_applied\":true}", "Allows confirmation responses to mention that a value was updated."]
+  ]}
+/>
+
+<Highlight type="tip" title="Best practice for yes/no turns">
+Do not write `ce_rule` against raw “yes”, “go ahead”, or “confirm” text. Use `DialogueActStep` (`AFFIRM` / `NEGATE`) plus a scoped runtime flag such as `awaiting_confirmation` or `confirmation_key`.
+</Highlight>
+
 ## Operational guidance
 
 - Keep fallback state responses (`ANY`/`UNKNOWN`) for safety paths.
 - Keep at least one response for each terminal state.
 - Use phase-scoped rules instead of overloading one monolithic `PRE_RESPONSE_RESOLUTION` pass.
+- Use `SET_INPUT_PARAM` when you need deterministic runtime flags without hardcoding more Java branching.
+- For confirmation flows, combine `DialogueActStep` + `CorrectionStep` + `SET_INPUT_PARAM` rather than rerunning full schema extraction on every turn.
+- When guarded dialogue-act output needs a DB-driven override, use `POST_DIALOGUE_ACT` + `SET_DIALOGUE_ACT` instead of hardcoding workflow state names in Java.

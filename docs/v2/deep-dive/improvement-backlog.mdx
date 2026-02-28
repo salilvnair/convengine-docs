@@ -3,11 +3,87 @@ title: Improvement Backlog
 sidebar_position: 12
 ---
 
+import { DbTable, Highlight, FlowStep } from "@site/src/components/convengine";
+
 # Improvement Backlog
 
-Current direction:
+This page is the forward-looking backlog for ConvEngine. It is intentionally biased toward improvements that make the engine more deterministic, more auditable, and cheaper to operate at runtime.
 
-- richer policy DSL for interaction matrix
-- built-in conflict resolution strategies for pending actions
-- audit replay assertions as first-class CI utility
-- docs automation from code/DDL contracts
+<Highlight type="info" title="How to read this page">
+These are product and framework-shape suggestions, not all committed roadmap items. The emphasis is on ideas that improve runtime clarity, reduce repeated LLM work, and make the control plane easier to manage in SQL.
+</Highlight>
+
+## Current priorities
+
+<DbTable
+  title="High-value backlog areas"
+  columns={["Area", "Why it matters", "Practical outcome"]}
+  rows={[
+    ["Confirmation-first routing", "Too many flows still treat every turn as a fresh extraction request.", "Reduce duplicate LLM calls by routing AFFIRM / EDIT / NEGATE deterministically."],
+    ["Richer runtime flags", "Business flows need lightweight state between turns without custom Java every time.", "Use `SET_INPUT_PARAM` and related helpers as the default control primitive."],
+    ["MCP execution guardrails", "Teams need clearer gates before expensive planner/tool loops start.", "Strengthen pre-MCP phases and skip conditions."],
+    ["Prompt/rendering ergonomics", "Templates are now more powerful, but easier to misuse.", "Provide stricter guidance and better rendering-safe patterns."],
+    ["Docs from runtime contracts", "Docs drift when code and SQL evolve quickly.", "Generate more reference docs directly from enums, constants, and DDL."]
+  ]}
+/>
+
+## Suggested roadmap
+
+<FlowStep step="1" title="Turn-routing maturity">
+Expand the confirmation-first model so more flows can use `DialogueActStep` + `CorrectionStep` + phase-scoped rules instead of rerunning extraction or intent classification on short follow-up turns.
+</FlowStep>
+
+<FlowStep step="2" title="Rule-control maturity">
+Push more lightweight control behavior into native actions (`SET_INPUT_PARAM`, better structured action payloads, clearer phase semantics) so teams need fewer custom beans for simple routing.
+</FlowStep>
+
+<FlowStep step="3" title="Observability maturity">
+Make replay, verbose, and audit traces easier to consume by humans: better examples, summarized traces, and stronger conventions around emitted runtime metadata.
+</FlowStep>
+
+## Design suggestions by theme
+
+<DbTable
+  title="Concrete suggestions"
+  columns={["Theme", "Suggestion", "Why it is worth doing"]}
+  rows={[
+    ["Correction flows", "Add a small deterministic patch library plus optional LLM patch fallback.", "This is cheaper and cleaner than full schema re-extraction for every edit."],
+    ["Confirmation flows", "Standardize `awaiting_confirmation`, `confirmation_key`, `routing_decision`, and `skip_schema_extraction` as the canonical runtime flags.", "This makes yes/no/confirm turns reliable without dirty prompt-only logic."],
+    ["Rule authoring", "Add more docs and examples for `POST_SCHEMA_EXTRACTION` and `PRE_AGENT_MCP` as separate control points.", "These are the most important new phases for practical business workflows."],
+    ["Prompt safety", "Ship recommended Thymeleaf/SpEL template patterns for null-safe rendering and avoid brittle nested property assumptions.", "This reduces prompt failures and weird UI text when values are absent."],
+    ["Verbose UX", "Add more consumer examples using `ConvEngineVerboseAdapter` for hooks, transformers, and custom tool orchestration.", "Teams can improve UI feedback without touching transport internals."],
+    ["Replay/testing", "Promote audit replay assertions into a more visible first-class workflow.", "This is the fastest way to stop regressions in rule-heavy systems."],
+    ["Docs discoverability", "Use more callouts, table summaries, and visual chips on dense reference pages.", "The engine is already feature-rich; docs should reduce scanning cost."],
+    ["Config hygiene", "Document and surface more canonical constants/keys so users stop inventing inconsistent payload fields.", "This improves interoperability across rules, prompts, and consumer hooks."]
+  ]}
+/>
+
+## Strong candidates for near-term implementation
+
+<DbTable
+  title="Pragmatic next additions"
+  columns={["Candidate", "Complexity", "Value"]}
+  rows={[
+    ["Dedicated confirmation-routing docs bundle", "Low", "High"],
+    ["More `SET_INPUT_PARAM` examples across business flows", "Low", "High"],
+    ["CorrectionStep deterministic patch cookbook", "Medium", "High"],
+    ["Replay cookbook for CI validation", "Medium", "High"],
+    ["Docs generation from enums/constants", "Medium", "Medium"],
+    ["Stronger verbose patterns catalog", "Low", "Medium"]
+  ]}
+/>
+
+<Highlight type="tip" title="Documentation direction">
+The best docs for ConvEngine are not long paragraphs. They are compact tables, explicit examples, visible runtime flags, and clear “when to use this phase/step” guidance. Dense pages should keep leaning toward that style.
+</Highlight>
+
+## What would make the framework feel more intuitive
+
+- More scenario-driven pages like the MCP examples, where state transitions, rule phases, and runtime flags are shown together.
+- More visual chips for high-signal fields like `intent`, `state`, `phase`, and `routing_decision`.
+- More “bad pattern vs good pattern” guidance for prompts, rules, and follow-up turns.
+- More compact, color-coded summaries at the top of deep-dive pages so users can scan before reading the full detail.
+
+<Highlight type="warning" title="Main risk to avoid">
+The framework becomes harder to use when control logic is pushed into prompt text instead of structured runtime state. The backlog should keep favoring typed flags, explicit phases, and deterministic routing over “smart prompt” behavior.
+</Highlight>

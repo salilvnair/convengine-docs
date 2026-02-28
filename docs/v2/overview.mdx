@@ -12,6 +12,7 @@ ConvEngine is a deterministic conversation workflow engine with explicit turn-co
 - Turn understanding before intent re-resolution:
   - `DialogueActStep`
   - `InteractionPolicyStep`
+  - `CorrectionStep`
 - Pending action runtime control:
   - `ActionLifecycleStep`
   - `DisambiguationStep`
@@ -25,7 +26,9 @@ ConvEngine is a deterministic conversation workflow engine with explicit turn-co
 - Memory and replay:
   - `MemoryStep`
   - `ConversationReplayService`
-- Rule phases expanded with post-tool/post-mcp execution:
+- Rule phases expanded with schema/MCP hooks:
+  - `POST_SCHEMA_EXTRACTION`
+  - `PRE_AGENT_MCP`
   - `POST_AGENT_MCP`
   - `POST_TOOL_EXECUTION`
 - New control tables:

@@ -36,6 +36,23 @@ Add ConvEngine `2.0.0` dependencies. Enable <MethodRef>@EnableConvEngine</Method
 Seed minimum rows for intents, classifiers, responses, prompt templates, schemas, and pending tasks.
 </FlowStep>
 
+<Highlight type="info" title="Prompt-template contract (v2.0.9+)">
+When seeding `ce_prompt_template`, treat prompt rows as both LLM text and turn-behavior metadata.
+
+- set `interaction_mode` to the broad turn type (`COLLECT`, `CONFIRM`, `PROCESSING`, `FINAL`, etc.)
+- use `interaction_contract` JSON for extensible capabilities and expectations
+
+Recommended JSON shape:
+
+- `{"allows":["affirm","edit","retry","reset"],"expects":["structured_input"]}`
+
+Examples:
+
+- intake/schema prompts: `interaction_mode=COLLECT`
+- confirmation prompts: `interaction_mode=CONFIRM`
+- retry-capable in-flight prompts: `interaction_mode=PROCESSING` with `allows:["retry","reset"]`
+</Highlight>
+
 <FlowStep step="3" title="Lock down safety defaults">
 Apply conservative defaults for reset behavior, rules logic, MCP safety, and enable Guardrails via `convengine.flow.guardrail.enabled: true`.
 </FlowStep>
@@ -60,6 +77,17 @@ Move from non-prod to prod only after all correctness/security/scalability gates
     ["Audit usage", "Wire audit API/stream into debugging workflow.", "Every test case is verified against trace timeline."],
     ["Concurrency guard", "Prevent parallel writes for same conversation.", "Load test shows no state drift under concurrent same-ID requests."],
     ["Prompt hygiene", "Allowlist exposed template vars.", "No sensitive/internal keys appear in rendered prompts."],
+  ]}
+/>
+
+<DbTable
+  title="Prompt-template seeding checklist"
+  columns={["Prompt type", "Recommended metadata", "Why"]}
+  rows={[
+    ["Schema extraction (`SCHEMA_JSON`)", "`interaction_mode=COLLECT`, `expects:[\"structured_input\"]`", "Makes structured collection explicit and keeps extraction prompts self-describing."],
+    ["Confirmation (`TEXT`)", "`interaction_mode=CONFIRM`, `allows:[\"affirm\",\"edit\",\"reset\"]`", "Lets `CorrectionStep` route yes/edit turns without relying on state-name parsing."],
+    ["Processing (`TEXT`)", "`interaction_mode=PROCESSING`, `allows:[\"retry\",\"reset\"]`", "Enables deterministic retry after MCP/tool failures in the same state."],
+    ["Final (`TEXT`/`JSON`)", "`interaction_mode=FINAL`", "Marks terminal responses and keeps turn semantics clear in config."]
   ]}
 />
 

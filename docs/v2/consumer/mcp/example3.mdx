@@ -1,0 +1,1164 @@
+---
+title: MCP Example 3 - Loan Application Extended
+sidebar_position: 5
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { DbTable, Highlight, EngineDebugFlow, ChatContainer, TraceChatBubble, CodeBlockToggle } from "@site/src/components/convengine";
+
+export const loanExtendedNodes = [
+  { id: "g", data: { label: "GREETING" } },
+  { id: "i", data: { label: "IDLE -> ELIGIBILITY_GATE" } },
+  { id: "s", data: { label: "SchemaExtractionStep" } },
+  { id: "ps", data: { label: "POST_SCHEMA_EXTRACTION" } },
+  { id: "c", data: { label: "CONFIRMATION" } },
+  { id: "fix", data: { label: "CorrectionStep (EDIT)" } },
+  { id: "ok", data: { label: "CorrectionStep (AFFIRM)" } },
+  { id: "pm", data: { label: "PRE_AGENT_MCP" } },
+  { id: "p", data: { label: "PROCESS_APPLICATION" } },
+  { id: "t1", data: { label: "loan.credit.rating.check" } },
+  { id: "t2", data: { label: "loan.credit.fraud.check" } },
+  { id: "t3", data: { label: "loan.debt.credit.summary" } },
+  { id: "t4", data: { label: "loan.application.submit" } },
+  { id: "post", data: { label: "POST_AGENT_MCP" } },
+  { id: "done", data: { label: "COMPLETED" } },
+];
+
+export const loanExtendedEdges = [
+  { id: "e1", source: "g", target: "i" },
+  { id: "e2", source: "i", target: "s" },
+  { id: "e3", source: "s", target: "ps" },
+  { id: "e4", source: "ps", target: "c" },
+  { id: "e5", source: "c", target: "fix" },
+  { id: "e6", source: "fix", target: "c" },
+  { id: "e7", source: "c", target: "ok" },
+  { id: "e8", source: "ok", target: "pm" },
+  { id: "e9", source: "pm", target: "p" },
+  { id: "e10", source: "p", target: "t1" },
+  { id: "e11", source: "t1", target: "t2" },
+  { id: "e12", source: "t2", target: "t3" },
+  { id: "e13", source: "t3", target: "t4" },
+  { id: "e14", source: "t4", target: "post" },
+  { id: "e15", source: "post", target: "done" },
+];
+
+export const loanExtendedDetails = {
+  g: {
+    title: "Greeting turn",
+    stage: "REQUEST",
+    summary: "User says hi. Normal greeting flow stays outside the loan path.",
+    session: ["intent=GREETING", "state=IDLE"],
+    tables: ["ce_intent_classifier (R)", "ce_response (R)", "ce_audit (W)"]
+  },
+  i: {
+    title: "Loan intake bootstrap",
+    stage: "POST_AGENT_INTENT",
+    summary: "Loan intent starts in IDLE, then rules move the flow into ELIGIBILITY_GATE.",
+    session: ["intent=LOAN_APPLICATION", "state=ELIGIBILITY_GATE"],
+    tables: ["ce_intent_classifier (R)", "ce_rule (POST_AGENT_INTENT)", "ce_audit (W)"]
+  },
+  s: {
+    title: "Schema extraction",
+    stage: "SCHEMA_EXTRACTION",
+    summary: "Collects customerId, requestedAmount, and tenureMonths using the ELIGIBILITY_GATE schema + prompt template.",
+    session: ["context.customerId", "context.requestedAmount", "context.tenureMonths", "schemaComplete"],
+    tables: ["ce_output_schema (R)", "ce_prompt_template (SCHEMA_JSON)", "ce_audit (W)"]
+  },
+  ps: {
+    title: "Schema complete transition",
+    stage: "POST_SCHEMA_EXTRACTION",
+    summary: "When schemaComplete=true, the engine moves ELIGIBILITY_GATE -> CONFIRMATION and the active prompt template becomes the confirmation contract.",
+    session: ["state=CONFIRMATION", "interaction_mode=CONFIRM"],
+    tables: ["ce_rule (POST_SCHEMA_EXTRACTION)", "ce_audit (W)"]
+  },
+  c: {
+    title: "Confirmation response",
+    stage: "RESOLVE_RESPONSE",
+    summary: "The confirmation prompt shows only the collected values and asks the user to proceed or correct them.",
+    session: ["state=CONFIRMATION"],
+    tables: ["ce_response (R)", "ce_prompt_template (TEXT)", "ce_audit (W)"]
+  },
+  fix: {
+    title: "In-place correction",
+    stage: "CORRECTION",
+    summary: "CorrectionStep patches only the changed field, keeps CONFIRMATION, and avoids full schema re-extraction.",
+    session: ["correction_applied=true", "correction_target_field=requestedAmount"],
+    tables: ["ce_audit (W)", "ce_verbose (optional R)"]
+  },
+  ok: {
+    title: "Confirmation accepted",
+    stage: "CORRECTION",
+    summary: "AFFIRM in confirmation sets routing_decision=PROCEED_CONFIRMED.",
+    session: ["routing_decision=PROCEED_CONFIRMED"],
+    tables: ["ce_audit (W)", "ce_verbose (optional R)"]
+  },
+  pm: {
+    title: "Pre-MCP gate",
+    stage: "PRE_AGENT_MCP",
+    summary: "Rule checks routing_decision and moves CONFIRMATION -> PROCESS_APPLICATION just before MCP starts.",
+    session: ["state=PROCESS_APPLICATION"],
+    tables: ["ce_rule (PRE_AGENT_MCP)", "ce_audit (W)"]
+  },
+  p: {
+    title: "Processing state",
+    stage: "MCP_PLAN",
+    summary: "Planner and tools are scoped to PROCESS_APPLICATION only, so no APIs run before user confirmation.",
+    session: ["state=PROCESS_APPLICATION", "context.mcp.lifecycle active"],
+    tables: ["ce_mcp_planner (R)", "ce_mcp_tool (R)", "ce_audit (W)"]
+  },
+  t1: {
+    title: "Credit rating",
+    stage: "MCP_TOOL_CALL",
+    summary: "Tool 1 checks credit rating.",
+    session: ["context.mcp.observations[0]=credit rating"],
+    tables: ["ce_audit (W)", "ce_verbose (optional R)"]
+  },
+  t2: {
+    title: "Fraud check",
+    stage: "MCP_TOOL_CALL",
+    summary: "Tool 2 runs only when rating passes the threshold.",
+    session: ["context.mcp.observations[1]=fraud result"],
+    tables: ["ce_audit (W)"]
+  },
+  t3: {
+    title: "Debt summary",
+    stage: "MCP_TOOL_CALL",
+    summary: "Tool 3 evaluates dti and availableCredit.",
+    session: ["context.mcp.observations[2]=debt profile"],
+    tables: ["ce_audit (W)"]
+  },
+  t4: {
+    title: "Application submit",
+    stage: "MCP_TOOL_CALL",
+    summary: "Tool 4 submits the loan application when all prior checks pass.",
+    session: ["context.mcp.observations[3]=submit result"],
+    tables: ["ce_audit (W)", "ce_verbose (optional R)"]
+  },
+  post: {
+    title: "Final MCP transition",
+    stage: "POST_AGENT_MCP",
+    summary: "When context.mcp.finalAnswer exists, rules move PROCESS_APPLICATION -> COMPLETED.",
+    session: ["state=COMPLETED", "context.mcp.finalAnswer set"],
+    tables: ["ce_rule (POST_AGENT_MCP)", "ce_audit (W)"]
+  },
+  done: {
+    title: "Completed response",
+    stage: "ASSISTANT_OUTPUT",
+    summary: "The completed response uses context.mcp.finalAnswer as the primary answer and validates against MCP observations.",
+    session: ["final payload returned"],
+    tables: ["ce_response (R)", "ce_prompt_template (TEXT)", "ce_conversation (W)", "ce_audit (W)"]
+  }
+};
+
+# MCP Example 3 - Loan Application Extended
+
+This is the confirmation-first version of the loan flow built around the newer runtime behavior:
+
+- `CorrectionStep` handles confirmation affirmations and in-place edits
+- `POST_DIALOGUE_ACT` can override guarded dialogue-act output before interaction policy runs
+- `POST_SCHEMA_EXTRACTION` moves the flow into confirmation once required data is complete
+- `PRE_AGENT_MCP` delays MCP until the user explicitly confirms
+- `SET_INPUT_PARAM` can mark confirmation runtime flags without extra Java code
+- `SET_DIALOGUE_ACT` can safely promote an LLM candidate act (for example `EDIT`) back into the final `dialogue_act`
+- `ConvEngineVerboseAdapter` / `ce_verbose` can emit custom progress messages for the confirm-and-process path
+
+This is the recommended state machine for the extended loan workflow:
+
+`IDLE -> ELIGIBILITY_GATE -> CONFIRMATION -> PROCESS_APPLICATION -> COMPLETED`
+
+<Highlight type="warning" title="Current demo seed gap">
+The current `convengine-demo` `mcp_planner_seed.sql` still scopes the loan planner and tools to `ELIGIBILITY_GATE` and closes directly to `COMPLETED`. It does not yet model `CONFIRMATION` and `PROCESS_APPLICATION`. This example shows the missing shape to add.
+</Highlight>
+
+## Flow summary
+
+<DbTable
+  title="State flow"
+  columns={["State", "Purpose", "What happens here"]}
+  rows={[
+    ["IDLE", "Loan intake entry", "Intent is recognized; rule moves into ELIGIBILITY_GATE."],
+    ["ELIGIBILITY_GATE", "Required field collection", "Schema extraction collects customerId, requestedAmount, tenureMonths."],
+    ["CONFIRMATION", "User review", "Show exact collected values; allow AFFIRM or EDIT."],
+    ["PROCESS_APPLICATION", "MCP execution", "Planner runs credit -> fraud -> debt -> submit in sequence."],
+    ["COMPLETED", "Final answer", "Derived response uses context.mcp.finalAnswer as the primary summary."]
+  ]}
+/>
+
+<Tabs groupId="mcp-example-3">
+  <TabItem value="chat" label="Chat + Trace" default>
+
+<ChatContainer>
+  <TraceChatBubble
+    role="user"
+    name="Turn 1 - User"
+    message="Hi"
+    info={["Greeting classifier matches.", "Loan flow has not started yet."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 1 - Assistant"
+    intent="GREETING"
+    state="IDLE"
+    message="Hi, how can I help you today?"
+    json={{
+      intent: "GREETING",
+      state: "IDLE"
+    }}
+    tables={["ce_intent_classifier (R)", "ce_response (R)", "ce_audit (W)"]}
+    info={["Normal greeting response."]}
+  />
+
+  <TraceChatBubble
+    role="user"
+    name="Turn 2 - User"
+    message="I need a loan for my customer"
+    info={["Loan classifier matches LOAN_APPLICATION.", "POST_AGENT_INTENT rules move the flow into ELIGIBILITY_GATE."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 2 - Assistant"
+    intent="LOAN_APPLICATION"
+    state="ELIGIBILITY_GATE"
+    message="Please provide customerId, requestedAmount, and tenureMonths."
+    json={{
+      intent: "LOAN_APPLICATION",
+      state: "ELIGIBILITY_GATE",
+      missing_fields: ["customerId", "requestedAmount", "tenureMonths"]
+    }}
+    tables={["ce_rule (POST_AGENT_INTENT)", "ce_output_schema (R)", "ce_response (R)", "ce_prompt_template (R)", "ce_audit (W)"]}
+    info={["Schema is incomplete, so the engine asks only for missing required fields."]}
+  />
+
+  <TraceChatBubble
+    role="user"
+    name="Turn 3 - User"
+    message="customer id 1234, 35000, 24 months"
+    info={["Schema extraction fills all three required fields.", "POST_SCHEMA_EXTRACTION can now move the flow into CONFIRMATION."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 3 - Assistant"
+    intent="LOAN_APPLICATION"
+    state="CONFIRMATION"
+    message="Please confirm: customerId 1234, requestedAmount 35000, tenureMonths 24. Proceed?"
+    json={{
+      state: "CONFIRMATION",
+      interaction_mode: "CONFIRM",
+      interaction_contract: {
+        allows: ["affirm", "edit", "reset"],
+        expects: []
+      }
+    }}
+    tables={["ce_output_schema (R)", "ce_rule (POST_SCHEMA_EXTRACTION)", "ce_response (R)", "ce_prompt_template (R)", "ce_audit (W)"]}
+    info={["Schema is complete.", "No MCP tools run yet because the flow stops at confirmation first."]}
+  />
+
+  <TraceChatBubble
+    role="user"
+    name="Turn 4 - User"
+    message="Ohh wait, I missed one zero. Change amount to 350000."
+    info={["DialogueActStep should resolve EDIT.", "CorrectionStep patches only requestedAmount in place."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 4 - Assistant"
+    intent="LOAN_APPLICATION"
+    state="CONFIRMATION"
+    message="Updated. Please confirm: customerId 1234, requestedAmount 350000, tenureMonths 24. Proceed?"
+    json={{
+      state: "CONFIRMATION",
+      correction_applied: true,
+      correction_target_field: "requestedAmount"
+    }}
+    tables={["ce_response (R)", "ce_prompt_template (R)", "ce_audit (W)", "ce_verbose (optional R)"]}
+    info={["Only the amount changes.", "The engine stays in CONFIRMATION and skips full schema re-extraction."]}
+  />
+
+  <TraceChatBubble
+    role="user"
+    name="Turn 5 - User"
+    message="Looks good, go ahead."
+    info={["DialogueActStep resolves AFFIRM.", "CorrectionStep sets routing_decision=PROCEED_CONFIRMED."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 5 - Internal MCP Loop"
+    intent="LOAN_APPLICATION"
+    state="PROCESS_APPLICATION"
+    message="Confirmation accepted. Starting loan processing. PRE_AGENT_MCP moves to PROCESS_APPLICATION. Planner executes credit -> fraud -> debt -> submit."
+    json={{
+      state: "PROCESS_APPLICATION",
+      routing_decision: "PROCEED_CONFIRMED",
+      mcp: {
+        observations: [
+          { toolCode: "loan.credit.rating.check", json: "{\"creditRating\":782}" },
+          { toolCode: "loan.credit.fraud.check", json: "{\"flagged\":false}" },
+          { toolCode: "loan.debt.credit.summary", json: "{\"dti\":0.31,\"availableCredit\":220000}" },
+          { toolCode: "loan.application.submit", json: "{\"applicationId\":\"APP-90817\",\"status\":\"SUBMITTED\"}" }
+        ]
+      }
+    }}
+    tables={["ce_rule (PRE_AGENT_MCP)", "ce_mcp_planner (R)", "ce_mcp_tool (R)", "ce_audit (W)", "ce_verbose (optional R)"]}
+    info={["Tools are now scoped to PROCESS_APPLICATION.", "This is the missing step in the current demo seed."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 5 - Final"
+    intent="LOAN_APPLICATION"
+    state="COMPLETED"
+    message="Loan application submitted successfully for customer 1234. Requested amount: 350000, tenure: 24 months. Credit rating passed, fraud check clear, debt profile acceptable. Application ID: APP-90817."
+    json={{
+      state: "COMPLETED",
+      mcp: {
+        finalAnswer: "Loan application submitted successfully for customer 1234. Requested amount: 350000, tenure: 24 months. Application ID: APP-90817.",
+        lifecycle: {
+          phase: "POST_AGENT_MCP",
+          status: "ANSWER",
+          outcome: "ANSWERED",
+          finished: true
+        }
+      }
+    }}
+    tables={["ce_rule (POST_AGENT_MCP)", "ce_response (R)", "ce_prompt_template (R)", "ce_conversation (W)", "ce_audit (W)"]}
+    info={["POST_AGENT_MCP closes the flow only after context.mcp.finalAnswer exists.", "COMPLETED response derives from final MCP context."]}
+  />
+</ChatContainer>
+
+  </TabItem>
+
+  <TabItem value="flow" label="Step Graph">
+
+<EngineDebugFlow
+  title="Extended loan confirmation-first flow"
+  subtitle="IDLE -> ELIGIBILITY_GATE -> CONFIRMATION -> PROCESS_APPLICATION -> COMPLETED"
+  nodes={loanExtendedNodes}
+  edges={loanExtendedEdges}
+  detailsById={loanExtendedDetails}
+  defaultSelectedId="s"
+/>
+
+  </TabItem>
+
+  <TabItem value="tables" label="Component Tables">
+
+<DbTable
+  title="Table usage by phase"
+  columns={["Phase", "Reads", "Writes", "Why it matters"]}
+  rows={[
+    ["Intent bootstrap", "ce_intent_classifier, ce_rule", "ce_audit", "Classifier starts in IDLE; rules move into ELIGIBILITY_GATE."],
+    ["Schema collection", "ce_output_schema, ce_prompt_template, ce_response", "ce_audit", "Collect and ask only for missing fields."],
+    ["Schema complete gate", "ce_rule", "ce_audit", "POST_SCHEMA_EXTRACTION moves to CONFIRMATION and can set runtime flags."],
+    ["Confirmation response", "ce_response, ce_prompt_template", "ce_audit", "Shows exact collected values before any MCP call."],
+    ["Correction path", "session/context, optional ce_verbose", "ce_audit", "Patch only the changed field and stay in CONFIRMATION."],
+    ["Pre-MCP gate", "ce_rule", "ce_audit", "PRE_AGENT_MCP checks routing_decision and unlocks PROCESS_APPLICATION."],
+    ["Planner + tools", "ce_mcp_planner, ce_mcp_tool", "ce_audit", "Run the credit/fraud/debt/submit chain only after confirmation."],
+    ["Post-MCP close", "ce_rule", "ce_audit", "POST_AGENT_MCP moves PROCESS_APPLICATION -> COMPLETED."],
+    ["Final response", "ce_response, ce_prompt_template", "ce_conversation, ce_audit", "Return the final derived summary from context.mcp.finalAnswer."]
+  ]}
+/>
+
+<DbTable
+  title="What is missing from the current demo seed"
+  columns={["Current seed", "Missing piece", "Needed for this example"]}
+  rows={[
+    ["Classifier starts LOAN_APPLICATION in ELIGIBILITY_GATE", "No clean IDLE intake entry", "Classifier starts in IDLE, then POST_AGENT_INTENT advances."],
+    ["Planner scoped to ELIGIBILITY_GATE", "Runs too early", "Planner row should be scoped to PROCESS_APPLICATION."],
+    ["Tools scoped to ELIGIBILITY_GATE", "APIs can run before confirmation", "Tool rows should be scoped to PROCESS_APPLICATION."],
+    ["POST_AGENT_MCP closes ELIGIBILITY_GATE -> COMPLETED", "No confirmation checkpoint", "Add CONFIRMATION and PROCESS_APPLICATION phases in between."],
+    ["No confirmation prompt row", "No explicit user review step", "Add CONFIRMATION TEXT prompt + response."],
+    ["No PRE_AGENT_MCP confirmation rule", "No confirm-before-run gate", "Route only after routing_decision=PROCEED_CONFIRMED."]
+  ]}
+/>
+
+  </TabItem>
+
+  <TabItem value="sql" label="Complete SQL">
+
+<CodeBlockToggle title="Extended loan flow DDL/DML" language="sql" defaultOpen={false}>
+{`-- ------------------------------------------------------------
+-- Intents
+-- ------------------------------------------------------------
+
+INSERT INTO ce_intent
+(intent_code, description, priority, enabled, created_at, display_name, llm_hint)
+VALUES
+('LOAN_APPLICATION', 'Loan application eligibility and submission workflow', 30, true, CURRENT_TIMESTAMP, 'Loan Application', 'Handle loan checks and submission using MCP APIs in strict sequence.');
+
+INSERT INTO ce_intent
+(intent_code, description, priority, enabled, created_at, display_name, llm_hint)
+VALUES
+('GREETING', 'When user greets you', 15, true, CURRENT_TIMESTAMP, 'GREETING', 'Reply with firm greetings');
+
+INSERT INTO ce_intent
+(intent_code, description, priority, enabled, created_at, display_name, llm_hint)
+VALUES
+('UNKNOWN', 'Fallback intent', 999, true, CURRENT_TIMESTAMP, 'Unknown', 'Fallback when no intent matches');
+
+-- ------------------------------------------------------------
+-- Intent classifier
+-- ------------------------------------------------------------
+
+INSERT INTO ce_intent_classifier
+(classifier_id, intent_code, state_code, rule_type, pattern, priority, enabled, description)
+VALUES
+(108, 'LOAN_APPLICATION', 'IDLE', 'REGEX',
+ '(?i)\\b(loan|apply loan|personal loan|home loan|loan application)\\b',
+ 30, true, 'Loan application classifier -> start in IDLE');
+
+-- ------------------------------------------------------------
+-- Output schema (collect required fields in ELIGIBILITY_GATE)
+-- ------------------------------------------------------------
+
+INSERT INTO ce_output_schema
+(schema_id, intent_code, state_code, json_schema, description, enabled, priority)
+VALUES
+(
+  109,
+  'LOAN_APPLICATION',
+  'ELIGIBILITY_GATE',
+  '{
+    "type":"object",
+    "required":["customerId","requestedAmount","tenureMonths"],
+    "properties":{
+      "customerId":{"type":"string","maxLength":64,"minLength":1},
+      "requestedAmount":{"type":"number","minimum":1000,"maximum":50000000},
+      "tenureMonths":{"type":"integer","minimum":6,"maximum":480}
+    },
+    "additionalProperties":false
+  }'::jsonb,
+  'Loan application required fields before confirmation',
+  true,
+  1
+);
+
+-- ------------------------------------------------------------
+-- Prompt templates
+-- ------------------------------------------------------------
+
+-- Schema extraction prompt
+INSERT INTO ce_prompt_template
+(template_id, intent_code, state_code, response_type, system_prompt, user_prompt, temperature, interaction_mode, interaction_contract, enabled, created_at)
+VALUES
+(
+  124,
+  'LOAN_APPLICATION',
+  'ELIGIBILITY_GATE',
+  'SCHEMA_JSON',
+  'You are a strict structured extractor for loan application fields.',
+  'User input:
+{{resolved_user_input}}
+
+Context JSON:
+{{context}}
+
+Extract only:
+- customerId
+- requestedAmount
+- tenureMonths
+
+Return actual values only if explicitly present in input/context.
+Return null for missing values.
+Return valid JSON only.',
+  0.00,
+  'COLLECT',
+  '{"allows":["reset"],"expects":["structured_input"]}',
+  true,
+  CURRENT_TIMESTAMP
+);
+
+-- IDLE intake prompt
+INSERT INTO ce_prompt_template
+(template_id, intent_code, state_code, response_type, system_prompt, user_prompt, temperature, interaction_mode, interaction_contract, enabled, created_at)
+VALUES
+(
+  122,
+  'LOAN_APPLICATION',
+  'IDLE',
+  'TEXT',
+  'You are a strict loan intake assistant.',
+  'Ask the user for the required fields needed to start the loan application: customerId, requestedAmount, and tenureMonths.',
+  0.00,
+  'IDLE',
+  '{"allows":["reset"],"expects":[]}',
+  true,
+  CURRENT_TIMESTAMP
+);
+
+-- Intake / missing-fields response
+INSERT INTO ce_prompt_template
+(template_id, intent_code, state_code, response_type, system_prompt, user_prompt, temperature, interaction_mode, interaction_contract, enabled, created_at)
+VALUES
+(
+  123,
+  'LOAN_APPLICATION',
+  'ELIGIBILITY_GATE',
+  'TEXT',
+  'You are a strict loan intake assistant.',
+  'Context JSON:
+{{context}}
+
+If {{missing_fields}} is not empty, ask only for the missing required fields.
+Do not confirm yet unless all required fields are present.',
+  0.00,
+  'COLLECT',
+  '{"allows":["reset"],"expects":["structured_input"]}',
+  true,
+  CURRENT_TIMESTAMP
+);
+
+-- Confirmation response
+INSERT INTO ce_prompt_template
+(template_id, intent_code, state_code, response_type, system_prompt, user_prompt, temperature, interaction_mode, interaction_contract, enabled, created_at)
+VALUES
+(
+  125,
+  'LOAN_APPLICATION',
+  'CONFIRMATION',
+  'TEXT',
+  'You are a strict confirmation assistant.',
+  'Context JSON:
+{{context}}
+
+Ask the user to confirm exactly these values:
+
+- customerId: [[$'||'{context.customerId}]]
+- requestedAmount: [[$'||'{context.requestedAmount}]]
+- tenureMonths: [[$'||'{context.tenureMonths}]]
+
+If correction_applied is true, mention that the value was updated.
+Ask: Proceed?',
+  0.00,
+  'CONFIRM',
+  '{"allows":["affirm","edit","reset"],"expects":[]}',
+  true,
+  CURRENT_TIMESTAMP
+);
+
+-- Processing / retry-enabled prompt (recommended so retry is contract-driven in PROCESS_APPLICATION)
+INSERT INTO ce_prompt_template
+(template_id, intent_code, state_code, response_type, system_prompt, user_prompt, temperature, interaction_mode, interaction_contract, enabled, created_at)
+VALUES
+(
+  127,
+  'LOAN_APPLICATION',
+  'PROCESS_APPLICATION',
+  'TEXT',
+  'You are a strict loan workflow processor.',
+  'Context JSON:
+{{context}}
+
+If context.mcp.finalAnswer exists, return it directly.
+If the latest MCP lifecycle shows an error, tell the user they can retry.
+Otherwise keep the reply concise and indicate processing is in progress.',
+  0.00,
+  'PROCESSING',
+  '{"allows":["retry","reset"],"expects":[]}',
+  true,
+  CURRENT_TIMESTAMP
+);
+
+-- Final response
+INSERT INTO ce_prompt_template
+(template_id, intent_code, state_code, response_type, system_prompt, user_prompt, temperature, interaction_mode, interaction_contract, enabled, created_at)
+VALUES
+(
+  126,
+  'LOAN_APPLICATION',
+  'COMPLETED',
+  'TEXT',
+  'You are a strict loan workflow summarizer.',
+  'Context JSON:
+{{context}}
+
+Use context.mcp.finalAnswer as primary final answer.
+Use context.mcp.observations only to validate details.',
+  0.00,
+  'FINAL',
+  '{"allows":["reset"],"expects":[]}',
+  true,
+  CURRENT_TIMESTAMP
+);
+
+-- ------------------------------------------------------------
+-- Responses
+-- ------------------------------------------------------------
+
+INSERT INTO ce_response
+(response_id, intent_code, state_code, output_format, response_type, exact_text, derivation_hint, json_schema, priority, enabled, description, created_at)
+VALUES
+(
+  223,
+  'LOAN_APPLICATION',
+  'IDLE',
+  'TEXT',
+  'DERIVED',
+  NULL,
+  'Ask the user for any missing required fields needed to start loan processing.',
+  NULL,
+  10,
+  true,
+  'Loan intake response',
+  CURRENT_TIMESTAMP
+);
+
+INSERT INTO ce_response
+(response_id, intent_code, state_code, output_format, response_type, exact_text, derivation_hint, json_schema, priority, enabled, description, created_at)
+VALUES
+(
+  224,
+  'LOAN_APPLICATION',
+  'ELIGIBILITY_GATE',
+  'TEXT',
+  'DERIVED',
+  NULL,
+  'If missing_fields is not empty, ask only for those fields.',
+  NULL,
+  20,
+  true,
+  'Loan missing-fields response',
+  CURRENT_TIMESTAMP
+);
+
+INSERT INTO ce_response
+(response_id, intent_code, state_code, output_format, response_type, exact_text, derivation_hint, json_schema, priority, enabled, description, created_at)
+VALUES
+(
+  225,
+  'LOAN_APPLICATION',
+  'CONFIRMATION',
+  'TEXT',
+  'DERIVED',
+  NULL,
+  'Display collected values and ask for confirmation. If correction_applied=true, mention the update first.',
+  NULL,
+  10,
+  true,
+  'Loan confirmation response',
+  CURRENT_TIMESTAMP
+);
+
+INSERT INTO ce_response
+(response_id, intent_code, state_code, output_format, response_type, exact_text, derivation_hint, json_schema, priority, enabled, description, created_at)
+VALUES
+(
+  226,
+  'LOAN_APPLICATION',
+  'COMPLETED',
+  'TEXT',
+  'DERIVED',
+  NULL,
+  'Use context.mcp.finalAnswer as primary answer. Include applicationId when present.',
+  NULL,
+  10,
+  true,
+  'Loan completed response',
+  CURRENT_TIMESTAMP
+);
+
+-- Optional exact response while processing if you expose it
+INSERT INTO ce_response
+(response_id, intent_code, state_code, output_format, response_type, exact_text, derivation_hint, json_schema, priority, enabled, description, created_at)
+VALUES
+(
+  227,
+  'LOAN_APPLICATION',
+  'PROCESS_APPLICATION',
+  'TEXT',
+  'EXACT',
+  'Processing your loan application now.',
+  NULL,
+  NULL,
+  50,
+  true,
+  'Optional processing placeholder',
+  CURRENT_TIMESTAMP
+);
+
+-- ------------------------------------------------------------
+-- Rules
+-- ------------------------------------------------------------
+
+-- Move loan flow from UNKNOWN -> IDLE after intent
+INSERT INTO ce_rule
+(rule_id, phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled, description, created_at)
+VALUES
+(
+  128,
+  'POST_AGENT_INTENT',
+  'LOAN_APPLICATION',
+  'UNKNOWN',
+  'REGEX',
+  '.*',
+  'SET_STATE',
+  'IDLE',
+  10,
+  true,
+  'Move loan flow to IDLE when classifier returns UNKNOWN state',
+  CURRENT_TIMESTAMP
+);
+
+-- Move IDLE -> ELIGIBILITY_GATE after intent
+INSERT INTO ce_rule
+(rule_id, phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled, description, created_at)
+VALUES
+(
+  129,
+  'POST_AGENT_INTENT',
+  'LOAN_APPLICATION',
+  'IDLE',
+  'REGEX',
+  '.*',
+  'SET_STATE',
+  'ELIGIBILITY_GATE',
+  20,
+  true,
+  'Move loan flow into ELIGIBILITY_GATE',
+  CURRENT_TIMESTAMP
+);
+
+-- Once schema is complete, move to confirmation
+INSERT INTO ce_rule
+(rule_id, phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled, description, created_at)
+VALUES
+(
+  130,
+  'POST_SCHEMA_EXTRACTION',
+  'LOAN_APPLICATION',
+  'ELIGIBILITY_GATE',
+  'JSON_PATH',
+  '$[?(@.schemaComplete == true)]',
+  'SET_STATE',
+  'CONFIRMATION',
+  10,
+  true,
+  'Move to CONFIRMATION when schema is complete',
+  CURRENT_TIMESTAMP
+);
+
+-- Safety net: if DialogueActStep guarded an LLM EDIT back to NEW_REQUEST, restore EDIT before policy runs
+INSERT INTO ce_rule
+(rule_id, phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled, description, created_at)
+VALUES
+(
+  135,
+  'POST_DIALOGUE_ACT',
+  'LOAN_APPLICATION',
+  'ANY',
+  'JSON_PATH',
+  '$[?(@.inputParams.dialogue_act == ''NEW_REQUEST'' && @.inputParams.dialogue_act_source == ''REGEX_GUARD'' && @.inputParams.dialogue_act_llm_candidate == ''EDIT'')]',
+  'SET_DIALOGUE_ACT',
+  '{"dialogueAct":"EDIT","source":"POST_DIALOGUE_ACT_RULE"}',
+  5,
+  true,
+  'Promote guarded LLM EDIT back to EDIT before interaction policy',
+  CURRENT_TIMESTAMP
+);
+
+-- If confirmation accepted, move to processing before MCP starts
+INSERT INTO ce_rule
+(rule_id, phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled, description, created_at)
+VALUES
+(
+  131,
+  'PRE_AGENT_MCP',
+  'LOAN_APPLICATION',
+  'CONFIRMATION',
+  'JSON_PATH',
+  '$[?(@.inputParams.routing_decision == ''PROCEED_CONFIRMED'')]',
+  'SET_STATE',
+  'PROCESS_APPLICATION',
+  10,
+  true,
+  'Move CONFIRMATION -> PROCESS_APPLICATION when user confirms',
+  CURRENT_TIMESTAMP
+);
+
+-- Optional: if correction patch applied, keep explicit confirmation state
+INSERT INTO ce_rule
+(rule_id, phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled, description, created_at)
+VALUES
+(
+  132,
+  'PRE_RESPONSE_RESOLUTION',
+  'LOAN_APPLICATION',
+  'CONFIRMATION',
+  'JSON_PATH',
+  '$[?(@.inputParams.correction_applied == true)]',
+  'SET_STATE',
+  'CONFIRMATION',
+  50,
+  true,
+  'Stay in confirmation after correction patch',
+  CURRENT_TIMESTAMP
+);
+
+-- When MCP final answer exists, finish the flow
+INSERT INTO ce_rule
+(rule_id, phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled, description, created_at)
+VALUES
+(
+  133,
+  'POST_AGENT_MCP',
+  'LOAN_APPLICATION',
+  'PROCESS_APPLICATION',
+  'JSON_PATH',
+  '$[?(@.context.mcp.lifecycle.finished == true && @.context.mcp.lifecycle.error == false && @.context.mcp.finalAnswer != null && @.context.mcp.finalAnswer != '''')]',
+  'SET_STATE',
+  'COMPLETED',
+  10,
+  true,
+  'Move PROCESS_APPLICATION -> COMPLETED only when MCP finishes successfully with final answer',
+  CURRENT_TIMESTAMP
+);
+
+-- Example runtime flags using SET_INPUT_PARAM (optional)
+INSERT INTO ce_rule
+(rule_id, phase, intent_code, state_code, rule_type, match_pattern, "action", action_value, priority, enabled, description, created_at)
+VALUES
+(
+  134,
+  'POST_SCHEMA_EXTRACTION',
+  'LOAN_APPLICATION',
+  'ELIGIBILITY_GATE',
+  'JSON_PATH',
+  '$[?(@.schemaComplete == true)]',
+  'SET_INPUT_PARAM',
+  '{"awaiting_confirmation":true,"confirmation_key":"LOAN_APPLICATION_CONFIRM"}',
+  11,
+  true,
+  'Legacy optional runtime flags when schema becomes complete (prompt-template interaction metadata is now preferred)',
+  CURRENT_TIMESTAMP
+);
+
+-- ------------------------------------------------------------
+-- MCP planner
+-- ------------------------------------------------------------
+
+INSERT INTO ce_mcp_planner
+(planner_id, intent_code, state_code, system_prompt, user_prompt, enabled, created_at)
+VALUES
+(
+  6202,
+  'LOAN_APPLICATION',
+  'PROCESS_APPLICATION',
+  'You are an MCP planning agent for a loan application workflow.
+You MUST follow tool order:
+1) loan.credit.rating.check
+2) If creditRating <= 750 => ANSWER reject
+3) Else loan.credit.fraud.check
+4) If flagged=true => ANSWER reject
+5) Else loan.debt.credit.summary
+6) If dti > 0.65 or availableCredit < requestedAmount*0.15 => ANSWER reject/manual-review
+7) Else loan.application.submit
+8) ANSWER with applicationId.
+Return JSON only.',
+  'User input:
+{{resolved_user_input}}
+
+Context JSON:
+{{context}}
+
+Available MCP tools:
+{{mcp_tools}}
+
+Existing MCP observations:
+{{mcp_observations}}
+
+Return strict JSON:
+{
+  "action":"CALL_TOOL" | "ANSWER",
+  "tool_code":"<tool_code_or_null>",
+  "args":{},
+  "answer":"<text_or_null>"
+}',
+  true,
+  CURRENT_TIMESTAMP
+);
+
+-- ------------------------------------------------------------
+-- MCP tools (only visible in PROCESS_APPLICATION)
+-- ------------------------------------------------------------
+
+INSERT INTO ce_mcp_tool
+(tool_id, tool_code, tool_group, intent_code, state_code, enabled, description, created_at)
+VALUES
+(10201, 'loan.credit.rating.check', 'HTTP_API', 'LOAN_APPLICATION', 'PROCESS_APPLICATION', true, 'Step 1: credit rating check', CURRENT_TIMESTAMP),
+(10202, 'loan.credit.fraud.check', 'HTTP_API', 'LOAN_APPLICATION', 'PROCESS_APPLICATION', true, 'Step 2: fraud check', CURRENT_TIMESTAMP),
+(10203, 'loan.debt.credit.summary', 'HTTP_API', 'LOAN_APPLICATION', 'PROCESS_APPLICATION', true, 'Step 3: debt and credit summary', CURRENT_TIMESTAMP),
+(10204, 'loan.application.submit', 'HTTP_API', 'LOAN_APPLICATION', 'PROCESS_APPLICATION', true, 'Step 4: submit application', CURRENT_TIMESTAMP);
+
+-- ------------------------------------------------------------
+-- Optional ce_verbose rows for the new flow
+-- ------------------------------------------------------------
+
+INSERT INTO ce_verbose
+(verbose_id, intent_code, state_code, step_match, step_value, determinant, rule_id, tool_code, message, error_message, priority, enabled, created_at)
+VALUES
+(
+  201,
+  'LOAN_APPLICATION',
+  'CONFIRMATION',
+  'EXACT',
+  'CorrectionStep',
+  'CONFIRM_ACCEPT',
+  NULL,
+  NULL,
+  'Confirmation accepted. Starting loan processing.',
+  'Could not continue after confirmation.',
+  10,
+  true,
+  CURRENT_TIMESTAMP
+),
+(
+  202,
+  'LOAN_APPLICATION',
+  'CONFIRMATION',
+  'EXACT',
+  'CorrectionStep',
+  'CORRECTION_PATCH_APPLIED',
+  NULL,
+  NULL,
+  'Updated [[$'||'{correction_target_field}]]. Please confirm again.',
+  'Could not apply the requested correction.',
+  10,
+  true,
+  CURRENT_TIMESTAMP
+),
+(
+  203,
+  'LOAN_APPLICATION',
+  'PROCESS_APPLICATION',
+  'EXACT',
+  'McpToolStep',
+  'MCP_TOOL_CALL',
+  NULL,
+  'loan.application.submit',
+  'Submitting loan application now.',
+  'Loan submission failed.',
+  10,
+  true,
+  CURRENT_TIMESTAMP
+);`}
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="conversation" label="Expected Conversation">
+
+<DbTable
+  title="Expected next conversation"
+  columns={["Turn", "User / System", "Expected behavior"]}
+  rows={[
+    ["1", "User: Hi", "Intent GREETING, state IDLE, normal greeting response."],
+    ["2", "User: I need a loan for my customer", "Intent LOAN_APPLICATION, POST_AGENT_INTENT moves to ELIGIBILITY_GATE, ask for missing fields."],
+    ["3", "User: customer id 1234, 35000, 24 months", "Schema extraction fills all required fields, POST_SCHEMA_EXTRACTION moves to CONFIRMATION."],
+    ["4", "Assistant", "Please confirm: customerId 1234, requestedAmount 35000, tenureMonths 24. Proceed?"],
+    ["5", "User: Ohh wait, I missed one zero. Change amount to 350000.", "DialogueAct=EDIT, CorrectionStep patches requestedAmount only, stays in CONFIRMATION."],
+    ["6", "Assistant", "Updated. Please confirm: customerId 1234, requestedAmount 350000, tenureMonths 24. Proceed?"],
+    ["7", "User: Looks good, go ahead.", "DialogueAct=AFFIRM, routing_decision=PROCEED_CONFIRMED, PRE_AGENT_MCP moves to PROCESS_APPLICATION."],
+    ["8", "System internal", "Planner runs credit -> fraud -> debt -> submit in order."],
+    ["9", "Assistant final", "POST_AGENT_MCP moves to COMPLETED and returns the final loan summary."]
+  ]}
+/>
+
+<Highlight type="tip" title="Natural-language correction note">
+For the exact phrase “I missed one zero, it is 350000”, the cleanest path is:
+
+1. `DialogueActStep` keeps the LLM candidate as `dialogue_act_llm_candidate=EDIT`
+2. `POST_DIALOGUE_ACT` can use `SET_DIALOGUE_ACT` to restore `EDIT` if the guarded final result stayed `NEW_REQUEST`
+3. `CorrectionStep` patches the field in place
+
+Explicit forms like “change amount to 350000” are still the most reliable with the current deterministic patch path.
+</Highlight>
+
+  </TabItem>
+</Tabs>
+
+## Why this flow is the recommended pattern
+
+This example exists to solve two common problems cleanly:
+
+- “I need rules after schema extraction, but before MCP starts.”
+- “I asked for confirmation, the user said yes, and I do not want to run schema extraction again.”
+
+The correct answer is not “stuff more prompt context into every turn.” The correct answer is to treat the turn type as a routing decision.
+
+## Post-schema, pre-MCP control points
+
+Use both phases, but for different reasons:
+
+<DbTable
+  title="Why both rule phases exist"
+  columns={["Phase", "When it runs", "Use it for"]}
+  rows={[
+    ["POST_SCHEMA_EXTRACTION", "Immediately after schema merge and schemaComplete recompute", "Move to CONFIRMATION, set confirmation flags, seed lightweight runtime variables."],
+    ["PRE_AGENT_MCP", "At the start of MCP execution, just before planner/tool logic", "Final gate for starting MCP, changing state, or skipping MCP entirely."]
+  ]}
+/>
+
+In this loan flow:
+
+1. `POST_SCHEMA_EXTRACTION` sees `schemaComplete=true`
+2. it sets `state=CONFIRMATION`
+3. the active `ce_prompt_template` for `CONFIRMATION` should use `interaction_mode=CONFIRM`
+4. optional `interaction_contract` can allow `affirm`, `edit`, and `reset`
+5. optional `POST_DIALOGUE_ACT` rule with `SET_DIALOGUE_ACT` restores guarded LLM `EDIT` before interaction policy runs
+6. user replies
+7. `CorrectionStep` interprets the reply from prompt-template interaction metadata
+8. `PRE_AGENT_MCP` decides whether MCP should start
+
+That is the clean way to run rules after schema extraction but before MCP.
+
+## How confirmation turns should work
+
+When the engine asks:
+
+`Please confirm: customerId 1234, requestedAmount 350000, tenureMonths 24. Proceed?`
+
+the next user turn should not be treated like a fresh extraction request.
+
+Use this shape instead:
+
+- `DialogueActStep` normalizes `yes`, `go ahead`, `please do it`, `looks good` into `AFFIRM`
+- `CorrectionStep` checks the active prompt template (`interaction_mode=CONFIRM`) plus dialogue act
+- if the active template allows affirm and dialogue act is `AFFIRM`, it sets a routing flag such as `routing_decision=PROCEED_CONFIRMED`
+- downstream steps skip expensive or unnecessary work
+
+This is why `DialogueActStep` is crucial: rules should match on the normalized signal, not raw free-form text.
+
+## How to apply rules on “yes”, “go ahead”, and similar replies
+
+Do not write `ce_rule` against raw strings like:
+
+- `yes`
+- `go ahead`
+- `confirm`
+
+That is fragile and ambiguous.
+
+Use a scoped runtime pattern:
+
+<DbTable
+  title="Confirmation interaction pattern"
+  columns={["Variable", "Who sets it", "Why it exists"]}
+  rows={[
+    ["interaction_mode", "ce_prompt_template", "Marks that this turn is a confirmation checkpoint."],
+    ["interaction_contract", "ce_prompt_template", "Declares allowed capabilities such as affirm/edit/reset."],
+    ["routing_decision", "CorrectionStep", "Normalizes the next branch, for example PROCEED_CONFIRMED."],
+    ["skip_schema_extraction", "CorrectionStep or later rule", "Prevents another schema extraction call for confirm-accept turns."],
+    ["correction_applied", "CorrectionStep", "Lets confirmation response explain that a value was updated."]
+  ]}
+/>
+
+Then your rules can check:
+
+- current `state`
+- active prompt-template `interaction_mode`
+- active prompt-template `interaction_contract`
+- `dialogue_act`
+- `inputParams.routing_decision`
+
+That is much safer than parsing raw “yes” in SQL.
+
+## How retry should work after MCP failure
+
+If an MCP call fails in `PROCESS_APPLICATION`, the flow should stay in `PROCESS_APPLICATION`, not jump to `COMPLETED`.
+
+Use this shape:
+
+- `POST_AGENT_MCP` completion rule matches only when `context.mcp.lifecycle.finished == true` and `context.mcp.lifecycle.error == false`
+- the `PROCESS_APPLICATION` prompt template uses `interaction_mode=PROCESSING`
+- the `PROCESS_APPLICATION` `interaction_contract` includes `retry`
+- `CorrectionStep` detects retry phrases like `retry`, `try again`, and `again`
+- it sets `routing_decision=RETRY_IN_PLACE`, `skip_intent_resolution=true`, and `skip_schema_extraction=true`
+- `McpToolStep` then runs again in the same state and re-calls the API
+
+That gives you deterministic retry behavior without depending on state-name parsing or arbitrary runtime flags.
+
+## How to avoid another schema extraction call
+
+This is the key optimization.
+
+When the user has already supplied:
+
+- `customerId`
+- `requestedAmount`
+- `tenureMonths`
+
+and the engine is already in `CONFIRMATION`, a reply like:
+
+`Looks good, go ahead.`
+
+should not trigger a full schema extraction again.
+
+Recommended behavior:
+
+1. `DialogueActStep` returns `AFFIRM`
+2. `CorrectionStep` sees an active confirmation prompt (`interaction_mode=CONFIRM`)
+3. it sets `routing_decision=PROCEED_CONFIRMED`
+4. it also sets `skip_schema_extraction=true`
+5. `SchemaExtractionStep` is skipped
+6. `PRE_AGENT_MCP` sees `routing_decision=PROCEED_CONFIRMED` and moves to `PROCESS_APPLICATION`
+
+That avoids:
+
+- one more LLM call
+- redundant re-parsing of already-collected data
+- accidental mutation of existing schema values
+
+## How partial edits should work
+
+When the user says:
+
+`Ohh wait, I missed one zero. Change amount to 350000.`
+
+the engine should not perform a full schema extraction from scratch.
+
+Recommended `CorrectionStep` behavior:
+
+1. detect `dialogue_act=EDIT`
+2. inspect existing schema in `context`
+3. patch only the changed field (`requestedAmount`)
+4. keep untouched fields (`customerId`, `tenureMonths`)
+5. recompute schema completeness
+6. stay in `CONFIRMATION`
+7. set:
+   - `correction_applied=true`
+   - `correction_target_field=requestedAmount`
+   - `skip_schema_extraction=true`
+
+Then the assistant re-renders the confirmation view with only the changed value updated.
+
+That is exactly why this example uses:
+
+- `CONFIRMATION` as a dedicated state
+- `CorrectionStep` before rework
+- `SET_INPUT_PARAM` for lightweight runtime flags
+- `SET_DIALOGUE_ACT` for safe post-classification dialogue-act overrides
+- `PRE_AGENT_MCP` as the final start gate
+
+## Recommended step-level strategy
+
+For confirmation-first business flows, the best pipeline behavior is:
+
+<DbTable
+  title="Recommended routing behavior"
+  columns={["Situation", "What should happen", "What should be skipped"]}
+  rows={[
+    ["Schema just became complete", "POST_SCHEMA_EXTRACTION moves to CONFIRMATION", "No MCP yet"],
+    ["User AFFIRM in CONFIRMATION", "CorrectionStep sets routing_decision and PRE_AGENT_MCP starts MCP", "Skip schema extraction; usually skip intent re-resolution"],
+    ["User EDIT in CONFIRMATION", "CorrectionStep patches the field and re-confirms", "Skip full schema extraction when patch is deterministic"],
+    ["User reply is ambiguous", "Fall back to clarification or a small patch path", "Do not blindly rerun the full flow"]
+  ]}
+/>
+
+<Highlight type="tip" title="The design principle">
+Keep control in structured runtime state (`inputParams`, `context`, `dialogue_act`, `routing_decision`) and keep prompts focused on wording. Use rules and steps for routing, not prompt text for control flow.
+</Highlight>

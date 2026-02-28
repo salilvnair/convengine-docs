@@ -10,6 +10,9 @@ import { DbTable, Highlight, EngineDebugFlow, ChatContainer, TraceChatBubble, Co
 export const mcpDeepNodes = [
   { id: "u", data: { label: "User input" } },
   { id: "i", data: { label: "Intent + State" } },
+  { id: "s", data: { label: "Schema + POST_SCHEMA_EXTRACTION" } },
+  { id: "c", data: { label: "CONFIRMATION" } },
+  { id: "pm", data: { label: "PRE_AGENT_MCP" } },
   { id: "p1", data: { label: "Planner loop" } },
   { id: "t1", data: { label: "Tool calls" } },
   { id: "p2", data: { label: "Planner ANSWER" } },
@@ -21,13 +24,16 @@ export const mcpDeepNodes = [
 
 export const mcpDeepEdges = [
   { id: "e1", source: "u", target: "i" },
-  { id: "e2", source: "i", target: "p1" },
-  { id: "e3", source: "p1", target: "t1" },
-  { id: "e4", source: "t1", target: "p2" },
-  { id: "e5", source: "p2", target: "r1" },
-  { id: "e6", source: "r1", target: "r2" },
-  { id: "e7", source: "r2", target: "rr" },
-  { id: "e8", source: "rr", target: "o" }
+  { id: "e2", source: "i", target: "s" },
+  { id: "e3", source: "s", target: "c" },
+  { id: "e4", source: "c", target: "pm" },
+  { id: "e5", source: "pm", target: "p1" },
+  { id: "e6", source: "p1", target: "t1" },
+  { id: "e7", source: "t1", target: "p2" },
+  { id: "e8", source: "p2", target: "r1" },
+  { id: "e9", source: "r1", target: "r2" },
+  { id: "e10", source: "r2", target: "rr" },
+  { id: "e11", source: "rr", target: "o" }
 ];
 
 export const mcpDeepDetails = {
@@ -41,9 +47,30 @@ export const mcpDeepDetails = {
   i: {
     title: "Intent + State",
     stage: "INTENT",
-    summary: "Classifier resolves LOAN_APPLICATION, state transitions into ELIGIBILITY_GATE.",
+    summary: "Classifier resolves LOAN_APPLICATION and initial rules move state into ELIGIBILITY_GATE.",
     session: ["intent=LOAN_APPLICATION", "state=ELIGIBILITY_GATE"],
     tables: ["ce_intent (R)", "ce_intent_classifier (R)", "ce_rule (R)"]
+  },
+  s: {
+    title: "Schema + POST_SCHEMA_EXTRACTION",
+    stage: "SCHEMA_EXTRACTION",
+    summary: "Schema extraction fills customerId/amount/tenure. POST_SCHEMA_EXTRACTION moves the flow to CONFIRMATION once complete.",
+    session: ["context fields extracted", "state=CONFIRMATION"],
+    tables: ["ce_output_schema (R)", "ce_prompt_template (R)", "ce_rule (R)", "ce_audit (W)"]
+  },
+  c: {
+    title: "CONFIRMATION",
+    stage: "CORRECTION",
+    summary: "CorrectionStep handles edits in place and routes affirmations forward with routing_decision.",
+    session: ["routing_decision", "skip_schema_extraction"],
+    tables: ["ce_audit (W)"]
+  },
+  pm: {
+    title: "PRE_AGENT_MCP",
+    stage: "RULES",
+    summary: "PRE_AGENT_MCP is the last chance to move CONFIRMATION into PROCESS_APPLICATION before MCP starts.",
+    session: ["state=PROCESS_APPLICATION"],
+    tables: ["ce_rule (R)", "ce_audit (W)"]
   },
   p1: {
     title: "Planner loop",
@@ -96,17 +123,55 @@ export const mcpDeepDetails = {
   }
 };
 
-# MCP Deep Dive (v2.0.7)
+# MCP Deep Dive (v2.0.9)
 
-This page shows the exact MCP execution order using the Loan Application flow.
+This page shows the exact MCP execution order using the confirmation-first Loan Application flow.
 
-## Exact phase order after MCP planner finishes
+## Exact phase order in the confirmation-first loan flow
 
-1. `POST_AGENT_MCP` rules run first.
-2. `PRE_RESPONSE_RESOLUTION` rules run next (RulesStep pre-response pass).
-3. `ResponseResolutionStep` runs after both rule passes.
+1. `SchemaExtractionStep` completes field extraction.
+2. `POST_SCHEMA_EXTRACTION` rules can move the flow into `CONFIRMATION`.
+3. `CorrectionStep` can patch edits or set `routing_decision=PROCEED_CONFIRMED`.
+4. `PRE_AGENT_MCP` rules run inside `McpToolStep` before planner/tool execution and can move `CONFIRMATION -> PROCESS_APPLICATION`.
+5. `POST_AGENT_MCP` rules run after MCP work finishes.
+6. `PRE_RESPONSE_RESOLUTION` rules run next.
+7. `ResponseResolutionStep` runs after both rule passes.
 
-So yes, both rule passes execute for MCP turns.
+So yes, MCP turns can now be shaped by both the new pre-MCP phase and the existing post-MCP / pre-response phases.
+
+## Prompt-template interaction semantics
+
+`ce_prompt_template` now carries two fields that consumers should treat as the canonical turn contract:
+
+- `interaction_mode`: broad semantics for the turn (`COLLECT`, `CONFIRM`, `PROCESSING`, `FINAL`, and related modes)
+- `interaction_contract`: extensible JSON for concrete capabilities and expectations
+
+Recommended `interaction_mode` values:
+
+- `NORMAL`: generic prompt with no special turn contract
+- `IDLE`: waiting for the user to begin or restate the task
+- `COLLECT`: gather missing required fields
+- `CONFIRM`: allow affirm/edit over already-collected values
+- `PROCESSING`: keep work in progress; retry can be enabled here
+- `FINAL`: terminal response branch
+- `ERROR`: failure branch
+- `DISAMBIGUATE`: ask the user to choose between options
+- `FOLLOW_UP`: follow-up question branch
+- `PENDING_ACTION`: approval/pending-action branch
+- `REVIEW`: evidence review branch
+
+Recommended `interaction_contract` shape:
+
+```json
+{"allows":["affirm","edit","retry","reset"],"expects":["structured_input"]}
+```
+
+Current conventions:
+
+- `allows`: turn capabilities such as `affirm`, `edit`, `retry`, `reset`
+- `expects`: input expectations such as `structured_input`
+
+This is the preferred place to model confirmation and retry semantics. Do not rely on state name substrings such as `CONFIRM`.
 
 ## Guardrail blocked path
 
@@ -117,7 +182,7 @@ For `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
 3. `PRE_RESPONSE_RESOLUTION` rules run.
 4. `ce_response` + `ce_prompt_template` still shape final user text.
 
-## End-to-end walkthrough (Loan Application)
+## Example 3: Confirmation-first Loan Application
 
 <Tabs groupId="mcp-deep-dive-main">
   <TabItem value="chat" label="Chat + Internal Trace" default>
@@ -126,14 +191,54 @@ For `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
   <TraceChatBubble
     role="user"
     name="Turn 1 - User"
-    message="Apply loan for customer CUST-1001, amount 350000, tenure 36 months."
-    info={["Intent resolves to LOAN_APPLICATION.", "State enters ELIGIBILITY_GATE."]}
+    message="I need a loan for my customer. Customer id 1234, 35000, 24 months."
+    info={["Intent resolves to LOAN_APPLICATION.", "State enters ELIGIBILITY_GATE and schema extraction runs."]}
   />
 
   <TraceChatBubble
     role="assistant"
-    name="Turn 1 - Internal MCP Loop"
-    message="Planner executes rating -> fraud -> debt -> submit chain."
+    name="Turn 1 - Assistant"
+    message="Please confirm: customerId 1234, requestedAmount 35000, tenureMonths 24. Proceed?"
+    json={{
+      routing_decision: "CONTINUE_STANDARD_FLOW",
+      state: "CONFIRMATION"
+    }}
+    tables={["ce_output_schema (R)", "ce_rule (POST_SCHEMA_EXTRACTION)", "ce_audit (W)"]}
+    info={["Schema is complete, so POST_SCHEMA_EXTRACTION moves ELIGIBILITY_GATE -> CONFIRMATION."]}
+  />
+
+  <TraceChatBubble
+    role="user"
+    name="Turn 2 - User"
+    message="Oh wait, change amount to 350000."
+    info={["DialogueActStep resolves EDIT.", "CorrectionStep patches only requestedAmount and keeps state in CONFIRMATION."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 2 - Assistant"
+    message="Updated. Please confirm: customerId 1234, requestedAmount 350000, tenureMonths 24. Proceed?"
+    json={{
+      routing_decision: "APPLY_CORRECTION",
+      correction_applied: true,
+      correction_target_field: "requestedAmount",
+      state: "CONFIRMATION"
+    }}
+    tables={["ce_audit (W)"]}
+    info={["No full schema re-extraction is needed for the single-field correction path."]}
+  />
+
+  <TraceChatBubble
+    role="user"
+    name="Turn 3 - User"
+    message="Looks good, go ahead."
+    info={["DialogueActStep resolves AFFIRM.", "CorrectionStep sets routing_decision=PROCEED_CONFIRMED."]}
+  />
+
+  <TraceChatBubble
+    role="assistant"
+    name="Turn 3 - Internal MCP Loop"
+    message="PRE_AGENT_MCP moves state to PROCESS_APPLICATION. Planner executes rating -> fraud -> debt -> submit."
     json={{
       mcp: {
         observations: [
@@ -152,14 +257,14 @@ For `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
         }
       }
     }}
-    tables={["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]}
-    info={["Tool results append to context.mcp.observations."]}
+    tables={["ce_rule (PRE_AGENT_MCP)", "ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]}
+    info={["Tool results append to context.mcp.observations after CONFIRMATION -> PROCESS_APPLICATION."]}
   />
 
   <TraceChatBubble
     role="assistant"
-    name="Turn 1 - Rules + Final"
-    message="Loan application submitted. Application ID LA-90311."
+    name="Turn 3 - Rules + Final"
+    message="Loan application submitted for customer 1234. Amount 350000, tenure 24 months. Application ID LA-90311."
     json={{
       mcp: {
         finalAnswer: "Loan approved and submitted with applicationId LA-90311.",
@@ -171,11 +276,12 @@ For `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
           blocked: false,
           error: false
         }
-      }
+      },
+      state: "COMPLETED"
     }}
     tables={["ce_rule (R)", "ce_response (R)", "ce_prompt_template (R)", "ce_conversation (W)"]}
     info={[
-      "POST_AGENT_MCP can move ELIGIBILITY_GATE -> COMPLETED using JSON_PATH on context.mcp.finalAnswer.",
+      "POST_AGENT_MCP can move PROCESS_APPLICATION -> COMPLETED using JSON_PATH on context.mcp.finalAnswer.",
       "PRE_RESPONSE_RESOLUTION runs after that and can still apply final state/context adjustments."
     ]}
   />
@@ -187,11 +293,11 @@ For `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
 
 <EngineDebugFlow
   title="Loan MCP flow"
-  subtitle="Planner/tool loop -> POST_AGENT_MCP -> PRE_RESPONSE_RESOLUTION -> response"
+  subtitle="Schema -> CONFIRMATION -> PRE_AGENT_MCP -> planner/tool loop -> POST_AGENT_MCP -> PRE_RESPONSE_RESOLUTION -> response"
   nodes={mcpDeepNodes}
   edges={mcpDeepEdges}
   detailsById={mcpDeepDetails}
-  defaultSelectedId="p1"
+  defaultSelectedId="c"
 />
 
   </TabItem>
@@ -203,6 +309,8 @@ For `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
   columns={["Stage", "Reads", "Writes", "Context impact"]}
   rows={[
     ["Intent/State", "ce_intent, ce_intent_classifier, ce_rule", "ce_audit", "session.intent/session.state"],
+    ["Schema + confirm gate", "ce_output_schema, ce_prompt_template, ce_rule", "ce_audit", "state=CONFIRMATION, routing_decision"],
+    ["PRE_AGENT_MCP", "ce_rule", "ce_audit", "CONFIRMATION -> PROCESS_APPLICATION"],
     ["MCP planner", "ce_mcp_tool, ce_mcp_planner", "ce_audit", "mcp_action/mcp_tool_code"],
     ["Tool execution", "(tool-specific)", "ce_audit", "context.mcp.observations[]"],
     ["Planner ANSWER", "ce_mcp_planner", "ce_audit", "context.mcp.finalAnswer + lifecycle"],

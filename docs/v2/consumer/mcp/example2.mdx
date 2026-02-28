@@ -232,11 +232,13 @@ VALUES
  20, true, 'Loan decision derived from MCP outputs.');
 
 -- 4) Prompt template should explicitly read context.mcp.*
-INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, enabled)
+INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, interaction_mode, interaction_contract, enabled)
 VALUES
 ('LOAN_APPLICATION', 'COMPLETED', 'TEXT',
  'You are a precise loan workflow summarizer. Use only MCP evidence from context JSON.',
  'Context JSON:\n{{context}}\n\nRead context.mcp.observations and context.mcp.finalAnswer. Return a concise final loan decision.',
+ 'FINAL',
+ '{"allows":["reset"],"expects":[]}',
  true);
 ```
 
@@ -298,6 +300,8 @@ For SQLite run:
   <TraceChatBubble
     role="assistant"
     name="Turn 1 - Assistant (internal MCP)"
+    intent="LOAN_APPLICATION"
+    state="ELIGIBILITY_GATE"
     message="Running eligibility chain: rating -> fraud -> debt summary -> submit."
     json={{
       mcp: {
@@ -315,6 +319,8 @@ For SQLite run:
   <TraceChatBubble
     role="assistant"
     name="Turn 1 - Final Assistant Output"
+    intent="LOAN_APPLICATION"
+    state="COMPLETED"
     message="Loan application submitted successfully. Application ID: LA-90311. Credit and fraud checks passed; debt profile is within threshold."
     json={{ mcp: { finalAnswer: "Approved and submitted with applicationId LA-90311." } }}
     tables={["ce_response (R)", "ce_prompt_template (R)", "ce_conversation (W)"]}
@@ -431,7 +437,7 @@ For this example, the final assistant text is not hardcoded. It is derived from 
 3. When planner returns `ANSWER`, `McpToolStep` writes:
    - `context.mcp.finalAnswer`
    - input param `mcp_final_answer`
-4. `RulesStep` runs `POST_AGENT_MCP` phase and matches rule only when `context.mcp.finalAnswer` is present, then sets state to `COMPLETED`.
+4. In the confirmation-first pattern, `POST_SCHEMA_EXTRACTION` can move the flow to `CONFIRMATION`, `PRE_AGENT_MCP` can move `CONFIRMATION -> PROCESS_APPLICATION`, and `POST_AGENT_MCP` can set `COMPLETED` when `context.mcp.finalAnswer` is present.
 5. `ResponseResolutionStep` selects `ce_response` for:
    - `intent_code=LOAN_APPLICATION`
    - `state_code=COMPLETED`
@@ -462,7 +468,7 @@ The provided Example 2 seed now makes this explicit in SQL as well:
   columns={["Loop/Step", "LLM deduction", "Tables touched", "Produced state/data"]}
   rows={[
     ["Schema extraction", "customerId/requestedAmount/tenure extracted.", "ce_output_schema(R), ce_prompt_template(R), ce_audit(W)", "context fields set"],
-    ["State rule", "loan flow evaluates in ELIGIBILITY_GATE (pre-MCP), then POST_AGENT_MCP moves to COMPLETED only when finalAnswer exists.", "ce_rule(R), ce_audit(W)", "state=ELIGIBILITY_GATE"],
+    ["State rule", "loan flow can move ELIGIBILITY_GATE -> CONFIRMATION after schema extraction, then PRE_AGENT_MCP moves CONFIRMATION -> PROCESS_APPLICATION before MCP.", "ce_rule(R), ce_audit(W)", "state confirmation gate before MCP"],
     ["MCP #1", "Need credit rating first.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL rating"],
     ["Tool #1", "Rating available and > 750.", "ce_audit(W)", "obs[0]=creditRating"],
     ["MCP #2", "Proceed to fraud check.", "ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL fraud"],

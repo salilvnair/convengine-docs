@@ -44,6 +44,8 @@ export function TraceChatBubble({
   name,
   message,
   children,
+  intent,
+  state,
   json,
   tables = [],
   info = []
@@ -51,6 +53,7 @@ export function TraceChatBubble({
   const isUser = role === "user";
   const infoList = Array.isArray(info) ? info : [info];
   const hasFooter = json || (tables && tables.length > 0) || (infoList && infoList.filter(Boolean).length > 0);
+  const hasTraceChips = !isUser && (intent || state);
 
   return (
     <div className={clsx("ce-chat-message", isUser ? "ce-chat-message-user" : "ce-chat-message-assistant")}>
@@ -58,7 +61,25 @@ export function TraceChatBubble({
         {isUser ? <IconUser size={20} /> : <IconRobot size={20} />}
       </div>
       <div className="ce-chat-bubble-content ce-chat-trace-content">
-        {name ? <div className="ce-chat-trace-name">{name}</div> : null}
+        {(name || hasTraceChips) ? (
+          <div className="ce-chat-trace-header">
+            {name ? <div className="ce-chat-trace-name">{name}</div> : <div />}
+            {hasTraceChips ? (
+              <div className="ce-chat-trace-chip-row">
+                {intent ? (
+                  <span className="ce-doc-version-chip ce-chat-trace-chip ce-chat-trace-chip-intent">
+                    {`intent: ${intent}`}
+                  </span>
+                ) : null}
+                {state ? (
+                  <span className="ce-doc-version-chip ce-chat-trace-chip ce-chat-trace-chip-state">
+                    {`state: ${state}`}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <div className="ce-chat-trace-text">{children || message}</div>
 
         {hasFooter ? (

@@ -17,8 +17,9 @@ import { DbTable, Highlight, CodeBlockToggle } from "@site/src/components/conven
     ["PersistConversationBootstrapStep", "Ensure conversation row persisted", "none/metadata", "ce_conversation"],
     ["AuditUserInputStep", "Persist user input audit", "none", "ce_audit"],
     ["PolicyEnforcementStep", "Policy block and stop", "payload + stop result on block", "ce_policy"],
-    ["DialogueActStep", "Classify user turn action type", "dialogue_act in input params", "ce_config (dialogue act mode), ce_audit"],
+    ["DialogueActStep", "Classify user turn action type", "dialogue_act, dialogue_act_confidence, standalone_query, resolved_user_input", "ce_config (dialogue act mode), ce_audit"],
     ["InteractionPolicyStep", "Decide runtime policy before intent", "policy_decision, skip_intent_resolution", "ce_config, session pending state"],
+    ["CorrectionStep", "Route confirmation turns and apply in-place correction patches", "routing_decision, skip_schema_extraction, correction_applied", "ce_output_schema, session context, ce_audit"],
     ["ActionLifecycleStep", "Maintain pending action runtime TTL/status", "pending_action_runtime context", "ce_pending_action, ce_audit"],
     ["DisambiguationStep", "Ask question when multiple actions fit", "pending_clarification question/context", "ce_pending_action, ce_config, ce_audit"],
     ["GuardrailStep", "Apply guardrails and approval rules", "guardrail flags/sanitized text", "ce_config, ce_audit"],
@@ -28,8 +29,8 @@ import { DbTable, Highlight, CodeBlockToggle } from "@site/src/components/conven
     ["AddContainerDataStep", "Fetch and attach container data", "containerData/context merge", "ce_container_config"],
     ["PendingActionStep", "Execute/reject pending action task", "pending_action_runtime status/result", "ce_pending_action, CeTaskExecutor, ce_audit"],
     ["ToolOrchestrationStep", "Run tool_group based orchestration", "tool_request/tool_result fields", "ce_tool, ce_mcp_tool, ce_audit"],
-    ["McpToolStep", "MCP planner/tool loop", "context_json.mcp.*", "ce_mcp_tool, ce_mcp_db_tool, ce_mcp_planner (fallback ce_config)"],
-    ["SchemaExtractionStep", "Schema-driven extraction and lock handling", "schema facts/context/lock", "ce_output_schema, ce_prompt_template"],
+    ["McpToolStep", "MCP planner/tool loop", "context_json.mcp.*, mcp tool metadata", "ce_mcp_tool, ce_mcp_db_tool, ce_mcp_planner (fallback ce_config)"],
+    ["SchemaExtractionStep", "Schema-driven extraction and lock handling", "schema facts/context/lock, POST_SCHEMA_EXTRACTION facts", "ce_output_schema, ce_prompt_template"],
     ["AutoAdvanceStep", "Compute schema status facts", "schemaComplete/hasAny", "resolved schema + context"],
     ["RulesStep", "Match and apply transitions/actions", "intent/state/input params", "ce_rule"],
     ["StateGraphStep", "Validate state transition path", "state_graph_valid/reason", "ce_state_graph, ce_audit"],
@@ -47,11 +48,19 @@ import { DbTable, Highlight, CodeBlockToggle } from "@site/src/components/conven
 :::
 
 <Highlight type="info" title="Rule phases">
-Rules execute by phase. Available native phases include `PRE_RESPONSE_RESOLUTION`, `POST_AGENT_INTENT`, `POST_AGENT_MCP`, and `POST_TOOL_EXECUTION`.
+Rules execute by phase. Available native phases include `PRE_RESPONSE_RESOLUTION`, `POST_AGENT_INTENT`, `POST_SCHEMA_EXTRACTION`, `PRE_AGENT_MCP`, `POST_AGENT_MCP`, and `POST_TOOL_EXECUTION`.
 </Highlight>
 
 <Highlight type="warning" title="Don’t hardcode transitions in steps">
 Prefer transitions in `ce_rule` unless absolutely framework-level behavior is required. This keeps domain behavior data-driven and testable via audit traces.
+</Highlight>
+
+<Highlight type="info" title="Prompt-template interaction metadata">
+`ce_prompt_template.interaction_mode` and `ce_prompt_template.interaction_contract` are the preferred turn-semantics contract in v2.0.9+.
+
+- `SchemaExtractionStep` uses the scoped `SCHEMA_JSON` template for extraction prompts; `COLLECT` plus `expects:["structured_input"]` is the recommended shape.
+- `CorrectionStep` should rely on the active prompt template semantics (`CONFIRM`, `PROCESSING`, and `interaction_contract` capabilities such as `affirm`, `edit`, `retry`) instead of parsing state-name substrings.
+- `ResponseResolutionStep` still selects by `intent_code + state_code + response_type`, but `interaction_mode` helps document what kind of user interaction that template represents.
 </Highlight>
 
 
@@ -97,6 +106,13 @@ This ensures that regardless of scale, the API is entirely stateless and can rou
         return new StepResult.Continue();
     }`}
 </CodeBlockToggle>
+
+When the LLM path is used, `DialogueActStep` now audits:
+- `DIALOGUE_ACT_LLM_INPUT`
+- `DIALOGUE_ACT_LLM_OUTPUT`
+- `DIALOGUE_ACT_LLM_ERROR`
+
+It still emits the final classification checkpoint as `DIALOGUE_ACT_CLASSIFIED`.
 </details>
 
 ---
@@ -312,6 +328,13 @@ It reads all active rows from `ce_policy`, executing either `REGEX`, `EXACT`, or
 
 This step attempts to classify the raw user text into an explicit conversational "act" through Regex, and optionally as fallback, a LLM request depending on the strictness of `convengine.flow.dialogue-act.resolute` (e.g., `REGEX_THEN_LLM`).
 
+Why this step exists:
+
+- it turns raw free-form phrases like `yes`, `go ahead`, `change amount to 350000`, or `start over` into stable engine signals
+- downstream steps should not branch on raw text because raw phrasing is inconsistent and expensive to reason about repeatedly
+- it reduces unnecessary intent/schema/LLM work for short operational turns
+- it makes `ce_rule` conditions deterministic by giving rules normalized fields instead of unstructured user text
+
 If `convengine.flow.queryRewrite.enabled=true` and the `conversionHistory` is present, the step morphs its LLM request into a dual **Classifier & RAG Context Optimizer**. It supplies the ongoing conversation to the LLM to rewrite ambiguous pronouns into an explicit standalone search query, returning it as `"standaloneQuery"`. 
 
 The core parameters for these prompts are dynamically loaded from `ce_config`, allowing administrators to Hot-Swap classifier behaviors in production without recompiling Java arrays.
@@ -331,8 +354,30 @@ The core parameters for these prompts are dynamically loaded from `ce_config`, a
 ### Source Execution Profile
 
 <Highlight type="tip" title="Regex Guardrails">
-Notice in the source that if the LLM predicts an `EDIT` or `RESET` act, but the user's text did not match the explicit `EDIT` or `RESET` regex, the engine overrides the LLM prediction down to a `REGEX_GUARD` fallback. This prevents the LLM from hallucinating an edit on a brand new, complex sentence.
+The runtime still keeps a conservative regex guard for destructive resets. `RESET` can be forced back to a `REGEX_GUARD` result when the user text does not clearly match the reset regex. `EDIT` is no longer globally downgraded in Java. Instead, the engine preserves regex and LLM candidate values, and a `POST_DIALOGUE_ACT` rule pass can apply a DB-driven override using `SET_DIALOGUE_ACT` when the workflow should trust the LLM candidate.
 </Highlight>
+
+### Why `POST_DIALOGUE_ACT` exists
+
+The engine should stay conservative by default, but business workflows still need a safe override point.
+
+Examples:
+
+- user says: `Ohh wait, I missed one zero. Change amount to 350000.`
+- regex may still classify this as `NEW_REQUEST`
+- the LLM candidate may classify it as `EDIT`
+- a `POST_DIALOGUE_ACT` rule can inspect:
+  - `inputParams.dialogue_act`
+  - `inputParams.dialogue_act_source`
+  - `inputParams.dialogue_act_llm_candidate`
+  - `inputParams.dialogue_act_llm_standalone_query`
+- then use `SET_DIALOGUE_ACT` to restore `EDIT` before `InteractionPolicyStep`
+
+This keeps:
+
+- the default engine behavior safe
+- the override behavior DB-driven
+- the state model dynamic instead of hardcoded in Java
 
 <CodeBlockToggle title="DialogueActStep.java (Simplified)" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/DialogueActStep.java" defaultOpen={true}>
 {`@MustRunAfter(AuditUserInputStep.class)
@@ -382,10 +427,13 @@ public class DialogueActStep implements EngineStep {
         // 1. Regex Classification First
         DialogueActResult regexResult = classifyByRegex(userText);
         
-        // 2. Resolve final intention
-        DialogueActResult resolved = resolveByMode(session, userText, regexResult);
+        // 2. Resolve final intention while preserving regex + LLM candidates
+        DialogueActResolution resolution = resolveByMode(session, userText, regexResult);
+        DialogueActResult resolved = resolution.resolved();
 
-        // 3. Mutate Global Session
+        // 3. Persist regex, LLM candidate, guard metadata, and final decision
+        session.putInputParam(ConvEngineInputParamKey.DIALOGUE_ACT_REGEX, regexResult.act().name());
+        session.putInputParam(ConvEngineInputParamKey.DIALOGUE_ACT_LLM_CANDIDATE, ...);
         session.putInputParam(ConvEngineInputParamKey.DIALOGUE_ACT, resolved.act().name());
         session.putInputParam(ConvEngineInputParamKey.DIALOGUE_ACT_CONFIDENCE, resolved.confidence());
         
@@ -393,6 +441,9 @@ public class DialogueActStep implements EngineStep {
             session.putInputParam(ConvEngineInputParamKey.STANDALONE_QUERY, resolved.standaloneQuery());
             session.setStandaloneQuery(resolved.standaloneQuery());
         }
+
+        // 4. Let DB rules override the guarded result before policy routing
+        rulesStep.applyRules(session, "DialogueActStep", RulePhase.POST_DIALOGUE_ACT.name());
 
         return new StepResult.Continue();
     }
@@ -417,6 +468,8 @@ public class DialogueActStep implements EngineStep {
 <summary>Detailed Execution Logic</summary>
 
 Uses the identified `DialogueAct` to decide how the engine should route the turn. This step prevents the system from confusing follow-up answers (like saying "yes") with new intents.
+
+Before this step runs, the engine now executes a `POST_DIALOGUE_ACT` rule pass. That lets DB rules override guarded dialogue-act outcomes using the regex result, the LLM candidate result, or the dedicated `SET_DIALOGUE_ACT` action without hardcoding state names in Java.
 
 The output maps to the `InteractionPolicyDecision` enum:
 - **`EXECUTE_PENDING_ACTION`**: If the DialogueAct is `AFFIRM` and there's a background API task waiting.
@@ -1454,6 +1507,13 @@ Specifically iterates over `ce_mcp_tool` bindings. Instead of static grouped too
 
 Evaluates `ce_output_schema`. It injects the missing required slots into an LLM extracting prompt using `ce_prompt_template`. The LLM returns a structured JSON map. This step merges it with `session.contextJson`.
 
+Prompt-template usage details:
+
+- selects `ce_prompt_template` with `response_type=SCHEMA_JSON` for the same `intent_code + state_code`
+- `interaction_mode=COLLECT` is the recommended semantic marker for these templates
+- `interaction_contract` can declare `expects:["structured_input"]` so the template contract remains explicit in configuration
+- after merge, `POST_SCHEMA_EXTRACTION` rules can move the state or set runtime flags
+
 It then runs `missingFieldEvaluator.evaluate()`. If fields are missing, it sets `session.setSchemaLocked(true)`.
 
 <CodeBlockToggle title="SchemaExtractionStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/SchemaExtractionStep.java" defaultOpen={true}>
@@ -1640,6 +1700,8 @@ A strict validater. Checks `ce_state_graph` to see if the transition that just o
 The final output generator. Queries `ce_response` for the current intent and state.
 - If `TEXT`: Returns a hardcoded string.
 - If `DERIVED`: Loads `ce_prompt_template`, injects the `contextJson`, `tool_result`, and `schema`, and asks the LLM to write a fluid, contextual response to the user.
+- `interaction_mode` does not change template lookup, but it should describe the intended turn semantics for the selected state (`CONFIRM`, `PROCESSING`, `FINAL`, etc.)
+- `interaction_contract` is where consumers should declare capabilities such as `retry` on `PROCESSING` prompts or `affirm/edit` on `CONFIRM` prompts
 Sets `session.getConversation().setLastAssistantJson()` with the payload.
 
 <CodeBlockToggle title="ResponseResolutionStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/ResponseResolutionStep.java" defaultOpen={true}>
