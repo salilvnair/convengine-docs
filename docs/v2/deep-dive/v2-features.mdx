@@ -3,109 +3,585 @@ title: Detailed Features
 sidebar_position: 11
 ---
 
-# ConvEngine Detailed Features
+# ConvEngine Detailed Features (Current v2 Line)
 
-## 1. DialogueActStep
+This page reflects the current v2 codebase, not just the original `2.0.0` launch set. It consolidates the active runtime behavior across the v2 release line through the current repo state (including later additions such as `CorrectionStep`, `ce_mcp_planner`, `ce_verbose`, extra rule phases, and Thymeleaf-backed prompt rendering).
 
-- Adds configurable resolve mode via `convengine.flow.dialogue-act.resolute`:
+If you need exact internals for one subsystem, use the linked deep-dive pages. This page is the high-level, top-to-bottom feature inventory.
+
+## 1. Runtime Pipeline Is Now a Full Multi-Step DAG
+
+v2 is no longer a simple intent -> response flow. The engine now runs a richer directed pipeline with explicit step ordering and lifecycle hooks.
+
+Core runtime stages include:
+
+- Conversation bootstrap and persistence:
+  - `LoadOrCreateConversationStep`
+  - `PersistConversationBootstrapStep`
+  - `PersistConversationStep`
+- Early governance:
+  - `CacheInspectAuditStep`
+  - `ResetConversationStep`
+  - `PolicyEnforcementStep`
+  - `AuditUserInputStep`
+- Turn interpretation and routing:
+  - `DialogueActStep`
+  - `InteractionPolicyStep`
+  - `CorrectionStep`
+- Multi-turn task handling:
+  - `ActionLifecycleStep`
+  - `DisambiguationStep`
+  - `PendingActionStep`
+- Main conversational processing:
+  - `IntentResolutionStep`
+  - `ResetResolvedIntentStep`
+  - `FallbackIntentStateStep`
+  - `AddContainerDataStep`
+  - `SchemaExtractionStep`
+  - `AutoAdvanceStep`
+- Tooling and orchestration:
+  - `GuardrailStep`
+  - `ToolOrchestrationStep`
+  - `McpToolStep`
+  - `RulesStep`
+  - `StateGraphStep`
+- Output and closeout:
+  - `ResponseResolutionStep`
+  - `MemoryStep`
+  - `PipelineEndGuardStep`
+
+This matters operationally because most v2 behavior is step-driven and data-driven. Consumer apps should configure tables and properties, not hardcode domain branching in controller logic.
+
+## 2. Dialogue Handling Is More Than Intent Classification
+
+### `DialogueActStep`
+
+The engine resolves turn semantics before intent resolution:
+
+- resolve modes:
   - `REGEX_ONLY`
   - `REGEX_THEN_LLM`
   - `LLM_ONLY`
-- Fast-path regex classification remains primary.
-- LLM path used for ambiguity based on configured threshold.
-- Emits:
-  - `DIALOGUE_ACT_LLM_INPUT`
-  - `DIALOGUE_ACT_LLM_OUTPUT`
-  - `DIALOGUE_ACT_LLM_ERROR`
-  - `DIALOGUE_ACT_CLASSIFIED`
+- default config comes from `convengine.flow.dialogue-act.*`
+- regex remains the fast path for low-cost turns
+- LLM fallback is used when configured mode and confidence thresholds require it
 
-## 2. InteractionPolicyStep
+Current runtime outputs include:
 
-- Policy matrix externalized in `convengine.flow.interaction-policy.matrix`.
-- Default safe matrix included.
-- Output remains deterministic enums:
-  - `EXECUTE_PENDING_ACTION`
-  - `REJECT_PENDING_ACTION`
-  - `FILL_PENDING_SLOT`
-  - `RECLASSIFY_INTENT`
-- Emits: `INTERACTION_POLICY_DECIDED`.
+- `dialogue_act`
+- `dialogue_act_confidence`
+- `standalone_query`
+- `resolved_user_input`
 
-## 3. ActionLifecycleStep
+Current v2 dialogue acts now include:
 
-- Runtime lifecycle stored in context `pending_action_runtime`.
-- Status values:
+- `AFFIRM`
+- `NEGATE`
+- `EDIT`
+- `RESET`
+- `QUESTION`
+- `NEW_REQUEST`
+- `ANSWER`
+
+Current verbose/audit coverage includes:
+
+- `DIALOGUE_ACT_LLM_INPUT`
+- `DIALOGUE_ACT_LLM_OUTPUT`
+- `DIALOGUE_ACT_LLM_ERROR`
+- `DIALOGUE_ACT_CLASSIFIED`
+
+### `InteractionPolicyStep`
+
+This step is still the deterministic routing layer, but it is now part of a broader routing chain instead of being the only "policy" feature.
+
+Config comes from `convengine.flow.interaction-policy.*`, including:
+
+- boolean shortcuts such as `executePendingOnAffirm`
+- `requireResolvedIntentAndState`
+- a configurable `matrix`
+
+The main deterministic outcomes remain:
+
+- `EXECUTE_PENDING_ACTION`
+- `REJECT_PENDING_ACTION`
+- `FILL_PENDING_SLOT`
+- `RECLASSIFY_INTENT`
+
+### `CorrectionStep` (newer v2 addition)
+
+This is one of the biggest changes missing from the old page.
+
+`CorrectionStep` now handles confirmation/correction turns before intent/schema are re-run:
+
+- resets per-turn `routing_decision`
+- supports in-place retry handling
+- supports confirmation accept (`AFFIRM`) when current schema is already complete
+- supports single-field correction patching for `EDIT` turns
+- can skip intent resolution and schema extraction for safe in-place corrections
+
+It uses:
+
+- active `ce_output_schema`
+- current context JSON
+- `ce_prompt_template` interaction semantics
+
+Important current routing decisions:
+
+- `CONTINUE_STANDARD_FLOW`
+- `HANDLE_AS_ANSWER`
+- `RETRY_IN_PLACE`
+- `PROCEED_CONFIRMED`
+- `APPLY_CORRECTION`
+
+This means v2 can now continue, retry, confirm, or patch an existing turn without forcing a full reclassification loop.
+
+## 3. Pending Actions Are Runtime-Controlled, Not Just Static Rows
+
+### `ce_pending_action`
+
+`ce_pending_action` remains the control-plane catalog for pending actions, but in the current repo it is stricter than the original docs implied:
+
+- `intent_code` is required
+- `state_code` is required
+- static scope validation runs at startup
+- rows are resolved from static cache, not ad hoc table scans on every turn
+
+The actual runtime lifecycle is stored in session/context (`pending_action_runtime`), not in the table itself.
+
+### `ActionLifecycleStep`
+
+Current behavior:
+
+- manages TTL by turns and time
+- tracks lifecycle states such as:
   - `OPEN`
   - `IN_PROGRESS`
   - `EXECUTED`
   - `REJECTED`
   - `EXPIRED`
-- TTL by turns/time configurable via `convengine.flow.action-lifecycle.*`.
-- Uses `ce_pending_action` as catalog only.
-- Emits: `PENDING_ACTION_LIFECYCLE`.
+- uses `convengine.flow.action-lifecycle.ttl-turns`
+- uses `convengine.flow.action-lifecycle.ttl-minutes`
 
-## 4. ToolOrchestrationStep
+### `DisambiguationStep`
 
-- Unified tool contract:
-  - request (`tool_request`)
-  - execute
-  - result (`tool_result`, `tool_status`)
-- Keeps DB executor path and adds group dispatch interfaces for:
-  - `HTTP_API`
-  - `WORKFLOW_ACTION`
-  - `DOCUMENT_RETRIEVAL`
-  - `CALCULATOR_TRANSFORM`
-  - `NOTIFICATION`
-  - `FILES`
-- MCP tool eligibility is scoped by optional `ce_mcp_tool.intent_code` and `ce_mcp_tool.state_code` (with `NULL` as wildcard).
-- Executes post-tool rules with `POST_TOOL_EXECUTION`.
+This step now explicitly pauses execution when multiple pending actions remain eligible at the winning priority:
 
-## 5. GuardrailStep
+- asks a targeted clarification question
+- writes pending clarification state into session/context
+- prevents accidental execution when multiple actions look valid
 
-Before tool/action execution:
+### `PendingActionStep`
 
-- input sanitization
-- sensitive action pattern checks
-- approval gate hooks
+This is the execution/rejection stage:
 
-Outputs:
+- executes or rejects the selected pending action
+- delegates to `CeTaskExecutor`
+- updates runtime pending action status/result
 
-- allow/deny audit entries (`GUARDRAIL_ALLOW`, `GUARDRAIL_DENY`)
-- skip flags for tool/pending-action execution when denied
+## 4. Tool Execution Is Split Into Two Distinct Paths
 
-## 6. StateGraphStep (validate mode)
+Current v2 supports both direct one-shot tool execution and planner-driven MCP loops.
 
-- Validates transition only, no forced mutation.
-- Emits:
-  - `STATE_GRAPH_VALID`
-  - `STATE_GRAPH_VIOLATION`
-- Can set optional soft-block flag for downstream behavior.
+### Direct tool path: `ToolOrchestrationStep`
 
-## 7. DisambiguationStep
+This step executes exactly one tool when the request contains `tool_request`.
 
-- When multiple pending actions eligible at same top priority:
-  - asks targeted clarification
-  - pauses execution cleanly
-- Emits: `DISAMBIGUATION_REQUIRED`.
+Current contract:
 
-## 8. MemoryStep
+- request input:
+  - `tool_request.tool_code`
+  - `tool_request.tool_group`
+  - `tool_request.args`
+- runtime outputs:
+  - `tool_result`
+  - `tool_status`
+  - `context.mcp.toolExecution.*`
 
-- Writes session summary in context.
-- Optional recall/write via pluggable `ConversationMemoryStore` adapter.
-- Emits: `MEMORY_UPDATED`.
+Current behavior:
 
-## 9. Eval/Trace framework
+- honors `convengine.flow.tool-orchestration.enabled`
+- resolves tool by `tool_code` within current scope
+- falls back to `tool_group` when code resolution is not possible
+- writes rich `_meta` data into the result payload
+- runs rules in `POST_TOOL_EXECUTION`
 
-- `ConversationReplayService` replays conversations from input messages.
-- Supports expectation assertions for intent/state regressions.
+Current status/outcome coverage includes:
 
-## 10. Consumer contract docs
+- `SUCCESS`
+- `ERROR`
+- `SCOPE_MISMATCH`
 
-Consumer should configure behavior with data/config first:
+### Supported tool group model
 
+The unified v2 tool contract supports these normalized groups:
+
+- `DB`
+- `HTTP_API`
+- `WORKFLOW_ACTION`
+- `DOCUMENT_RETRIEVAL`
+- `CALCULATOR_TRANSFORM`
+- `NOTIFICATION`
+- `FILES`
+
+On the MCP side, HTTP execution now supports multiple handler models:
+
+- `HttpApiProcessorToolHandler`
+- `HttpApiRequestingToolHandler`
+- classic `HttpApiToolHandler`
+
+Framework-managed HTTP policy support includes:
+
+- connect/read timeouts
+- retry and backoff
+- in-memory circuit breaker
+- auth/provider hooks
+- response mapping
+
+Those defaults come from `convengine.mcp.http-api.defaults.*`.
+
+## 5. MCP Is Now Planner-Scoped, Guarded, and Explicitly Scoped
+
+### `ce_mcp_tool` scope rules (correct current behavior)
+
+The old statement about optional `intent_code` / `state_code` with `NULL` wildcard is no longer true.
+
+Current behavior:
+
+- `ce_mcp_tool.intent_code` is mandatory
+- `ce_mcp_tool.state_code` is mandatory
+- null/blank scope is not allowed
+- valid scope values are:
+  - exact configured `intent_code` / `state_code`
+  - `ANY`
+  - `UNKNOWN`
+
+Startup integrity validation now fails fast on invalid scope rows to prevent cross-intent tool leakage.
+
+### `ce_mcp_planner` (newer v2 addition)
+
+MCP prompt selection is now data-driven via `ce_mcp_planner`.
+
+Current planner prompt resolution order:
+
+1. exact `intent_code + state_code`
+2. exact `intent_code + ANY`
+3. `ANY + ANY`
+4. legacy fallback from `ce_config` `McpPlanner` keys when planner rows are unavailable
+
+Like `ce_mcp_tool`, `ce_mcp_planner.intent_code` and `state_code` are mandatory and validated at startup.
+
+### `McpToolStep`
+
+This step is now much more feature-rich than the old page described.
+
+Current behavior includes:
+
+- runs `PRE_AGENT_MCP` rules before planning
+- skips MCP when:
+  - `SKIP_TOOL_EXECUTION` is set
+  - guardrails already blocked the turn
+  - required schema is incomplete
+  - dialogue act indicates the turn should not enter MCP
+  - the user turn is just a greeting
+  - pending clarification exists
+- resolves scoped tools from `McpToolRegistry`
+- runs a bounded planner/tool loop (`MAX_LOOPS = 5`)
+- stores observations in `context.mcp.observations`
+- stores final planner answer in `context.mcp.finalAnswer`
+- runs `POST_AGENT_MCP` rules after MCP completion/block/fallback
+
+### MCP runtime metadata (important for `ce_rule` JSON_PATH)
+
+Current rule branching can inspect:
+
+- `context.mcp.lifecycle.*`
+- `context.mcp.toolExecution.*`
+
+This exposes deterministic rule conditions such as:
+
+- blocked vs skipped vs answered
+- last action/tool
+- tool status and outcome
+- scope mismatch
+- error flags and messages
+
+### MCP next-tool guardrails
+
+In addition to general turn guardrails, MCP has a post-planner next-tool guard:
+
+- enabled with `convengine.mcp.guardrail.enabled`
+- `failClosed` can block when no allowed-next rule exists
+- `allowedNextByCurrentTool` whitelists legal tool transitions
+
+If the planner proposes a blocked next tool:
+
+- the engine writes the fallback blocked answer
+- lifecycle metadata is updated deterministically
+- `POST_AGENT_MCP` rules still run
+
+## 6. Rules Are Broader Than the Original v2 Rule Model
+
+### Current rule phases
+
+The runtime rule surface is larger now:
+
+- `POST_DIALOGUE_ACT`
+- `POST_SCHEMA_EXTRACTION`
+- `PRE_AGENT_MCP`
+- `PRE_RESPONSE_RESOLUTION`
+- `POST_AGENT_INTENT`
+- `POST_AGENT_MCP`
+- `POST_TOOL_EXECUTION`
+
+Legacy names are still normalized at runtime:
+
+- `PIPELINE_RULES` -> `PRE_RESPONSE_RESOLUTION`
+- `AGENT_POST_INTENT` -> `POST_AGENT_INTENT`
+- `AGENT_POST_MCP` -> `POST_AGENT_MCP`
+- `TOOL_POST_EXECUTION` -> `POST_TOOL_EXECUTION`
+
+### Current rule actions
+
+The rule engine now supports both retrieval-style and mutation-style actions:
+
+- `GET_CONTEXT`
+- `GET_SCHEMA_JSON`
+- `GET_SESSION`
+- `SET_DIALOGUE_ACT`
+- `SET_INPUT_PARAM`
+- `SET_INTENT`
+- `SET_JSON`
+- `SET_STATE`
+- `SET_TASK`
+
+That means `ce_rule` is not just for state transitions anymore. It can mutate input params, inject task directives, and branch across more pipeline phases.
+
+## 7. Schema, Prompt, and Response Handling Are Richer in Current v2
+
+### `SchemaExtractionStep`
+
+Current behavior includes:
+
+- schema-driven extraction from `ce_output_schema`
+- schema completeness tracking
+- missing-required-field detection
+- post-extraction rule execution in `POST_SCHEMA_EXTRACTION`
+
+### `AutoAdvanceStep`
+
+This step computes schema facts used later in the flow:
+
+- schema complete vs incomplete
+- whether any values were captured
+
+### `ResponseResolutionStep`
+
+The response layer still uses `ce_response` and `ce_prompt_template`, but current v2 has tighter runtime metadata and better prompt handling.
+
+### Prompt template interaction semantics
+
+In `2.0.9+`, `ce_prompt_template` is also part of turn-routing semantics:
+
+- `interaction_mode`
+- `interaction_contract`
+
+This is what `CorrectionStep` should use for confirm/edit/retry semantics instead of inferring behavior from state naming conventions.
+
+### Shared prompt renderer (current v2)
+
+Prompt rendering now goes through a shared Thymeleaf-backed path.
+
+Supported template styles:
+
+- legacy `{{var}}`
+- `#{...}`
+- `[${...}]`
+
+Current prompt/session variables now include:
+
+- `session`
+- `inputParams`
+- `rawInputParams`
+- `context`
+- `schema`
+- `schemaJson`
+- `promptVars`
+- `standalone_query`
+- `resolved_user_input`
+
+This same rendering path is used by:
+
+- prompt templates
+- `ce_verbose.message`
+- `ce_verbose.error_message`
+
+## 8. Verbose Runtime and Step Telemetry Are First-Class Features
+
+### `ce_verbose` (newer v2 addition)
+
+The old page did not cover the current verbose runtime model.
+
+`ce_verbose` is now a core control-plane table for runtime progress/error messaging:
+
+- statically cached
+- startup validated
+- scoped by `intent_code` and `state_code`
+- matched by determinant + step matcher + optional rule/tool filters
+
+Current matching inputs include:
+
+- `intent_code`
+- `state_code`
+- `determinant`
+- `step_match`
+- `step_value`
+- optional `rule_id`
+- optional `tool_code`
+- `priority`
+
+Step match types are validated (`EXACT`, `REGEX`, `JSON_PATH`).
+
+### Determinant coverage
+
+Current runtime emits determinants across:
+
+- step enter/exit/error
+- dialogue act LLM lifecycle
+- intent resolution lifecycle
+- schema extraction lifecycle
+- MCP planning/tool lifecycle
+- direct tool orchestration lifecycle
+- rule matching/application
+- response generation lifecycle
+
+### Stream transport
+
+Both SSE and STOMP now publish:
+
+- `AUDIT` events
+- `VERBOSE` events
+
+The stream envelope includes a `VerboseStreamPayload` so clients can render progress updates without scraping audit rows.
+
+### Step telemetry in session
+
+Current v2 also records per-step execution details in `EngineSession.stepInfos`:
+
+- status
+- timing
+- outcome
+- error metadata
+
+This supports deterministic diagnostics and replay-friendly inspection.
+
+## 9. Memory, Continuity, and Reset Handling Expanded
+
+### `MemoryStep`
+
+Memory remains optional and config-driven through `convengine.flow.memory.*`.
+
+Current behavior:
+
+- writes `memory.session_summary` into context
+- can use pluggable `ConversationMemoryStore`
+- compresses recent conversation context instead of endlessly replaying full history
+
+### Query rewrite and resolved input
+
+Current v2 also supports query rewriting:
+
+- `convengine.flow.query-rewrite.enabled`
+- `standalone_query` can be generated for follow-up turns
+- `resolved_user_input` gives downstream steps a stable "effective user text"
+
+This is important for MCP, schema extraction, and prompt rendering because the framework now distinguishes raw user text from resolved conversational intent.
+
+### Reset and fallback handling
+
+The v2 line also includes:
+
+- explicit conversation reset
+- reset-by-configured-intent via `ResetResolvedIntentStep`
+- fallback filling of missing intent/state through `FallbackIntentStateStep`
+
+## 10. Cache, Startup Validation, and Operational Safety Are Core v2 Features
+
+The current v2 line is much stricter operationally than the original feature list suggested.
+
+### Static cache model
+
+Control-plane tables are preloaded and cached, including:
+
+- `ce_intent`
+- `ce_intent_classifier`
 - `ce_rule`
 - `ce_response`
+- `ce_output_schema`
+- `ce_prompt_template`
 - `ce_pending_action`
 - `ce_mcp_tool`
-- `convengine.flow.*`
+- `ce_mcp_planner`
+- `ce_verbose`
 
-Avoid hardcoding conversational decisions in controller/service code.
+### Startup integrity validation
+
+Startup validation now checks scope correctness and row integrity for critical tables such as:
+
+- `ce_pending_action`
+- `ce_mcp_tool`
+- `ce_mcp_planner`
+- `ce_verbose`
+
+This means invalid scope rows or malformed verbose matchers can fail startup instead of producing unpredictable runtime behavior.
+
+### Cache analysis and refresh
+
+Operational tooling now includes:
+
+- cache refresh endpoint
+- cache analyzer endpoint for visibility into cache wiring and warm state
+
+These were added specifically to reduce config debugging friction in real deployments.
+
+## 11. Consumer Integration and Extension Points Are Broader
+
+Current v2 supports several framework-level integration hooks beyond the original basic engine enablement.
+
+Key annotations and extension surfaces include:
+
+- `@EnableConvEngine`
+- `@EnableConvEngineCaching`
+- `@EnableConvEngineAsyncConversation`
+- `@EnableConvEngineAsyncAuditDispatch`
+- optional streaming enablement for SSE/STOMP paths
+
+Consumer-side custom code can also extend behavior through:
+
+- tool handlers/executors
+- container transformers
+- response transformers
+- verbose adapter publishing (`ConvEngineVerboseAdapter`)
+
+This lets consumers add UI progress messaging, custom transport shaping, and domain logic without forking core engine flow.
+
+## 12. What Changed From the Old Page
+
+The old version of this document was incomplete and partially outdated. The main gaps were:
+
+- it treated MCP tool scope as nullable/wildcard, but current v2 requires explicit scope with `ANY` / `UNKNOWN`
+- it missed `CorrectionStep`
+- it missed `PendingActionStep`, `AutoAdvanceStep`, `PolicyEnforcementStep`, reset/fallback steps, and the broader DAG
+- it missed `ce_mcp_planner`
+- it missed newer rule phases (`POST_DIALOGUE_ACT`, `POST_SCHEMA_EXTRACTION`, `PRE_AGENT_MCP`)
+- it missed `SET_INPUT_PARAM`
+- it missed `ce_verbose`, stream verbose events, and step telemetry
+- it missed Thymeleaf-backed prompt rendering and the newer prompt variable model
+- it did not reflect the stricter startup validation and static cache architecture now present in the repo
+
+## Related Deep Dives
+
+- [Pipeline & Steps](/docs/v2/deep-dive/pipeline-steps)
+- [Rules & Responses](/docs/v2/deep-dive/rules-responses)
+- [Verbose and Conversation Runtime](/docs/v2/deep-dive/verbose-and-conversation-runtime)
+- [MCP and Audit](/docs/v2/deep-dive/mcp-audit)
+- [Version History](/docs/v2/version-history)

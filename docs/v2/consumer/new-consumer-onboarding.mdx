@@ -4,166 +4,214 @@ sidebar_position: 2
 hide_table_of_contents: true
 ---
 
-import { DbTable, Highlight, CodeBlockToggle, FlowStep, FileRef, MethodRef } from "@site/src/components/convengine";
+import { DbTable, Highlight, CodeBlockToggle, FlowStep, MethodRef } from "@site/src/components/convengine";
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
 # New Consumer Onboarding
 
-This is the practical playbook for teams integrating ConvEngine for the first time. The framework introduces a completely revamped interaction pipeline featuring Dialogue Act detection, orchestration graphs, internal guardrails, and automated pending-action pipelines.
+This is the current onboarding path for teams integrating ConvEngine on the active v2 release line.
 
-## What a new consumer must decide first
+The older onboarding page was written around the original `2.0.0` launch assumptions. The framework has moved on. The current line includes:
+
+- `CorrectionStep`
+- `ce_mcp_planner`
+- `ce_verbose`
+- extra rule phases (`POST_SCHEMA_EXTRACTION`, `PRE_AGENT_MCP`, `POST_DIALOGUE_ACT`)
+- richer MCP metadata
+- shared Thymeleaf prompt rendering
+
+So a modern integration should be set up with those capabilities in mind from day one.
+
+## Start with the right baseline
 
 <DbTable
   title="Day-0 decisions"
   columns={["Decision", "Why it matters", "Recommended default"]}
   rows={[
-    ["Transport", "Determines runtime event delivery and operational complexity.", "Start with SSE only; enable STOMP relay later."],
-    ["Intent continuity", "Controls whether intent re-resolves each turn.", "The engine manages intent lifecycle fluidly; enable `convengine.flow.state-graph` to build strict path boundaries."],
-    ["Action Orchestration", "Safely execute programmatic actions vs pure dialogue.", "Leverage `convengine.flow.action-lifecycle` and `PENDING_ACTION` states for secure operations."],
-    ["Concurrency policy", "Prevents same-conversation race corruption.", "Serialize by `conversationId` at API layer from day one."],
-    ["Prompt exposure policy", "Controls data leakage and prompt contamination risk.", "Use allowlist of prompt vars; do not expose raw input maps."],
+    ["Java baseline", "ConvEngine compiles against Java 21.", "Standardize on Java 21 in all environments."],
+    ["Conversation concurrency", "The framework does not enforce optimistic locking for `ce_conversation`.", "Allow only one active turn per `conversationId`."],
+    ["Transport", "Streaming is optional but changes operational setup.", "Start with SSE only; enable STOMP later if you truly need it."],
+    ["Prompt contract discipline", "Current v2 uses prompts for both text generation and turn behavior metadata.", "Treat `ce_prompt_template` as a runtime contract, not just copy."],
+    ["MCP adoption", "The current MCP model is powerful, but it adds scope, planner, and tool-governance responsibilities.", "Start with one narrow intent-scoped tool flow before scaling out."]
   ]}
 />
 
-## Step-by-step onboarding
+## Dependency version
 
-<FlowStep step="1" title="Bootstrap framework and LLM adapter">
-Add ConvEngine `2.0.0` dependencies. Enable <MethodRef>@EnableConvEngine</MethodRef> and provide one production-grade <MethodRef>LlmClient</MethodRef> bean with strict timeout and retry policy.
-</FlowStep>
+Use the current framework version from the repo:
 
-<FlowStep step="2" title="Create baseline control-plane data">
-Seed minimum rows for intents, classifiers, responses, prompt templates, schemas, and pending tasks.
-</FlowStep>
+- `convengine:2.0.9`
 
-<Highlight type="info" title="Prompt-template contract (v2.0.9+)">
-When seeding `ce_prompt_template`, treat prompt rows as both LLM text and turn-behavior metadata.
-
-- set `interaction_mode` to the broad turn type (`COLLECT`, `CONFIRM`, `PROCESSING`, `FINAL`, etc.)
-- use `interaction_contract` JSON for extensible capabilities and expectations
-
-Recommended JSON shape:
-
-- `{"allows":["affirm","edit","retry","reset"],"expects":["structured_input"]}`
-
-Examples:
-
-- intake/schema prompts: `interaction_mode=COLLECT`
-- confirmation prompts: `interaction_mode=CONFIRM`
-- retry-capable in-flight prompts: `interaction_mode=PROCESSING` with `allows:["retry","reset"]`
-</Highlight>
-
-<FlowStep step="3" title="Lock down safety defaults">
-Apply conservative defaults for reset behavior, rules logic, MCP safety, and enable Guardrails via `convengine.flow.guardrail.enabled: true`.
-</FlowStep>
-
-<FlowStep step="4" title="Run correctness tests before UI rollout">
-Validate multi-turn transitions, pending action `AFFIRM`/`NEGATE` semantics, tool invocation, and missing-field loops.
-</FlowStep>
-
-<FlowStep step="5" title="Promote with release gates">
-Move from non-prod to prod only after all correctness/security/scalability gates pass.
-</FlowStep>
-
-## Minimum integration checklist
-
-<DbTable
-  title="Must-have implementation tasks"
-  columns={["Area", "Task", "Done when"]}
-  rows={[
-    ["Spring wiring", "Add POM Dependency, Enable ConvEngine + define `LlmClient` bean.", "`/message` works and returns payload for seeded FAQ intent."],
-    ["Schema", "Apply DDL and create indexes from ConvEngine schema.", "All `ce_*` tables present and writable."],
-    ["Seed data", "Insert minimal rows for one end-to-end intent.", "One deterministic turn passes with expected intent/state."],
-    ["Audit usage", "Wire audit API/stream into debugging workflow.", "Every test case is verified against trace timeline."],
-    ["Concurrency guard", "Prevent parallel writes for same conversation.", "Load test shows no state drift under concurrent same-ID requests."],
-    ["Prompt hygiene", "Allowlist exposed template vars.", "No sensitive/internal keys appear in rendered prompts."],
-  ]}
-/>
-
-<DbTable
-  title="Prompt-template seeding checklist"
-  columns={["Prompt type", "Recommended metadata", "Why"]}
-  rows={[
-    ["Schema extraction (`SCHEMA_JSON`)", "`interaction_mode=COLLECT`, `expects:[\"structured_input\"]`", "Makes structured collection explicit and keeps extraction prompts self-describing."],
-    ["Confirmation (`TEXT`)", "`interaction_mode=CONFIRM`, `allows:[\"affirm\",\"edit\",\"reset\"]`", "Lets `CorrectionStep` route yes/edit turns without relying on state-name parsing."],
-    ["Processing (`TEXT`)", "`interaction_mode=PROCESSING`, `allows:[\"retry\",\"reset\"]`", "Enables deterministic retry after MCP/tool failures in the same state."],
-    ["Final (`TEXT`/`JSON`)", "`interaction_mode=FINAL`", "Marks terminal responses and keeps turn semantics clear in config."]
-  ]}
-/>
-
-## 1. Start a Spring Boot project (v2.0.0)
+## 1. Add the framework dependency
 
 <Tabs groupId="bootstrap">
   <TabItem value="maven" label="pom.xml" default>
 
-    <CodeBlockToggle title="Maven dependency" language="xml" packagePath="project build">
-    {`
-  <dependency>
-    <groupId>com.github.salilvnair</groupId>
-    <artifactId>convengine</artifactId>
-    <version>2.0.0</version>
-  </dependency>`}
-    </CodeBlockToggle>
+<CodeBlockToggle title="Maven dependency" language="xml">
+{`<dependency>
+  <groupId>com.github.salilvnair</groupId>
+  <artifactId>convengine</artifactId>
+  <version>2.0.9</version>
+</dependency>`}
+</CodeBlockToggle>
 
   </TabItem>
   <TabItem value="gradle" label="build.gradle.kts">
 
-    <CodeBlockToggle title="Gradle dependency" language="kotlin" packagePath="project build">
-    {`implementation("com.github.salilvnair:convengine:2.0.0")`}
-    </CodeBlockToggle>
-
-  </TabItem>
-  <TabItem value="app" label="Application class">
-
-    <CodeBlockToggle title="Enable ConvEngine" language="java" packagePath="com.zapper.demo" filePath="src/main/java/com/acme/demo/DemoApplication.java">
-    {`@SpringBootApplication
-    @EnableConvEngine(stream = true)
-    @EnableConvEngineCaching
-    @EnableConvEngineAsyncConversation
-    public class DemoApplication {
-      public static void main(String[] args) {
-        SpringApplication.run(DemoApplication.class, args);
-      }
-    }`}
-    </CodeBlockToggle>
+<CodeBlockToggle title="Gradle dependency" language="kotlin">
+{`implementation("com.github.salilvnair:convengine:2.0.9")`}
+</CodeBlockToggle>
 
   </TabItem>
 </Tabs>
 
-## Recommended baseline config (new consumers)
+## 2. Enable the framework in your Spring Boot app
 
-<CodeBlockToggle title="Safe starter config (convengine.flow.*)" language="yaml">
-{`
-convengine:
-  # Flow tuning
+The minimal production-friendly baseline is:
+
+- `@EnableConvEngine`
+- `@EnableConvEngineCaching`
+- `@EnableConvEngineAsyncConversation`
+
+Add async audit dispatch only if your deployment needs it.
+
+<CodeBlockToggle title="Application bootstrap" language="java">
+{`@SpringBootApplication
+@EnableConvEngine(stream = true)
+@EnableConvEngineCaching
+@EnableConvEngineAsyncConversation
+public class DemoApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(DemoApplication.class, args);
+  }
+}`}
+</CodeBlockToggle>
+
+## 3. Provide required consumer-side beans
+
+You still need consumer-owned infrastructure:
+
+- one production-grade `LlmClient` bean
+- datasource + JPA configuration
+- your own tool handlers / task executors / transformers when you use those features
+
+### LLM adapter expectations
+
+Your `LlmClient` should be treated as production infrastructure, not demo glue code:
+
+- define strict timeout policy
+- define retry policy appropriate to your provider
+- log failures in a trace-friendly way
+- make request identity and conversation correlation observable
+
+## 4. Apply the framework schema
+
+Before you test any conversation flow, create the `ce_*` tables from the current DDL for your dialect.
+
+At minimum, new consumers usually need these control-plane areas seeded:
+
+- `ce_intent`
+- `ce_intent_classifier`
+- `ce_output_schema`
+- `ce_prompt_template`
+- `ce_response`
+- `ce_rule`
+
+Use these only when the feature is actually in scope:
+
+- `ce_pending_action`
+- `ce_mcp_tool`
+- `ce_mcp_planner`
+- `ce_verbose`
+- `ce_container_config`
+- `ce_policy`
+
+## 5. Seed one complete vertical slice first
+
+Do not try to model your entire product on day one.
+
+Build one narrow, fully testable path:
+
+- one intent
+- one or two states
+- one response path
+- one optional schema
+- zero or one tool
+
+That first slice should prove:
+
+- intent resolves correctly
+- state transitions are deterministic
+- a final response always exists
+- audit/trace output is understandable
+
+## 6. Treat prompt templates as behavior contracts
+
+This is one of the biggest differences in the current v2 line.
+
+`ce_prompt_template` is no longer just prompt text. In `2.0.9+`, prompt rows also document how a state is expected to behave.
+
+Relevant metadata:
+
+- `interaction_mode`
+- `interaction_contract`
+
+Recommended contract patterns:
+
+- collection state:
+  - `interaction_mode=COLLECT`
+  - `interaction_contract={"expects":["structured_input"]}`
+- confirmation state:
+  - `interaction_mode=CONFIRM`
+  - `interaction_contract={"allows":["affirm","edit","reset"]}`
+- in-flight processing state:
+  - `interaction_mode=PROCESSING`
+  - `interaction_contract={"allows":["retry","reset"]}`
+- final state:
+  - `interaction_mode=FINAL`
+
+This is what allows `CorrectionStep` to safely do in-place confirm/edit/retry routing.
+
+## 7. Start with a safe configuration baseline
+
+<CodeBlockToggle title="Recommended starter config" language="yaml">
+{`convengine:
   flow:
     dialogue-act:
       resolute: REGEX_THEN_LLM
       llm-threshold: 0.90
     conversation-history:
-      max-turns: 10
+      max-turns: 20
     interaction-policy:
       execute-pending-on-affirm: true
       reject-pending-on-negate: true
       fill-pending-slot-on-non-new-request: true
       require-resolved-intent-and-state: true
-      matrix:
-        "PENDING_ACTION:AFFIRM": EXECUTE_PENDING_ACTION
-        "PENDING_ACTION:NEGATE": REJECT_PENDING_ACTION
-        "PENDING_SLOT:QUESTION": FILL_PENDING_SLOT
     action-lifecycle:
       enabled: true
       ttl-turns: 3
       ttl-minutes: 30
+    tool-orchestration:
+      enabled: true
     guardrail:
       enabled: true
       sanitize-input: true
       require-approval-for-sensitive-actions: false
-      approval-gate-fail-closed: true
+      approval-gate-fail-closed: false
       sensitive-patterns: []
     state-graph:
       enabled: true
       soft-block-on-violation: false
+    disambiguation:
+      enabled: true
+      max-options: 5
+    memory:
+      enabled: true
+      summary-max-chars: 1200
+      recent-turns-for-summary: 3
+    query-rewrite:
+      enabled: true
 
   transport:
     sse:
@@ -175,52 +223,114 @@ convengine:
     enabled: true
     persist-meta: true
     level: ALL
+    persistence:
+      mode: IMMEDIATE
+    dispatch:
+      async-enabled: false
 
-  tables:
-    AUDIT: CE_AUDIT
-    CONTAINER_CONFIG: CE_CONTAINER_CONFIG
-    CONVERSATION: CE_CONVERSATION
-    INTENT: CE_INTENT
-    INTENT_CLASSIFIER: CE_INTENT_CLASSIFIER
-    LLM_CALL_LOG: CE_LLM_CALL_LOG
-    MCP_DB_TOOL: CE_MCP_DB_TOOL
-    MCP_PLANNER: CE_MCP_PLANNER
-    MCP_TOOL: CE_MCP_TOOL
-    OUTPUT_SCHEMA: CE_OUTPUT_SCHEMA
-    PROMPT_TEMPLATE: CE_PROMPT_TEMPLATE
-    RESPONSE: CE_RESPONSE
-    RULE: CE_RULE
+  mcp:
+    guardrail:
+      enabled: false
+      fail-closed: false
 
-`}
+  experimental:
+    enabled: false`}
 </CodeBlockToggle>
 
-## Correctness-focused test pack (required)
+## 8. If you adopt MCP, start narrow
+
+Current MCP is much stronger than earlier docs implied:
+
+- `ce_mcp_tool` uses mandatory scoped `intent_code` and `state_code`
+- `ce_mcp_planner` selects prompts by scoped fallback order
+- `PRE_AGENT_MCP` and `POST_AGENT_MCP` can drive rule-based branching
+- `context.mcp.lifecycle.*` and `context.mcp.toolExecution.*` expose deterministic state for rule matching
+
+Good first MCP rollout:
+
+- one tool
+- one intent
+- exact scope, not `ANY`
+- one planner row plus one fallback row
+- one explicit `ce_response` path for success and one for failure/fallback
+
+Bad first MCP rollout:
+
+- many `ANY`-scoped tools
+- no response coverage
+- no rule inspection of lifecycle outcomes
+- no handler-level business authorization
+
+## 9. Use `ce_verbose` early
+
+Modern onboarding should include `ce_verbose`, not just raw audit inspection.
+
+Why:
+
+- it gives clearer runtime progress for UI and QA
+- it exposes skipped/error/step transitions more readably
+- it turns invisible config mistakes into visible operator signals
+
+Even a small first rollout should seed a handful of verbose rows for:
+
+- `STEP_ENTER`
+- `STEP_ERROR`
+- `INTENT_RESOLVED`
+- `SCHEMA_STATUS`
+- `RESOLVE_RESPONSE_SELECTED`
+- `MCP_TOOL_CALL` / `MCP_TOOL_ERROR` if you use MCP
+
+## 10. Validate with a real pre-production checklist
 
 <DbTable
-  title="Pre-production test scenarios"
-  columns={["Scenario", "What to verify", "Failure signal"]}
+  title="Minimum readiness checklist"
+  columns={["Area", "Must prove before rollout", "Common failure if skipped"]}
   rows={[
-    ["Pending action semantics", "System properly executes mapped tasks or cancels when the user affirms or negates.", "State gets stuck, or action executes prematurely without active confirmation."],
-    ["Sticky intent shift", "New-topic user input triggers expected re-resolution/switch behavior.", "Repeated wrong-intent responses with skip stages."],
-    ["Guardrail bounds", "Malicious or off-topic prompts fallback gracefully and log the event.", "Engine returns out-of-bounds topic data or leaked configuration."],
-    ["Schema loop", "Missing fields converge in bounded turns.", "Infinite clarification or inconsistent required field set."],
-    ["Concurrent same ID", "No last-write-wins drift under parallel requests.", "Contradictory final state for same conversation timeline."],
+    ["Single-turn deterministic path", "One happy-path intent works end-to-end from `/message` to final payload.", "Basic config is incomplete or inconsistent."],
+    ["Multi-turn slot collection", "Missing fields converge cleanly and stop asking once complete.", "Infinite or unstable clarification loops."],
+    ["Confirmation / correction routing", "`AFFIRM`, `EDIT`, and `retry` do what the active prompt contract says.", "Unexpected reclassification or incorrect in-place continuation."],
+    ["State coverage", "Every reachable state has a valid response strategy.", "Fallback or misleading output in production."],
+    ["Concurrency guard", "Parallel same-ID requests do not corrupt state.", "Last-write-wins drift."],
+    ["Trace usability", "Your team can read audit + trace and explain a bad turn quickly.", "Slow incident resolution."]
   ]}
 />
 
-## Common new-consumer mistakes
+## 11. Recommended onboarding sequence
+
+<FlowStep step="1" title="Wire framework and LLM">
+Add the `2.0.9` dependency, enable ConvEngine, and provide a production-grade `LlmClient`.
+</FlowStep>
+
+<FlowStep step="2" title="Apply schema and seed one narrow flow">
+Create the `ce_*` tables and seed one intent with one clean end-to-end conversation path.
+</FlowStep>
+
+<FlowStep step="3" title="Enable traceability">
+Turn on audit, inspect `/api/v1/conversation/audit/{conversationId}` and `/api/v1/conversation/audit/{conversationId}/trace`, and seed a minimal `ce_verbose` layer.
+</FlowStep>
+
+<FlowStep step="4" title="Exercise correction and failure paths">
+Test missing fields, user edits, retries, guardrail skips, and no-response edge cases.
+</FlowStep>
+
+<FlowStep step="5" title="Add MCP or pending actions only after the core path is stable">
+Expand into tools or task execution after the base conversational path is deterministic and traceable.
+</FlowStep>
+
+## Common onboarding mistakes in the current framework
 
 <DbTable
-  title="Avoid these early mistakes"
-  columns={["Mistake", "Impact", "Fix"]}
+  title="Mistakes to avoid"
+  columns={["Mistake", "Why it hurts now", "Safer alternative"]}
   rows={[
-    ["Disabling interaction policies", "Losing all built-in logic for handling 'yes', 'no', and slot-filling inputs.", "Leave \`convengine.flow.interaction-policy\` active and matrix populated."],
-    ["No conversation-level concurrency control", "State drift and non-deterministic results.", "Serialize by conversation ID or add optimistic locking."],
-    ["Relying purely on LLM Dialogue Acts", "Expensive token usage and slow intent determination.", "Always implement \`REGEX_THEN_LLM\` resolutes for core deterministic paths."],
-    ["Shipping config changes without tests", "Production regressions from rule/template misconfig.", "Introduce lint + fixture tests + staged promotion."],
+    ["Using old examples as if v2 were still `2.0.0`", "You miss newer behavior like `CorrectionStep`, `ce_mcp_planner`, and richer rule phases.", "Model your rollout on the current repo and current docs."],
+    ["Overusing `ANY` scope for tools", "The engine stays valid, but your blast radius gets too broad too early.", "Prefer exact intent/state scope first."],
+    ["Treating prompt rows as plain copy", "Modern v2 uses prompt metadata for routing semantics.", "Design prompt rows as both text and behavior contracts."],
+    ["Skipping trace review", "Most production issues are config mistakes, not Java exceptions.", "Make audit + trace review mandatory in QA."],
+    ["Launching without conversation-level serialization", "The framework still does not solve ingress concurrency for you.", "Enforce one active turn per conversation."]
   ]}
 />
 
-<Highlight type="info" title="Where to read next">
-After this page, continue with [Configuration](/docs/v2/consumer/configuration) for a complete table-level breakdown of the Flow setup, and dive into the [Developer Guide](/docs/v2/deep-dive/developer-guide) for extension integration.
+<Highlight type="info" title="Best first milestone">
+The right first milestone is not "all features enabled." It is one narrow, testable, traceable business flow that your team can explain end-to-end from input to persisted state to final response.
 </Highlight>

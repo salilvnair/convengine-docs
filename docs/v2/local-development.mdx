@@ -3,26 +3,44 @@ title: Local Development
 sidebar_position: 4
 ---
 
-import { CodeBlockToggle, Highlight, FileRef, MethodRef } from "@site/src/components/convengine";
+import { CodeBlockToggle, Highlight, MethodRef } from "@site/src/components/convengine";
 
 # Local Development
 
-## Prerequisites
+This page covers the practical local setup loop for the current v2 framework, not the early-v2 minimum-only setup.
+
+The modern local dev workflow should help you do five things reliably:
+
+- boot the engine with the right annotations
+- run one full conversation locally
+- inspect audit and trace output
+- reload static config safely
+- debug rule, prompt, MCP, and response behavior quickly
+
+## Local prerequisites
+
+Use these as the baseline:
 
 - Java 21
-- Spring-compatible host app
-- PostgreSQL + ConvEngine <FileRef>ce_*</FileRef> schema
-- <MethodRef>LlmClient</MethodRef> implementation bean
+- a Spring Boot host application
+- a local relational database with the current `ce_*` schema
+- one working `LlmClient` bean
 
-## Minimal integration
+Recommended for a productive setup:
 
-<CodeBlockToggle
-  title="Enable ConvEngine"
-  language="java"
-  packagePath="your.app"
->
-{`@EnableConvEngine
-@SpringBootApplication
+- one seeded example intent
+- audit enabled
+- SSE enabled
+- `@EnableConvEngineCaching`
+- `@EnableConvEngineAsyncConversation`
+
+## Minimal application wiring
+
+<CodeBlockToggle title="Recommended local bootstrap" language="java">
+{`@SpringBootApplication
+@EnableConvEngine(stream = true)
+@EnableConvEngineCaching
+@EnableConvEngineAsyncConversation
 public class MyApplication {
   public static void main(String[] args) {
     SpringApplication.run(MyApplication.class, args);
@@ -30,105 +48,275 @@ public class MyApplication {
 }`}
 </CodeBlockToggle>
 
-## Required runtime beans from consumer side
+Add `@EnableConvEngineAsyncAuditDispatch` only if you want to test async audit dispatch behavior locally.
 
-- <MethodRef>LlmClient</MethodRef>
-- datasource + JPA config
-- any custom hooks/transformers you need
+## Required consumer-owned pieces
 
-## Recommended local test loop
+Your local app still owns:
 
-1. Send one turn to <FileRef>/message</FileRef>
-2. Read <FileRef>/audit/{'{conversationId}'}</FileRef>
-3. Read <FileRef>/audit/{'{conversationId}'}/trace</FileRef>
-4. Tune DB rows and rerun same conversation id
+- `LlmClient`
+- datasource and JPA config
+- any custom task executors
+- any tool handlers or transport adapters
+- any response/container transformers you use
 
-## Transport toggles
+If any of those are missing, the framework may start but your target flow will still be incomplete.
 
-<CodeBlockToggle title="application.yml" language="yaml">
+## Recommended local config
+
+<CodeBlockToggle title="Local application.yml baseline" language="yaml">
 {`server:
-    port: 8080
+  port: 8080
 
 spring:
-    datasource:
-      url: jdbc:postgresql://localhost:5432/convengine
-      username: convengine_user
-      password: convengine_pwd
+  datasource:
+    url: jdbc:postgresql://localhost:5432/convengine
+    username: convengine_user
+    password: convengine_pwd
 
 convengine:
+  flow:
+    dialogue-act:
+      resolute: REGEX_THEN_LLM
+      llm-threshold: 0.90
+    conversation-history:
+      max-turns: 20
+    interaction-policy:
+      execute-pending-on-affirm: true
+      reject-pending-on-negate: true
+      fill-pending-slot-on-non-new-request: true
+      require-resolved-intent-and-state: true
+    action-lifecycle:
+      enabled: true
+      ttl-turns: 3
+      ttl-minutes: 30
+    tool-orchestration:
+      enabled: true
+    guardrail:
+      enabled: true
+      sanitize-input: true
+      require-approval-for-sensitive-actions: false
+      approval-gate-fail-closed: false
+      sensitive-patterns: []
+    state-graph:
+      enabled: true
+      soft-block-on-violation: false
+    disambiguation:
+      enabled: true
+      max-options: 5
+    memory:
+      enabled: true
+      summary-max-chars: 1200
+      recent-turns-for-summary: 3
+    query-rewrite:
+      enabled: true
+
   transport:
-      sse:
-        enabled: true or false
-        emitter-timeout-ms: 1800000
-      stomp:
-        enabled: true or false
-        endpoint: /ws-convengine
-        app-destination-prefix: /app
-        topic-prefix: /topic
-        audit-destination-base: /topic/convengine/audit
-        allowed-origin-pattern: "*"
-        sock-js: true
-        broker:
-          mode: SIMPLE
-          relay-destination-prefixes: /topic,/queue
-          relay-host: localhost
-          relay-port: 61613
-          client-login: ""
-          client-passcode: ""
-          system-login: ""
-          system-passcode: ""
-          virtual-host: ""
-          system-heartbeat-send-interval-ms: 10000
-          system-heartbeat-receive-interval-ms: 10000
+    sse:
+      enabled: true
+      emitter-timeout-ms: 1800000
+    stomp:
+      enabled: false
+      endpoint: /ws-convengine
+      app-destination-prefix: /app
+      topic-prefix: /topic
+      audit-destination-base: /topic/convengine/audit
+      allowed-origin-pattern: "*"
+      sock-js: true
+      broker:
+        mode: SIMPLE
+        relay-destination-prefixes:
+          - /topic
+          - /queue
+        relay-host: localhost
+        relay-port: 61613
 
   audit:
-      enabled: true
-      level: ALL
-      include-stages: []
-      exclude-stages: []
-      persistence:
-        mode: IMMEDIATE
-        jdbc-batch-size: 200
-        max-buffered-events: 5000
-        flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
-        final-step-names: PipelineEndGuardStep
-        flush-on-stop-outcome: true
-      dispatch:
-        async-enabled: false
-        worker-threads: 2
-        queue-capacity: 2000
-        rejection-policy: CALLER_RUNS
-        keep-alive-seconds: 60
-      rate-limit:
-        enabled: false
-        max-events: 200
-        window-ms: 1000
-        per-conversation: true
-        per-stage: true
-        max-tracked-buckets: 20000
+    enabled: true
+    persist-meta: true
+    cache-inspector: false
+    level: ALL
+    include-stages: []
+    exclude-stages: []
+    persistence:
+      mode: IMMEDIATE
+      jdbc-batch-size: 200
+      max-buffered-events: 5000
+      flush-stages:
+        - ENGINE_KNOWN_FAILURE
+        - ENGINE_UNKNOWN_FAILURE
+      final-step-names:
+        - PipelineEndGuardStep
+      flush-on-stop-outcome: true
+    dispatch:
+      async-enabled: false
+      worker-threads: 2
+      queue-capacity: 2000
+      rejection-policy: CALLER_RUNS
+      keep-alive-seconds: 60
+
+  mcp:
+    guardrail:
+      enabled: false
+      fail-closed: false
+
   experimental:
-      enabled: false`}
+    enabled: false`}
 </CodeBlockToggle>
 
-<Highlight type="warning" title="When enabling STOMP">
-Keep SSE enabled initially. Use STOMP only when your client architecture needs bidirectional websocket semantics.
-</Highlight>
+## Local database setup strategy
 
-## Optional feature annotations
+For local development, do not start by seeding everything.
 
-<CodeBlockToggle title="Enable optional performance features" language="java">
-{`@EnableConvEngine(stream = true)
-@EnableConvEngineAsyncAuditDispatch
-@EnableConvEngineStompBrokerRelay
-@SpringBootApplication
-public class MyApplication {
-  public static void main(String[] args) {
-    SpringApplication.run(MyApplication.class, args);
-  }
-}`}
-</CodeBlockToggle>
+A cleaner path is:
 
-<Highlight type="info" title="Stream flag behavior">
-With <MethodRef>@EnableConvEngine(stream = true)</MethodRef> (default), startup fails if both SSE and STOMP are disabled.  
-With <MethodRef>@EnableConvEngine(stream = false)</MethodRef>, transport flags are ignored and only REST flow is active.
+1. Apply the current DDL for your database dialect.
+2. Seed one tiny end-to-end intent.
+3. Add one response.
+4. Add schema, rules, tools, or pending actions only when the base flow is stable.
+
+The smallest useful local slice is:
+
+- one `ce_intent`
+- one `ce_intent_classifier`
+- one `ce_prompt_template`
+- one `ce_response`
+
+Then add:
+
+- `ce_output_schema` if the flow collects structured fields
+- `ce_rule` if the flow has transitions
+- `ce_verbose` if you want readable progress feedback
+- `ce_mcp_tool` / `ce_mcp_planner` only when testing MCP
+
+## Core local test loop
+
+This is the fastest stable loop for current v2:
+
+1. Call `POST /api/v1/conversation/message`.
+2. Inspect `GET /api/v1/conversation/audit/{conversationId}`.
+3. Inspect `GET /api/v1/conversation/audit/{conversationId}/trace`.
+4. Fix DML, prompt rows, or config.
+5. Refresh caches if needed.
+6. Re-run the same or a fresh `conversationId`.
+
+That loop is still the single most useful way to debug behavior.
+
+## Cache-aware local development
+
+The current framework caches static control-plane data. That is good for runtime performance, but it changes how local iteration feels.
+
+When you change seeded rows in tables like:
+
+- `ce_rule`
+- `ce_response`
+- `ce_output_schema`
+- `ce_prompt_template`
+- `ce_pending_action`
+- `ce_mcp_tool`
+- `ce_mcp_planner`
+- `ce_verbose`
+
+you should refresh the static cache before assuming the runtime sees the new data.
+
+Useful endpoints:
+
+- `POST /api/v1/cache/refresh`
+- `GET /api/v1/cache/analyze`
+
+Use cache analysis when you need to confirm whether the expected table cache is actually populated and active.
+
+## Debugging the most important runtime surfaces
+
+### 1. Rule and state debugging
+
+Check:
+
+- `RULE_MATCH`
+- `RULE_APPLIED`
+- final `intent_code` and `state_code`
+- trace step ordering
+
+If the engine is "technically working" but answering incorrectly, this is often where the root cause lives.
+
+### 2. Prompt and LLM debugging
+
+Check:
+
+- `DIALOGUE_ACT_LLM_*`
+- `INTENT_*`
+- `SCHEMA_EXTRACTION_LLM_*`
+- `MCP_PLAN_LLM_*`
+- `RESOLVE_RESPONSE_LLM_*`
+
+Modern v2 uses shared prompt rendering, so a prompt-variable issue can affect multiple steps.
+
+### 3. MCP debugging
+
+Check:
+
+- `context.mcp.lifecycle.*`
+- `context.mcp.toolExecution.*`
+- `MCP_TOOL_CALL`
+- `MCP_TOOL_RESULT`
+- `MCP_TOOL_ERROR`
+- `MCP_FINAL_ANSWER`
+
+Remember that current MCP scope is explicit. If a tool is not visible, verify `intent_code`, `state_code`, and whether the row is too narrow or too broad.
+
+### 4. Direct tool debugging
+
+Check:
+
+- `tool_request`
+- `tool_result`
+- `tool_status`
+- `TOOL_ORCHESTRATION_REQUEST`
+- `TOOL_ORCHESTRATION_RESULT`
+- `TOOL_ORCHESTRATION_ERROR`
+
+## When to enable optional local features
+
+### STOMP
+
+Use STOMP locally only when you need to test websocket clients or broker behavior.
+
+If you do not need bidirectional messaging yet, keep:
+
+- SSE enabled
+- STOMP disabled
+
+### Async audit dispatch
+
+Use it when you need to test local behavior under heavier audit load. Keep it off when you want the simplest, most deterministic debugging path.
+
+### Experimental SQL generation
+
+Enable only when you are explicitly testing the experimental SQL generator APIs:
+
+- `POST /api/v1/conversation/experimental/generate-sql`
+- `POST /api/v1/conversation/experimental/generate-sql/zip`
+
+These routes are gated behind `convengine.experimental.enabled=true`.
+
+## Most common local-development mistakes
+
+- Editing database config and forgetting to refresh caches.
+- Testing with multiple browser tabs against the same `conversationId`.
+- Enabling too many features before one base flow is stable.
+- Treating prompt rows as plain text instead of behavior contracts.
+- Inspecting only the final response and not the trace.
+
+## Good local-development target
+
+Your local environment is in good shape when you can do all of the following quickly:
+
+- reproduce a good turn
+- reproduce a bad turn
+- explain the exact step where it went wrong
+- fix the config
+- rerun and verify the correction
+
+<Highlight type="info" title="Best local workflow">
+For current v2, the fastest path is still: change config, refresh cache, call `/message`, inspect audit/trace, repeat. The framework is heavily data-driven, so a disciplined local trace loop is more valuable than ad hoc code debugging.
 </Highlight>

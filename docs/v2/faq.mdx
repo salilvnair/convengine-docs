@@ -5,30 +5,271 @@ sidebar_position: 4
 
 # FAQ
 
+## What version is the current v2 documentation aligned to?
+
+The current v2 docs are aligned to the active repo state and the current released line documented in this repo, which is `2.0.9`.
+
+That includes newer v2 additions such as:
+
+- `CorrectionStep`
+- `ce_mcp_planner`
+- `ce_verbose`
+- extra rule phases like `POST_SCHEMA_EXTRACTION` and `PRE_AGENT_MCP`
+- shared Thymeleaf-backed prompt rendering
+
 ## Is v1 still available?
 
-Yes. v1 docs are still available from the version dropdown.
+Yes. v1 docs are still available from the version selector.
 
-## How does the engine understand "yes/ok/do that"?
+Use v1 only if you are maintaining an existing older integration. New work should target the current v2 line.
 
-Using `DialogueActStep` + `InteractionPolicyStep` + pending-action context, not only intent keyword matching.
+## What is the fastest mental model for ConvEngine?
+
+ConvEngine is a deterministic, database-configured conversation engine.
+
+In practice:
+
+- Java code provides the runtime pipeline
+- `ce_*` tables provide domain behavior
+- rules and scoped rows decide transitions
+- the LLM is a bounded subsystem inside that pipeline, not the whole engine
+
+## Does the engine rely only on intent classification?
+
+No.
+
+Current v2 uses a broader turn-routing model:
+
+- `DialogueActStep` interprets turn intent like `AFFIRM`, `NEGATE`, `EDIT`, `QUESTION`, `RESET`, and `ANSWER`
+- `InteractionPolicyStep` applies deterministic routing
+- `CorrectionStep` can keep a turn in-place for confirm/edit/retry flows
+- only then does the engine continue into intent, schema, tools, rules, and response resolution
+
+## How does the engine understand messages like "yes", "no", "retry", or "change email"?
+
+It is not just keyword matching against business intents.
+
+Those turns are primarily handled by:
+
+- `DialogueActStep`
+- `InteractionPolicyStep`
+- `CorrectionStep`
+- pending-action runtime state
+- prompt-template interaction metadata
+
+That is why modern v2 can confirm, reject, retry, or patch fields without forcing a full reclassification every time.
 
 ## Does `StateGraphStep` mutate state?
 
-No. The current implementation is validate-only; it audits validity and can set a soft-block flag.
+No. The current implementation is validate-only.
 
-## Can I configure behavior without Java changes?
+It checks whether the current transition path is acceptable and can set state-graph validity signals for downstream behavior, but it does not directly rewrite the state by itself.
 
-Yes. Primary control should be through:
+## Can I configure behavior without changing Java code?
 
+Yes. That is the normal operating model.
+
+Most consumer behavior should be driven through configuration and data:
+
+- `ce_intent`
+- `ce_intent_classifier`
+- `ce_output_schema`
+- `ce_prompt_template`
 - `ce_rule`
 - `ce_response`
 - `ce_pending_action`
-- `ce_policy`
+- `ce_mcp_tool`
+- `ce_mcp_planner`
+- `ce_verbose`
 - `convengine.flow.*`
+- `convengine.mcp.*`
 
-## How do we avoid 500s for conversational mismatches?
+Custom Java should be reserved for:
 
-- keep fallback `UNKNOWN`/`ANY` rows
-- use disambiguation and guardrail paths
-- ensure response mappings exist for reachable states
+- LLM provider integration
+- tool handlers / executors
+- task execution
+- app-specific transformers and policy hooks
+
+## Do `ce_mcp_tool.intent_code` and `state_code` still support null wildcard behavior?
+
+No.
+
+That older description is no longer correct for the current v2 line.
+
+Current behavior:
+
+- `intent_code` is required
+- `state_code` is required
+- valid values are exact scope, `ANY`, or `UNKNOWN`
+- invalid scope rows are blocked by startup validation
+
+The same explicit-scope model also applies to `ce_mcp_planner`.
+
+## What is `ce_mcp_planner` for?
+
+`ce_mcp_planner` is the scoped planner prompt source for MCP.
+
+It lets the framework choose planner prompts by intent/state rather than relying only on legacy config keys.
+
+Current fallback order is:
+
+1. exact `intent_code + state_code`
+2. exact `intent_code + ANY`
+3. `ANY + ANY`
+4. legacy fallback config when planner rows are unavailable
+
+## What is the difference between `ToolOrchestrationStep` and `McpToolStep`?
+
+They are different execution models.
+
+`ToolOrchestrationStep`:
+
+- executes exactly one requested tool
+- works from `tool_request`
+- writes `tool_result`, `tool_status`, and `context.mcp.toolExecution.*`
+- runs `POST_TOOL_EXECUTION` rules
+
+`McpToolStep`:
+
+- runs planner-driven MCP loops
+- can call multiple tools across a bounded loop
+- stores planner observations in `context.mcp.observations`
+- stores planner answer in `context.mcp.finalAnswer`
+- runs `PRE_AGENT_MCP` and `POST_AGENT_MCP` rule paths
+
+## When should I use `ANY` scope?
+
+Only when the configuration is truly global.
+
+Use exact intent/state scope first. Move to `ANY` only when:
+
+- the behavior is genuinely shared
+- the blast radius is acceptable
+- the row still makes sense across all intended flows
+
+Overusing `ANY` is one of the easiest ways to create broad but subtle misbehavior.
+
+## What is `ce_verbose`, and do I need it?
+
+`ce_verbose` is a runtime progress/error messaging table.
+
+It is strongly recommended in current v2 because it:
+
+- gives the UI and QA a readable progress layer
+- helps operators understand skipped or degraded paths
+- complements raw audit events
+
+It is not required for the engine to work, but most serious deployments should use it.
+
+## What are the most important rule phases now?
+
+Current v2 phases are:
+
+- `POST_DIALOGUE_ACT`
+- `POST_SCHEMA_EXTRACTION`
+- `PRE_AGENT_MCP`
+- `PRE_RESPONSE_RESOLUTION`
+- `POST_AGENT_INTENT`
+- `POST_AGENT_MCP`
+- `POST_TOOL_EXECUTION`
+
+Legacy names are still normalized, but new configurations should use the current phase names.
+
+## Can rules change more than state and intent?
+
+Yes.
+
+The rule engine can now do more than classic transition logic. Current actions include:
+
+- `SET_STATE`
+- `SET_INTENT`
+- `SET_DIALOGUE_ACT`
+- `SET_INPUT_PARAM`
+- `SET_JSON`
+- `SET_TASK`
+- `GET_CONTEXT`
+- `GET_SCHEMA_JSON`
+- `GET_SESSION`
+
+That makes rules more powerful, but also easier to misuse. Keep rule ownership disciplined.
+
+## How should I think about `ce_prompt_template` in current v2?
+
+As both prompt content and runtime behavior metadata.
+
+In `2.0.9+`, prompt rows should also describe turn semantics using:
+
+- `interaction_mode`
+- `interaction_contract`
+
+That is what allows the framework to safely interpret whether a state supports:
+
+- affirm
+- edit
+- retry
+- reset
+- structured input collection
+
+## Is prompt rendering still just `{{var}}` substitution?
+
+No.
+
+Current v2 uses a shared Thymeleaf-backed renderer.
+
+Supported patterns include:
+
+- `{{var}}`
+- `#{...}`
+- `[${...}]`
+
+This rendering path is used across prompt templates and `ce_verbose` messages.
+
+## What are the most important runtime endpoints for debugging?
+
+The core ones are:
+
+- `POST /api/v1/conversation/message`
+- `GET /api/v1/conversation/audit/{conversationId}`
+- `GET /api/v1/conversation/audit/{conversationId}/trace`
+- `POST /api/v1/cache/refresh`
+- `GET /api/v1/cache/analyze`
+
+If experimental SQL generation is enabled:
+
+- `POST /api/v1/conversation/experimental/generate-sql`
+- `POST /api/v1/conversation/experimental/generate-sql/zip`
+
+## What is the most important production safeguard the framework does not provide automatically?
+
+Conversation-level concurrency control.
+
+The framework does not give you built-in optimistic locking on `ce_conversation`, so you should prevent parallel active turns for the same `conversationId`.
+
+This is still the most important operational safeguard for correctness.
+
+## How do we avoid 500s or broken user output for conversational mismatches?
+
+The best protection is layered:
+
+- make every reachable state have a valid response strategy
+- keep exact response/rule coverage for active flows
+- use `UNKNOWN` / `ANY` intentionally, not accidentally
+- test correction, failure, and no-match paths
+- inspect trace output before shipping config changes
+
+The goal is not just "no exception." The goal is "no misleading fallback that looks valid."
+
+## Should new consumers enable everything immediately?
+
+No.
+
+The safest rollout path is:
+
+1. One narrow intent and one deterministic response path.
+2. Then schema collection.
+3. Then confirmation/correction behavior.
+4. Then pending actions or MCP.
+5. Then verbose polish and richer streaming behavior.
+
+That sequence gives you a stable baseline before you widen the runtime surface.
