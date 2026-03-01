@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.9.2">
-<title data-rh="true">Detailed Features | ConvEngine</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://salilvnair.com/docs/v2/deep-dive/v2-features"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-v2-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-v2-current"><meta data-rh="true" property="og:title" content="Detailed Features | ConvEngine"><meta data-rh="true" name="description" content="1. DialogueActStep"><meta data-rh="true" property="og:description" content="1. DialogueActStep"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://salilvnair.com/docs/v2/deep-dive/v2-features"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/deep-dive/v2-features" hreflang="en"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/deep-dive/v2-features" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Deep Dive","item":"https://salilvnair.com/docs/v2/deep-dive/"},{"@type":"ListItem","position":2,"name":"Detailed Features","item":"https://salilvnair.com/docs/v2/deep-dive/v2-features"}]}</script><link rel="stylesheet" href="/assets/css/styles.816fb2ff.css">
-<script src="/assets/js/runtime~main.c980c872.js" defer="defer"></script>
-<script src="/assets/js/main.1bd68134.js" defer="defer"></script>
+<title data-rh="true">Detailed Features | ConvEngine</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://salilvnair.com/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://salilvnair.com/docs/v2/deep-dive/v2-features"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-v2-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-v2-current"><meta data-rh="true" property="og:title" content="Detailed Features | ConvEngine"><meta data-rh="true" name="description" content="This page reflects the current v2 codebase, not just the original 2.0.0 launch set. It consolidates the active runtime behavior across the v2 release line through the current repo state (including later additions such as CorrectionStep, cemcpplanner, ce_verbose, extra rule phases, and Thymeleaf-backed prompt rendering)."><meta data-rh="true" property="og:description" content="This page reflects the current v2 codebase, not just the original 2.0.0 launch set. It consolidates the active runtime behavior across the v2 release line through the current repo state (including later additions such as CorrectionStep, cemcpplanner, ce_verbose, extra rule phases, and Thymeleaf-backed prompt rendering)."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://salilvnair.com/docs/v2/deep-dive/v2-features"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/deep-dive/v2-features" hreflang="en"><link data-rh="true" rel="alternate" href="https://salilvnair.com/docs/v2/deep-dive/v2-features" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Deep Dive","item":"https://salilvnair.com/docs/v2/deep-dive/"},{"@type":"ListItem","position":2,"name":"Detailed Features","item":"https://salilvnair.com/docs/v2/deep-dive/v2-features"}]}</script><link rel="stylesheet" href="/assets/css/styles.816fb2ff.css">
+<script src="/assets/js/runtime~main.952eb511.js" defer="defer"></script>
+<script src="/assets/js/main.64f6f8cc.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
 <svg style="display: none;"><defs>
@@ -15,45 +15,164 @@
 
 
 
-</style><style data-mantine-styles="classes">@media (max-width: 35.99375em) {.mantine-visible-from-xs {display: none !important;}}@media (min-width: 36em) {.mantine-hidden-from-xs {display: none !important;}}@media (max-width: 47.99375em) {.mantine-visible-from-sm {display: none !important;}}@media (min-width: 48em) {.mantine-hidden-from-sm {display: none !important;}}@media (max-width: 61.99375em) {.mantine-visible-from-md {display: none !important;}}@media (min-width: 62em) {.mantine-hidden-from-md {display: none !important;}}@media (max-width: 74.99375em) {.mantine-visible-from-lg {display: none !important;}}@media (min-width: 75em) {.mantine-hidden-from-lg {display: none !important;}}@media (max-width: 87.99375em) {.mantine-visible-from-xl {display: none !important;}}@media (min-width: 88em) {.mantine-hidden-from-xl {display: none !important;}}</style><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/logo_light.png" alt="ConvEngine" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/logo.png" alt="ConvEngine" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">ConvEngine Docs</b></a><a class="navbar__item navbar__link" href="/docs/v2/overview">Overview</a><a class="navbar__item navbar__link" href="/docs/v2/architecture">Architecture</a><a class="navbar__item navbar__link" href="/docs/v2/examples">Examples</a><a class="navbar__item navbar__link" href="/docs/v2/version-history">Version History</a><a class="navbar__item navbar__link" href="/docs/v2/consumer">Consumer</a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/docs/v2/deep-dive">Deep Dive</a><a class="navbar__item navbar__link" href="/docs/v2/api/rest-api">API</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><div class="navbar__item dropdown dropdown--hoverable dropdown--right"><a href="#" aria-haspopup="true" aria-expanded="false" role="button" class="navbar__link ce-version-dropdown">Version</a><ul class="dropdown__menu"><li><a class="dropdown__link ce-version-item-v2" href="/docs/v2/overview">v2</a></li><li><a class="dropdown__link ce-version-item-v1" href="/docs/v1/overview">v1</a></li></ul></div><div class="navbar__item"><button class="clean-btn ce-navbar-search-trigger" aria-label="Open global search" title="Open global search"><span class="ce-navbar-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="16.65" y1="16.65" x2="21" y2="21"></line></svg></span><span class="ce-navbar-search-text">Search</span><span class="ce-navbar-search-kbd">Cmd/Ctrl + K</span></button></div><a href="https://github.com/salilvnair/convengine" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_bSxm"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_cWv0"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/overview"><span title="Overview" class="linkLabel_WmDU">Overview</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/architecture"><span title="Architecture" class="linkLabel_WmDU">Architecture</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/examples"><span title="Examples (ReactFlow)" class="linkLabel_WmDU">Examples (ReactFlow)</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/faq"><span title="FAQ" class="linkLabel_WmDU">FAQ</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/local-development"><span title="Local Development" class="linkLabel_WmDU">Local Development</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist" href="/docs/v2/consumer"><span title="Consumer" class="categoryLinkLabel_W154">Consumer</span></a><button aria-label="Expand sidebar category &#x27;Consumer&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" href="/docs/v2/api/rest-api"><span title="API" class="categoryLinkLabel_W154">API</span></a></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--active" href="/docs/v2/deep-dive"><span title="Deep Dive" class="categoryLinkLabel_W154">Deep Dive</span></a><button aria-label="Collapse sidebar category &#x27;Deep Dive&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/lifecycle"><span title="Request Lifecycle" class="linkLabel_WmDU">Request Lifecycle</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/examples"><span title="Real World Examples" class="linkLabel_WmDU">Real World Examples</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/data-model"><span title="Data Model" class="linkLabel_WmDU">Data Model</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/thymeleaf-spel"><span title="Thymeleaf and SpEL" class="linkLabel_WmDU">Thymeleaf and SpEL</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/verbose-and-conversation-runtime"><span title="Verbose and Conversation Runtime" class="linkLabel_WmDU">Verbose and Conversation Runtime</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/developer-guide"><span title="Developer Guide" class="linkLabel_WmDU">Developer Guide</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/file-map"><span title="File Map" class="linkLabel_WmDU">File Map</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/pipeline-steps"><span title="Pipeline &amp; Steps" class="linkLabel_WmDU">Pipeline &amp; Steps</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/intent-and-schema"><span title="Intent &amp; Schema" class="linkLabel_WmDU">Intent &amp; Schema</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/rules-responses"><span title="Rules &amp; Responses" class="linkLabel_WmDU">Rules &amp; Responses</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/mcp-audit"><span title="MCP and Audit" class="linkLabel_WmDU">MCP and Audit</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/docs/v2/deep-dive/v2-features"><span title="Detailed Features" class="linkLabel_WmDU">Detailed Features</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/failure-gotchas"><span title="Data Correctness Gotchas" class="linkLabel_WmDU">Data Correctness Gotchas</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/improvement-backlog"><span title="Improvement Backlog" class="linkLabel_WmDU">Improvement Backlog</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/version-history"><span title="Version History" class="linkLabel_WmDU">Version History</span></a></li></ul></nav><button type="button" title="Collapse sidebar" aria-label="Collapse sidebar" class="button button--secondary button--outline collapseSidebarButton_PEFL"><svg width="20" height="20" aria-hidden="true" class="collapseSidebarButtonIcon_kv0_"><g fill="#7a7a7a"><path d="M9.992 10.023c0 .2-.062.399-.172.547l-4.996 7.492a.982.982 0 01-.828.454H1c-.55 0-1-.453-1-1 0-.2.059-.403.168-.551l4.629-6.942L.168 3.078A.939.939 0 010 2.528c0-.548.45-.997 1-.997h2.996c.352 0 .649.18.828.45L9.82 9.472c.11.148.172.347.172.55zm0 0"></path><path d="M19.98 10.023c0 .2-.058.399-.168.547l-4.996 7.492a.987.987 0 01-.828.454h-3c-.547 0-.996-.453-.996-1 0-.2.059-.403.168-.551l4.625-6.942-4.625-6.945a.939.939 0 01-.168-.55 1 1 0 01.996-.997h3c.348 0 .649.18.828.45l4.996 7.492c.11.148.168.347.168.55zm0 0"></path></g></svg></button></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col ce-main-column"><div class="docItemContainer_c0TR"><article><div class="ce-breadcrumb-row"><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li class="breadcrumbs__item"><a class="breadcrumbs__link" href="/docs/v2/deep-dive"><span>Deep Dive</span></a></li><li class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link">Detailed Features</span></li></ul></nav><span class="ce-doc-version-chip ce-doc-version-chip-v2">v2</span></div><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="ce-sections-wrap"><button type="button" class="ce-sections-fab" aria-label="Toggle section menu" title="Sections"><span class="ce-sections-fab-icon">☰</span><span>Sections</span></button><aside class="ce-sections-drawer"><div class="ce-sections-drawer-head"><strong>Jump To Section</strong><button type="button" aria-label="Close sections menu">✕</button></div><div class="ce-sections-drawer-body"><a href="#1-dialogueactstep" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">1</span><span>DialogueActStep</span></a><a href="#2-interactionpolicystep" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">2</span><span>InteractionPolicyStep</span></a><a href="#3-actionlifecyclestep" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">3</span><span>ActionLifecycleStep</span></a><a href="#4-toolorchestrationstep" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">4</span><span>ToolOrchestrationStep</span></a><a href="#5-guardrailstep" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">5</span><span>GuardrailStep</span></a><a href="#6-stategraphstep-validate-mode" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">6</span><span>StateGraphStep (validate mode)</span></a><a href="#7-disambiguationstep" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">7</span><span>DisambiguationStep</span></a><a href="#8-memorystep" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">8</span><span>MemoryStep</span></a><a href="#9-evaltrace-framework" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">9</span><span>Eval/Trace framework</span></a><a href="#10-consumer-contract-docs" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">10</span><span>Consumer contract docs</span></a></div></aside></div><div class="theme-doc-markdown markdown"><header><h1>ConvEngine Detailed Features</h1></header>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-dialogueactstep">1. DialogueActStep<a href="#1-dialogueactstep" class="hash-link" aria-label="Direct link to 1. DialogueActStep" title="Direct link to 1. DialogueActStep" translate="no">​</a></h2>
+</style><style data-mantine-styles="classes">@media (max-width: 35.99375em) {.mantine-visible-from-xs {display: none !important;}}@media (min-width: 36em) {.mantine-hidden-from-xs {display: none !important;}}@media (max-width: 47.99375em) {.mantine-visible-from-sm {display: none !important;}}@media (min-width: 48em) {.mantine-hidden-from-sm {display: none !important;}}@media (max-width: 61.99375em) {.mantine-visible-from-md {display: none !important;}}@media (min-width: 62em) {.mantine-hidden-from-md {display: none !important;}}@media (max-width: 74.99375em) {.mantine-visible-from-lg {display: none !important;}}@media (min-width: 75em) {.mantine-hidden-from-lg {display: none !important;}}@media (max-width: 87.99375em) {.mantine-visible-from-xl {display: none !important;}}@media (min-width: 88em) {.mantine-hidden-from-xl {display: none !important;}}</style><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/"><div class="navbar__logo"><img src="/img/logo_light.png" alt="ConvEngine" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/img/logo.png" alt="ConvEngine" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">ConvEngine Docs</b></a><a class="navbar__item navbar__link" href="/docs/v2/overview">Overview</a><a class="navbar__item navbar__link" href="/docs/v2/architecture">Architecture</a><a class="navbar__item navbar__link" href="/docs/v2/examples">Examples</a><a class="navbar__item navbar__link" href="/docs/v2/version-history">Version History</a><a class="navbar__item navbar__link" href="/docs/v2/consumer">Consumer</a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/docs/v2/deep-dive">Deep Dive</a><a class="navbar__item navbar__link" href="/docs/v2/api/rest-api">API</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><div class="navbar__item dropdown dropdown--hoverable dropdown--right"><a href="#" aria-haspopup="true" aria-expanded="false" role="button" class="navbar__link ce-version-dropdown">Version</a><ul class="dropdown__menu"><li><a class="dropdown__link ce-version-item-v2" href="/docs/v2/overview">v2</a></li><li><a class="dropdown__link ce-version-item-v1" href="/docs/v1/overview">v1</a></li></ul></div><div class="navbar__item"><button class="clean-btn ce-navbar-search-trigger" aria-label="Open global search" title="Open global search"><span class="ce-navbar-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="16.65" y1="16.65" x2="21" y2="21"></line></svg></span><span class="ce-navbar-search-text">Search</span><span class="ce-navbar-search-kbd">Cmd/Ctrl + K</span></button></div><a href="https://github.com/salilvnair/convengine" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_bSxm"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_cWv0"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/overview"><span title="Overview" class="linkLabel_WmDU">Overview</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/architecture"><span title="Architecture" class="linkLabel_WmDU">Architecture</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/examples"><span title="examples" class="linkLabel_WmDU">examples</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/faq"><span title="FAQ" class="linkLabel_WmDU">FAQ</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/local-development"><span title="Local Development" class="linkLabel_WmDU">Local Development</span></a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist" href="/docs/v2/consumer"><span title="Consumer" class="categoryLinkLabel_W154">Consumer</span></a><button aria-label="Expand sidebar category &#x27;Consumer&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role="button" aria-expanded="false" href="/docs/v2/api/rest-api"><span title="API" class="categoryLinkLabel_W154">API</span></a></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--active" href="/docs/v2/deep-dive"><span title="Deep Dive" class="categoryLinkLabel_W154">Deep Dive</span></a><button aria-label="Collapse sidebar category &#x27;Deep Dive&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/lifecycle"><span title="Request Lifecycle" class="linkLabel_WmDU">Request Lifecycle</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/examples"><span title="Real World Examples" class="linkLabel_WmDU">Real World Examples</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/data-model"><span title="Data Model" class="linkLabel_WmDU">Data Model</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/thymeleaf-spel"><span title="Thymeleaf and SpEL" class="linkLabel_WmDU">Thymeleaf and SpEL</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/verbose-and-conversation-runtime"><span title="Verbose and Conversation Runtime" class="linkLabel_WmDU">Verbose and Conversation Runtime</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/developer-guide"><span title="Developer Guide" class="linkLabel_WmDU">Developer Guide</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/file-map"><span title="File Map" class="linkLabel_WmDU">File Map</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/pipeline-steps"><span title="Pipeline &amp; Steps" class="linkLabel_WmDU">Pipeline &amp; Steps</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/intent-and-schema"><span title="Intent &amp; Schema" class="linkLabel_WmDU">Intent &amp; Schema</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/rules-responses"><span title="Rules &amp; Responses" class="linkLabel_WmDU">Rules &amp; Responses</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/mcp-audit"><span title="MCP and Audit" class="linkLabel_WmDU">MCP and Audit</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/docs/v2/deep-dive/v2-features"><span title="Detailed Features" class="linkLabel_WmDU">Detailed Features</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/failure-gotchas"><span title="Data Correctness Gotchas" class="linkLabel_WmDU">Data Correctness Gotchas</span></a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/v2/deep-dive/improvement-backlog"><span title="Improvement Backlog" class="linkLabel_WmDU">Improvement Backlog</span></a></li></ul></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/v2/version-history"><span title="Version History" class="linkLabel_WmDU">Version History</span></a></li></ul></nav><button type="button" title="Collapse sidebar" aria-label="Collapse sidebar" class="button button--secondary button--outline collapseSidebarButton_PEFL"><svg width="20" height="20" aria-hidden="true" class="collapseSidebarButtonIcon_kv0_"><g fill="#7a7a7a"><path d="M9.992 10.023c0 .2-.062.399-.172.547l-4.996 7.492a.982.982 0 01-.828.454H1c-.55 0-1-.453-1-1 0-.2.059-.403.168-.551l4.629-6.942L.168 3.078A.939.939 0 010 2.528c0-.548.45-.997 1-.997h2.996c.352 0 .649.18.828.45L9.82 9.472c.11.148.172.347.172.55zm0 0"></path><path d="M19.98 10.023c0 .2-.058.399-.168.547l-4.996 7.492a.987.987 0 01-.828.454h-3c-.547 0-.996-.453-.996-1 0-.2.059-.403.168-.551l4.625-6.942-4.625-6.945a.939.939 0 01-.168-.55 1 1 0 01.996-.997h3c.348 0 .649.18.828.45l4.996 7.492c.11.148.168.347.168.55zm0 0"></path></g></svg></button></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col ce-main-column"><div class="docItemContainer_c0TR"><article><div class="ce-breadcrumb-row"><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li class="breadcrumbs__item"><a class="breadcrumbs__link" href="/docs/v2/deep-dive"><span>Deep Dive</span></a></li><li class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link">Detailed Features</span></li></ul></nav><span class="ce-doc-version-chip ce-doc-version-chip-v2">v2</span></div><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="ce-sections-wrap"><button type="button" class="ce-sections-fab" aria-label="Toggle section menu" title="Sections"><span class="ce-sections-fab-icon">☰</span><span>Sections</span></button><aside class="ce-sections-drawer"><div class="ce-sections-drawer-head"><strong>Jump To Section</strong><button type="button" aria-label="Close sections menu">✕</button></div><div class="ce-sections-drawer-body"><a href="#1-runtime-pipeline-is-now-a-full-multi-step-dag" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">1</span><span>Runtime Pipeline Is Now a Full Multi-Step DAG</span></a><a href="#2-dialogue-handling-is-more-than-intent-classification" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">2</span><span>Dialogue Handling Is More Than Intent Classification</span></a><a href="#dialogueactstep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">2.1</span><span><code>DialogueActStep</code></span></a><a href="#interactionpolicystep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">2.2</span><span><code>InteractionPolicyStep</code></span></a><a href="#correctionstep-newer-v2-addition" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">2.3</span><span><code>CorrectionStep</code> (newer v2 addition)</span></a><a href="#3-pending-actions-are-runtime-controlled-not-just-static-rows" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">3</span><span>Pending Actions Are Runtime-Controlled, Not Just Static Rows</span></a><a href="#ce_pending_action" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">3.1</span><span><code>ce_pending_action</code></span></a><a href="#actionlifecyclestep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">3.2</span><span><code>ActionLifecycleStep</code></span></a><a href="#disambiguationstep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">3.3</span><span><code>DisambiguationStep</code></span></a><a href="#pendingactionstep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">3.4</span><span><code>PendingActionStep</code></span></a><a href="#4-tool-execution-is-split-into-two-distinct-paths" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">4</span><span>Tool Execution Is Split Into Two Distinct Paths</span></a><a href="#direct-tool-path-toolorchestrationstep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">4.1</span><span>Direct tool path: <code>ToolOrchestrationStep</code></span></a><a href="#supported-tool-group-model" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">4.2</span><span>Supported tool group model</span></a><a href="#5-mcp-is-now-planner-scoped-guarded-and-explicitly-scoped" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">5</span><span>MCP Is Now Planner-Scoped, Guarded, and Explicitly Scoped</span></a><a href="#ce_mcp_tool-scope-rules-correct-current-behavior" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">5.1</span><span><code>ce_mcp_tool</code> scope rules (correct current behavior)</span></a><a href="#ce_mcp_planner-newer-v2-addition" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">5.2</span><span><code>ce_mcp_planner</code> (newer v2 addition)</span></a><a href="#mcptoolstep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">5.3</span><span><code>McpToolStep</code></span></a><a href="#mcp-runtime-metadata-important-for-ce_rule-json_path" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">5.4</span><span>MCP runtime metadata (important for <code>ce_rule</code> JSON_PATH)</span></a><a href="#mcp-next-tool-guardrails" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">5.5</span><span>MCP next-tool guardrails</span></a><a href="#6-rules-are-broader-than-the-original-v2-rule-model" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">6</span><span>Rules Are Broader Than the Original v2 Rule Model</span></a><a href="#current-rule-phases" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">6.1</span><span>Current rule phases</span></a><a href="#current-rule-actions" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">6.2</span><span>Current rule actions</span></a><a href="#7-schema-prompt-and-response-handling-are-richer-in-current-v2" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">7</span><span>Schema, Prompt, and Response Handling Are Richer in Current v2</span></a><a href="#schemaextractionstep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">7.1</span><span><code>SchemaExtractionStep</code></span></a><a href="#autoadvancestep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">7.2</span><span><code>AutoAdvanceStep</code></span></a><a href="#responseresolutionstep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">7.3</span><span><code>ResponseResolutionStep</code></span></a><a href="#prompt-template-interaction-semantics" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">7.4</span><span>Prompt template interaction semantics</span></a><a href="#shared-prompt-renderer-current-v2" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">7.5</span><span>Shared prompt renderer (current v2)</span></a><a href="#8-verbose-runtime-and-step-telemetry-are-first-class-features" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">8</span><span>Verbose Runtime and Step Telemetry Are First-Class Features</span></a><a href="#ce_verbose-newer-v2-addition" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">8.1</span><span><code>ce_verbose</code> (newer v2 addition)</span></a><a href="#determinant-coverage" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">8.2</span><span>Determinant coverage</span></a><a href="#stream-transport" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">8.3</span><span>Stream transport</span></a><a href="#step-telemetry-in-session" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">8.4</span><span>Step telemetry in session</span></a><a href="#9-memory-continuity-and-reset-handling-expanded" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">9</span><span>Memory, Continuity, and Reset Handling Expanded</span></a><a href="#memorystep" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">9.1</span><span><code>MemoryStep</code></span></a><a href="#query-rewrite-and-resolved-input" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">9.2</span><span>Query rewrite and resolved input</span></a><a href="#reset-and-fallback-handling" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">9.3</span><span>Reset and fallback handling</span></a><a href="#10-cache-startup-validation-and-operational-safety-are-core-v2-features" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">10</span><span>Cache, Startup Validation, and Operational Safety Are Core v2 Features</span></a><a href="#static-cache-model" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">10.1</span><span>Static cache model</span></a><a href="#startup-integrity-validation" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">10.2</span><span>Startup integrity validation</span></a><a href="#cache-analysis-and-refresh" class="ce-sections-link" style="padding-left:24px"><span class="ce-sections-link-index ce-sections-link-index-nested">10.3</span><span>Cache analysis and refresh</span></a><a href="#11-consumer-integration-and-extension-points-are-broader" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">11</span><span>Consumer Integration and Extension Points Are Broader</span></a><a href="#12-what-changed-from-the-old-page" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">12</span><span>What Changed From the Old Page</span></a><a href="#related-deep-dives" class="ce-sections-link" style="padding-left:10px"><span class="ce-sections-link-index">13</span><span>Related Deep Dives</span></a></div></aside></div><div class="theme-doc-markdown markdown"><header><h1>ConvEngine Detailed Features (Current v2 Line)</h1></header>
+<p>This page reflects the current v2 codebase, not just the original <code>2.0.0</code> launch set. It consolidates the active runtime behavior across the v2 release line through the current repo state (including later additions such as <code>CorrectionStep</code>, <code>ce_mcp_planner</code>, <code>ce_verbose</code>, extra rule phases, and Thymeleaf-backed prompt rendering).</p>
+<p>If you need exact internals for one subsystem, use the linked deep-dive pages. This page is the high-level, top-to-bottom feature inventory.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-runtime-pipeline-is-now-a-full-multi-step-dag">1. Runtime Pipeline Is Now a Full Multi-Step DAG<a href="#1-runtime-pipeline-is-now-a-full-multi-step-dag" class="hash-link" aria-label="Direct link to 1. Runtime Pipeline Is Now a Full Multi-Step DAG" title="Direct link to 1. Runtime Pipeline Is Now a Full Multi-Step DAG" translate="no">​</a></h2>
+<p>v2 is no longer a simple intent -&gt; response flow. The engine now runs a richer directed pipeline with explicit step ordering and lifecycle hooks.</p>
+<p>Core runtime stages include:</p>
 <ul>
-<li class="">Adds configurable resolve mode via <code>convengine.flow.dialogue-act.resolute</code>:<!-- -->
+<li class="">Conversation bootstrap and persistence:<!-- -->
+<ul>
+<li class=""><code>LoadOrCreateConversationStep</code></li>
+<li class=""><code>PersistConversationBootstrapStep</code></li>
+<li class=""><code>PersistConversationStep</code></li>
+</ul>
+</li>
+<li class="">Early governance:<!-- -->
+<ul>
+<li class=""><code>CacheInspectAuditStep</code></li>
+<li class=""><code>ResetConversationStep</code></li>
+<li class=""><code>PolicyEnforcementStep</code></li>
+<li class=""><code>AuditUserInputStep</code></li>
+</ul>
+</li>
+<li class="">Turn interpretation and routing:<!-- -->
+<ul>
+<li class=""><code>DialogueActStep</code></li>
+<li class=""><code>InteractionPolicyStep</code></li>
+<li class=""><code>CorrectionStep</code></li>
+</ul>
+</li>
+<li class="">Multi-turn task handling:<!-- -->
+<ul>
+<li class=""><code>ActionLifecycleStep</code></li>
+<li class=""><code>DisambiguationStep</code></li>
+<li class=""><code>PendingActionStep</code></li>
+</ul>
+</li>
+<li class="">Main conversational processing:<!-- -->
+<ul>
+<li class=""><code>IntentResolutionStep</code></li>
+<li class=""><code>ResetResolvedIntentStep</code></li>
+<li class=""><code>FallbackIntentStateStep</code></li>
+<li class=""><code>AddContainerDataStep</code></li>
+<li class=""><code>SchemaExtractionStep</code></li>
+<li class=""><code>AutoAdvanceStep</code></li>
+</ul>
+</li>
+<li class="">Tooling and orchestration:<!-- -->
+<ul>
+<li class=""><code>GuardrailStep</code></li>
+<li class=""><code>ToolOrchestrationStep</code></li>
+<li class=""><code>McpToolStep</code></li>
+<li class=""><code>RulesStep</code></li>
+<li class=""><code>StateGraphStep</code></li>
+</ul>
+</li>
+<li class="">Output and closeout:<!-- -->
+<ul>
+<li class=""><code>ResponseResolutionStep</code></li>
+<li class=""><code>MemoryStep</code></li>
+<li class=""><code>PipelineEndGuardStep</code></li>
+</ul>
+</li>
+</ul>
+<p>This matters operationally because most v2 behavior is step-driven and data-driven. Consumer apps should configure tables and properties, not hardcode domain branching in controller logic.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-dialogue-handling-is-more-than-intent-classification">2. Dialogue Handling Is More Than Intent Classification<a href="#2-dialogue-handling-is-more-than-intent-classification" class="hash-link" aria-label="Direct link to 2. Dialogue Handling Is More Than Intent Classification" title="Direct link to 2. Dialogue Handling Is More Than Intent Classification" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="dialogueactstep"><code>DialogueActStep</code><a href="#dialogueactstep" class="hash-link" aria-label="Direct link to dialogueactstep" title="Direct link to dialogueactstep" translate="no">​</a></h3>
+<p>The engine resolves turn semantics before intent resolution:</p>
+<ul>
+<li class="">resolve modes:<!-- -->
 <ul>
 <li class=""><code>REGEX_ONLY</code></li>
 <li class=""><code>REGEX_THEN_LLM</code></li>
 <li class=""><code>LLM_ONLY</code></li>
 </ul>
 </li>
-<li class="">Fast-path regex classification remains primary.</li>
-<li class="">LLM path used for ambiguity based on configured threshold.</li>
-<li class="">Emits:<!-- -->
+<li class="">default config comes from <code>convengine.flow.dialogue-act.*</code></li>
+<li class="">regex remains the fast path for low-cost turns</li>
+<li class="">LLM fallback is used when configured mode and confidence thresholds require it</li>
+</ul>
+<p>Current runtime outputs include:</p>
+<ul>
+<li class=""><code>dialogue_act</code></li>
+<li class=""><code>dialogue_act_confidence</code></li>
+<li class=""><code>standalone_query</code></li>
+<li class=""><code>resolved_user_input</code></li>
+</ul>
+<p>Current v2 dialogue acts now include:</p>
+<ul>
+<li class=""><code>AFFIRM</code></li>
+<li class=""><code>NEGATE</code></li>
+<li class=""><code>EDIT</code></li>
+<li class=""><code>RESET</code></li>
+<li class=""><code>QUESTION</code></li>
+<li class=""><code>NEW_REQUEST</code></li>
+<li class=""><code>ANSWER</code></li>
+</ul>
+<p>Current verbose/audit coverage includes:</p>
 <ul>
 <li class=""><code>DIALOGUE_ACT_LLM_INPUT</code></li>
 <li class=""><code>DIALOGUE_ACT_LLM_OUTPUT</code></li>
 <li class=""><code>DIALOGUE_ACT_LLM_ERROR</code></li>
 <li class=""><code>DIALOGUE_ACT_CLASSIFIED</code></li>
 </ul>
-</li>
-</ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-interactionpolicystep">2. InteractionPolicyStep<a href="#2-interactionpolicystep" class="hash-link" aria-label="Direct link to 2. InteractionPolicyStep" title="Direct link to 2. InteractionPolicyStep" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="interactionpolicystep"><code>InteractionPolicyStep</code><a href="#interactionpolicystep" class="hash-link" aria-label="Direct link to interactionpolicystep" title="Direct link to interactionpolicystep" translate="no">​</a></h3>
+<p>This step is still the deterministic routing layer, but it is now part of a broader routing chain instead of being the only &quot;policy&quot; feature.</p>
+<p>Config comes from <code>convengine.flow.interaction-policy.*</code>, including:</p>
 <ul>
-<li class="">Policy matrix externalized in <code>convengine.flow.interaction-policy.matrix</code>.</li>
-<li class="">Default safe matrix included.</li>
-<li class="">Output remains deterministic enums:<!-- -->
+<li class="">boolean shortcuts such as <code>executePendingOnAffirm</code></li>
+<li class=""><code>requireResolvedIntentAndState</code></li>
+<li class="">a configurable <code>matrix</code></li>
+</ul>
+<p>The main deterministic outcomes remain:</p>
 <ul>
 <li class=""><code>EXECUTE_PENDING_ACTION</code></li>
 <li class=""><code>REJECT_PENDING_ACTION</code></li>
 <li class=""><code>FILL_PENDING_SLOT</code></li>
 <li class=""><code>RECLASSIFY_INTENT</code></li>
 </ul>
-</li>
-<li class="">Emits: <code>INTERACTION_POLICY_DECIDED</code>.</li>
-</ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-actionlifecyclestep">3. ActionLifecycleStep<a href="#3-actionlifecyclestep" class="hash-link" aria-label="Direct link to 3. ActionLifecycleStep" title="Direct link to 3. ActionLifecycleStep" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="correctionstep-newer-v2-addition"><code>CorrectionStep</code> (newer v2 addition)<a href="#correctionstep-newer-v2-addition" class="hash-link" aria-label="Direct link to correctionstep-newer-v2-addition" title="Direct link to correctionstep-newer-v2-addition" translate="no">​</a></h3>
+<p>This is one of the biggest changes missing from the old page.</p>
+<p><code>CorrectionStep</code> now handles confirmation/correction turns before intent/schema are re-run:</p>
 <ul>
-<li class="">Runtime lifecycle stored in context <code>pending_action_runtime</code>.</li>
-<li class="">Status values:<!-- -->
+<li class="">resets per-turn <code>routing_decision</code></li>
+<li class="">supports in-place retry handling</li>
+<li class="">supports confirmation accept (<code>AFFIRM</code>) when current schema is already complete</li>
+<li class="">supports single-field correction patching for <code>EDIT</code> turns</li>
+<li class="">can skip intent resolution and schema extraction for safe in-place corrections</li>
+</ul>
+<p>It uses:</p>
+<ul>
+<li class="">active <code>ce_output_schema</code></li>
+<li class="">current context JSON</li>
+<li class=""><code>ce_prompt_template</code> interaction semantics</li>
+</ul>
+<p>Important current routing decisions:</p>
+<ul>
+<li class=""><code>CONTINUE_STANDARD_FLOW</code></li>
+<li class=""><code>HANDLE_AS_ANSWER</code></li>
+<li class=""><code>RETRY_IN_PLACE</code></li>
+<li class=""><code>PROCEED_CONFIRMED</code></li>
+<li class=""><code>APPLY_CORRECTION</code></li>
+</ul>
+<p>This means v2 can now continue, retry, confirm, or patch an existing turn without forcing a full reclassification loop.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-pending-actions-are-runtime-controlled-not-just-static-rows">3. Pending Actions Are Runtime-Controlled, Not Just Static Rows<a href="#3-pending-actions-are-runtime-controlled-not-just-static-rows" class="hash-link" aria-label="Direct link to 3. Pending Actions Are Runtime-Controlled, Not Just Static Rows" title="Direct link to 3. Pending Actions Are Runtime-Controlled, Not Just Static Rows" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="ce_pending_action"><code>ce_pending_action</code><a href="#ce_pending_action" class="hash-link" aria-label="Direct link to ce_pending_action" title="Direct link to ce_pending_action" translate="no">​</a></h3>
+<p><code>ce_pending_action</code> remains the control-plane catalog for pending actions, but in the current repo it is stricter than the original docs implied:</p>
+<ul>
+<li class=""><code>intent_code</code> is required</li>
+<li class=""><code>state_code</code> is required</li>
+<li class="">static scope validation runs at startup</li>
+<li class="">rows are resolved from static cache, not ad hoc table scans on every turn</li>
+</ul>
+<p>The actual runtime lifecycle is stored in session/context (<code>pending_action_runtime</code>), not in the table itself.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="actionlifecyclestep"><code>ActionLifecycleStep</code><a href="#actionlifecyclestep" class="hash-link" aria-label="Direct link to actionlifecyclestep" title="Direct link to actionlifecyclestep" translate="no">​</a></h3>
+<p>Current behavior:</p>
+<ul>
+<li class="">manages TTL by turns and time</li>
+<li class="">tracks lifecycle states such as:<!-- -->
 <ul>
 <li class=""><code>OPEN</code></li>
 <li class=""><code>IN_PROGRESS</code></li>
@@ -62,21 +181,62 @@
 <li class=""><code>EXPIRED</code></li>
 </ul>
 </li>
-<li class="">TTL by turns/time configurable via <code>convengine.flow.action-lifecycle.*</code>.</li>
-<li class="">Uses <code>ce_pending_action</code> as catalog only.</li>
-<li class="">Emits: <code>PENDING_ACTION_LIFECYCLE</code>.</li>
+<li class="">uses <code>convengine.flow.action-lifecycle.ttl-turns</code></li>
+<li class="">uses <code>convengine.flow.action-lifecycle.ttl-minutes</code></li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="4-toolorchestrationstep">4. ToolOrchestrationStep<a href="#4-toolorchestrationstep" class="hash-link" aria-label="Direct link to 4. ToolOrchestrationStep" title="Direct link to 4. ToolOrchestrationStep" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="disambiguationstep"><code>DisambiguationStep</code><a href="#disambiguationstep" class="hash-link" aria-label="Direct link to disambiguationstep" title="Direct link to disambiguationstep" translate="no">​</a></h3>
+<p>This step now explicitly pauses execution when multiple pending actions remain eligible at the winning priority:</p>
 <ul>
-<li class="">Unified tool contract:<!-- -->
+<li class="">asks a targeted clarification question</li>
+<li class="">writes pending clarification state into session/context</li>
+<li class="">prevents accidental execution when multiple actions look valid</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="pendingactionstep"><code>PendingActionStep</code><a href="#pendingactionstep" class="hash-link" aria-label="Direct link to pendingactionstep" title="Direct link to pendingactionstep" translate="no">​</a></h3>
+<p>This is the execution/rejection stage:</p>
 <ul>
-<li class="">request (<code>tool_request</code>)</li>
-<li class="">execute</li>
-<li class="">result (<code>tool_result</code>, <code>tool_status</code>)</li>
+<li class="">executes or rejects the selected pending action</li>
+<li class="">delegates to <code>CeTaskExecutor</code></li>
+<li class="">updates runtime pending action status/result</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="4-tool-execution-is-split-into-two-distinct-paths">4. Tool Execution Is Split Into Two Distinct Paths<a href="#4-tool-execution-is-split-into-two-distinct-paths" class="hash-link" aria-label="Direct link to 4. Tool Execution Is Split Into Two Distinct Paths" title="Direct link to 4. Tool Execution Is Split Into Two Distinct Paths" translate="no">​</a></h2>
+<p>Current v2 supports both direct one-shot tool execution and planner-driven MCP loops.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="direct-tool-path-toolorchestrationstep">Direct tool path: <code>ToolOrchestrationStep</code><a href="#direct-tool-path-toolorchestrationstep" class="hash-link" aria-label="Direct link to direct-tool-path-toolorchestrationstep" title="Direct link to direct-tool-path-toolorchestrationstep" translate="no">​</a></h3>
+<p>This step executes exactly one tool when the request contains <code>tool_request</code>.</p>
+<p>Current contract:</p>
+<ul>
+<li class="">request input:<!-- -->
+<ul>
+<li class=""><code>tool_request.tool_code</code></li>
+<li class=""><code>tool_request.tool_group</code></li>
+<li class=""><code>tool_request.args</code></li>
 </ul>
 </li>
-<li class="">Keeps DB executor path and adds group dispatch interfaces for:<!-- -->
+<li class="">runtime outputs:<!-- -->
 <ul>
+<li class=""><code>tool_result</code></li>
+<li class=""><code>tool_status</code></li>
+<li class=""><code>context.mcp.toolExecution.*</code></li>
+</ul>
+</li>
+</ul>
+<p>Current behavior:</p>
+<ul>
+<li class="">honors <code>convengine.flow.tool-orchestration.enabled</code></li>
+<li class="">resolves tool by <code>tool_code</code> within current scope</li>
+<li class="">falls back to <code>tool_group</code> when code resolution is not possible</li>
+<li class="">writes rich <code>_meta</code> data into the result payload</li>
+<li class="">runs rules in <code>POST_TOOL_EXECUTION</code></li>
+</ul>
+<p>Current status/outcome coverage includes:</p>
+<ul>
+<li class=""><code>SUCCESS</code></li>
+<li class=""><code>ERROR</code></li>
+<li class=""><code>SCOPE_MISMATCH</code></li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="supported-tool-group-model">Supported tool group model<a href="#supported-tool-group-model" class="hash-link" aria-label="Direct link to Supported tool group model" title="Direct link to Supported tool group model" translate="no">​</a></h3>
+<p>The unified v2 tool contract supports these normalized groups:</p>
+<ul>
+<li class=""><code>DB</code></li>
 <li class=""><code>HTTP_API</code></li>
 <li class=""><code>WORKFLOW_ACTION</code></li>
 <li class=""><code>DOCUMENT_RETRIEVAL</code></li>
@@ -84,63 +244,323 @@
 <li class=""><code>NOTIFICATION</code></li>
 <li class=""><code>FILES</code></li>
 </ul>
-</li>
-<li class="">MCP tool eligibility is scoped by optional <code>ce_mcp_tool.intent_code</code> and <code>ce_mcp_tool.state_code</code> (with <code>NULL</code> as wildcard).</li>
-<li class="">Executes post-tool rules with <code>POST_TOOL_EXECUTION</code>.</li>
+<p>On the MCP side, HTTP execution now supports multiple handler models:</p>
+<ul>
+<li class=""><code>HttpApiProcessorToolHandler</code></li>
+<li class=""><code>HttpApiRequestingToolHandler</code></li>
+<li class="">classic <code>HttpApiToolHandler</code></li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="5-guardrailstep">5. GuardrailStep<a href="#5-guardrailstep" class="hash-link" aria-label="Direct link to 5. GuardrailStep" title="Direct link to 5. GuardrailStep" translate="no">​</a></h2>
-<p>Before tool/action execution:</p>
+<p>Framework-managed HTTP policy support includes:</p>
 <ul>
-<li class="">input sanitization</li>
-<li class="">sensitive action pattern checks</li>
-<li class="">approval gate hooks</li>
+<li class="">connect/read timeouts</li>
+<li class="">retry and backoff</li>
+<li class="">in-memory circuit breaker</li>
+<li class="">auth/provider hooks</li>
+<li class="">response mapping</li>
 </ul>
-<p>Outputs:</p>
+<p>Those defaults come from <code>convengine.mcp.http-api.defaults.*</code>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="5-mcp-is-now-planner-scoped-guarded-and-explicitly-scoped">5. MCP Is Now Planner-Scoped, Guarded, and Explicitly Scoped<a href="#5-mcp-is-now-planner-scoped-guarded-and-explicitly-scoped" class="hash-link" aria-label="Direct link to 5. MCP Is Now Planner-Scoped, Guarded, and Explicitly Scoped" title="Direct link to 5. MCP Is Now Planner-Scoped, Guarded, and Explicitly Scoped" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="ce_mcp_tool-scope-rules-correct-current-behavior"><code>ce_mcp_tool</code> scope rules (correct current behavior)<a href="#ce_mcp_tool-scope-rules-correct-current-behavior" class="hash-link" aria-label="Direct link to ce_mcp_tool-scope-rules-correct-current-behavior" title="Direct link to ce_mcp_tool-scope-rules-correct-current-behavior" translate="no">​</a></h3>
+<p>The old statement about optional <code>intent_code</code> / <code>state_code</code> with <code>NULL</code> wildcard is no longer true.</p>
+<p>Current behavior:</p>
 <ul>
-<li class="">allow/deny audit entries (<code>GUARDRAIL_ALLOW</code>, <code>GUARDRAIL_DENY</code>)</li>
-<li class="">skip flags for tool/pending-action execution when denied</li>
-</ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="6-stategraphstep-validate-mode">6. StateGraphStep (validate mode)<a href="#6-stategraphstep-validate-mode" class="hash-link" aria-label="Direct link to 6. StateGraphStep (validate mode)" title="Direct link to 6. StateGraphStep (validate mode)" translate="no">​</a></h2>
+<li class=""><code>ce_mcp_tool.intent_code</code> is mandatory</li>
+<li class=""><code>ce_mcp_tool.state_code</code> is mandatory</li>
+<li class="">null/blank scope is not allowed</li>
+<li class="">valid scope values are:<!-- -->
 <ul>
-<li class="">Validates transition only, no forced mutation.</li>
-<li class="">Emits:<!-- -->
-<ul>
-<li class=""><code>STATE_GRAPH_VALID</code></li>
-<li class=""><code>STATE_GRAPH_VIOLATION</code></li>
-</ul>
-</li>
-<li class="">Can set optional soft-block flag for downstream behavior.</li>
-</ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="7-disambiguationstep">7. DisambiguationStep<a href="#7-disambiguationstep" class="hash-link" aria-label="Direct link to 7. DisambiguationStep" title="Direct link to 7. DisambiguationStep" translate="no">​</a></h2>
-<ul>
-<li class="">When multiple pending actions eligible at same top priority:<!-- -->
-<ul>
-<li class="">asks targeted clarification</li>
-<li class="">pauses execution cleanly</li>
+<li class="">exact configured <code>intent_code</code> / <code>state_code</code></li>
+<li class=""><code>ANY</code></li>
+<li class=""><code>UNKNOWN</code></li>
 </ul>
 </li>
-<li class="">Emits: <code>DISAMBIGUATION_REQUIRED</code>.</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="8-memorystep">8. MemoryStep<a href="#8-memorystep" class="hash-link" aria-label="Direct link to 8. MemoryStep" title="Direct link to 8. MemoryStep" translate="no">​</a></h2>
+<p>Startup integrity validation now fails fast on invalid scope rows to prevent cross-intent tool leakage.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="ce_mcp_planner-newer-v2-addition"><code>ce_mcp_planner</code> (newer v2 addition)<a href="#ce_mcp_planner-newer-v2-addition" class="hash-link" aria-label="Direct link to ce_mcp_planner-newer-v2-addition" title="Direct link to ce_mcp_planner-newer-v2-addition" translate="no">​</a></h3>
+<p>MCP prompt selection is now data-driven via <code>ce_mcp_planner</code>.</p>
+<p>Current planner prompt resolution order:</p>
+<ol>
+<li class="">exact <code>intent_code + state_code</code></li>
+<li class="">exact <code>intent_code + ANY</code></li>
+<li class=""><code>ANY + ANY</code></li>
+<li class="">legacy fallback from <code>ce_config</code> <code>McpPlanner</code> keys when planner rows are unavailable</li>
+</ol>
+<p>Like <code>ce_mcp_tool</code>, <code>ce_mcp_planner.intent_code</code> and <code>state_code</code> are mandatory and validated at startup.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="mcptoolstep"><code>McpToolStep</code><a href="#mcptoolstep" class="hash-link" aria-label="Direct link to mcptoolstep" title="Direct link to mcptoolstep" translate="no">​</a></h3>
+<p>This step is now much more feature-rich than the old page described.</p>
+<p>Current behavior includes:</p>
 <ul>
-<li class="">Writes session summary in context.</li>
-<li class="">Optional recall/write via pluggable <code>ConversationMemoryStore</code> adapter.</li>
-<li class="">Emits: <code>MEMORY_UPDATED</code>.</li>
+<li class="">runs <code>PRE_AGENT_MCP</code> rules before planning</li>
+<li class="">skips MCP when:<!-- -->
+<ul>
+<li class=""><code>SKIP_TOOL_EXECUTION</code> is set</li>
+<li class="">guardrails already blocked the turn</li>
+<li class="">required schema is incomplete</li>
+<li class="">dialogue act indicates the turn should not enter MCP</li>
+<li class="">the user turn is just a greeting</li>
+<li class="">pending clarification exists</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="9-evaltrace-framework">9. Eval/Trace framework<a href="#9-evaltrace-framework" class="hash-link" aria-label="Direct link to 9. Eval/Trace framework" title="Direct link to 9. Eval/Trace framework" translate="no">​</a></h2>
-<ul>
-<li class=""><code>ConversationReplayService</code> replays conversations from input messages.</li>
-<li class="">Supports expectation assertions for intent/state regressions.</li>
+</li>
+<li class="">resolves scoped tools from <code>McpToolRegistry</code></li>
+<li class="">runs a bounded planner/tool loop (<code>MAX_LOOPS = 5</code>)</li>
+<li class="">stores observations in <code>context.mcp.observations</code></li>
+<li class="">stores final planner answer in <code>context.mcp.finalAnswer</code></li>
+<li class="">runs <code>POST_AGENT_MCP</code> rules after MCP completion/block/fallback</li>
 </ul>
-<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="10-consumer-contract-docs">10. Consumer contract docs<a href="#10-consumer-contract-docs" class="hash-link" aria-label="Direct link to 10. Consumer contract docs" title="Direct link to 10. Consumer contract docs" translate="no">​</a></h2>
-<p>Consumer should configure behavior with data/config first:</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="mcp-runtime-metadata-important-for-ce_rule-json_path">MCP runtime metadata (important for <code>ce_rule</code> JSON_PATH)<a href="#mcp-runtime-metadata-important-for-ce_rule-json_path" class="hash-link" aria-label="Direct link to mcp-runtime-metadata-important-for-ce_rule-json_path" title="Direct link to mcp-runtime-metadata-important-for-ce_rule-json_path" translate="no">​</a></h3>
+<p>Current rule branching can inspect:</p>
 <ul>
+<li class=""><code>context.mcp.lifecycle.*</code></li>
+<li class=""><code>context.mcp.toolExecution.*</code></li>
+</ul>
+<p>This exposes deterministic rule conditions such as:</p>
+<ul>
+<li class="">blocked vs skipped vs answered</li>
+<li class="">last action/tool</li>
+<li class="">tool status and outcome</li>
+<li class="">scope mismatch</li>
+<li class="">error flags and messages</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="mcp-next-tool-guardrails">MCP next-tool guardrails<a href="#mcp-next-tool-guardrails" class="hash-link" aria-label="Direct link to MCP next-tool guardrails" title="Direct link to MCP next-tool guardrails" translate="no">​</a></h3>
+<p>In addition to general turn guardrails, MCP has a post-planner next-tool guard:</p>
+<ul>
+<li class="">enabled with <code>convengine.mcp.guardrail.enabled</code></li>
+<li class=""><code>failClosed</code> can block when no allowed-next rule exists</li>
+<li class=""><code>allowedNextByCurrentTool</code> whitelists legal tool transitions</li>
+</ul>
+<p>If the planner proposes a blocked next tool:</p>
+<ul>
+<li class="">the engine writes the fallback blocked answer</li>
+<li class="">lifecycle metadata is updated deterministically</li>
+<li class=""><code>POST_AGENT_MCP</code> rules still run</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="6-rules-are-broader-than-the-original-v2-rule-model">6. Rules Are Broader Than the Original v2 Rule Model<a href="#6-rules-are-broader-than-the-original-v2-rule-model" class="hash-link" aria-label="Direct link to 6. Rules Are Broader Than the Original v2 Rule Model" title="Direct link to 6. Rules Are Broader Than the Original v2 Rule Model" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="current-rule-phases">Current rule phases<a href="#current-rule-phases" class="hash-link" aria-label="Direct link to Current rule phases" title="Direct link to Current rule phases" translate="no">​</a></h3>
+<p>The runtime rule surface is larger now:</p>
+<ul>
+<li class=""><code>POST_DIALOGUE_ACT</code></li>
+<li class=""><code>POST_SCHEMA_EXTRACTION</code></li>
+<li class=""><code>PRE_AGENT_MCP</code></li>
+<li class=""><code>PRE_RESPONSE_RESOLUTION</code></li>
+<li class=""><code>POST_AGENT_INTENT</code></li>
+<li class=""><code>POST_AGENT_MCP</code></li>
+<li class=""><code>POST_TOOL_EXECUTION</code></li>
+</ul>
+<p>Legacy names are still normalized at runtime:</p>
+<ul>
+<li class=""><code>PIPELINE_RULES</code> -&gt; <code>PRE_RESPONSE_RESOLUTION</code></li>
+<li class=""><code>AGENT_POST_INTENT</code> -&gt; <code>POST_AGENT_INTENT</code></li>
+<li class=""><code>AGENT_POST_MCP</code> -&gt; <code>POST_AGENT_MCP</code></li>
+<li class=""><code>TOOL_POST_EXECUTION</code> -&gt; <code>POST_TOOL_EXECUTION</code></li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="current-rule-actions">Current rule actions<a href="#current-rule-actions" class="hash-link" aria-label="Direct link to Current rule actions" title="Direct link to Current rule actions" translate="no">​</a></h3>
+<p>The rule engine now supports both retrieval-style and mutation-style actions:</p>
+<ul>
+<li class=""><code>GET_CONTEXT</code></li>
+<li class=""><code>GET_SCHEMA_JSON</code></li>
+<li class=""><code>GET_SESSION</code></li>
+<li class=""><code>SET_DIALOGUE_ACT</code></li>
+<li class=""><code>SET_INPUT_PARAM</code></li>
+<li class=""><code>SET_INTENT</code></li>
+<li class=""><code>SET_JSON</code></li>
+<li class=""><code>SET_STATE</code></li>
+<li class=""><code>SET_TASK</code></li>
+</ul>
+<p>That means <code>ce_rule</code> is not just for state transitions anymore. It can mutate input params, inject task directives, and branch across more pipeline phases.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="7-schema-prompt-and-response-handling-are-richer-in-current-v2">7. Schema, Prompt, and Response Handling Are Richer in Current v2<a href="#7-schema-prompt-and-response-handling-are-richer-in-current-v2" class="hash-link" aria-label="Direct link to 7. Schema, Prompt, and Response Handling Are Richer in Current v2" title="Direct link to 7. Schema, Prompt, and Response Handling Are Richer in Current v2" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="schemaextractionstep"><code>SchemaExtractionStep</code><a href="#schemaextractionstep" class="hash-link" aria-label="Direct link to schemaextractionstep" title="Direct link to schemaextractionstep" translate="no">​</a></h3>
+<p>Current behavior includes:</p>
+<ul>
+<li class="">schema-driven extraction from <code>ce_output_schema</code></li>
+<li class="">schema completeness tracking</li>
+<li class="">missing-required-field detection</li>
+<li class="">post-extraction rule execution in <code>POST_SCHEMA_EXTRACTION</code></li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="autoadvancestep"><code>AutoAdvanceStep</code><a href="#autoadvancestep" class="hash-link" aria-label="Direct link to autoadvancestep" title="Direct link to autoadvancestep" translate="no">​</a></h3>
+<p>This step computes schema facts used later in the flow:</p>
+<ul>
+<li class="">schema complete vs incomplete</li>
+<li class="">whether any values were captured</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="responseresolutionstep"><code>ResponseResolutionStep</code><a href="#responseresolutionstep" class="hash-link" aria-label="Direct link to responseresolutionstep" title="Direct link to responseresolutionstep" translate="no">​</a></h3>
+<p>The response layer still uses <code>ce_response</code> and <code>ce_prompt_template</code>, but current v2 has tighter runtime metadata and better prompt handling.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="prompt-template-interaction-semantics">Prompt template interaction semantics<a href="#prompt-template-interaction-semantics" class="hash-link" aria-label="Direct link to Prompt template interaction semantics" title="Direct link to Prompt template interaction semantics" translate="no">​</a></h3>
+<p>In <code>2.0.9+</code>, <code>ce_prompt_template</code> is also part of turn-routing semantics:</p>
+<ul>
+<li class=""><code>interaction_mode</code></li>
+<li class=""><code>interaction_contract</code></li>
+</ul>
+<p>This is what <code>CorrectionStep</code> should use for confirm/edit/retry semantics instead of inferring behavior from state naming conventions.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="shared-prompt-renderer-current-v2">Shared prompt renderer (current v2)<a href="#shared-prompt-renderer-current-v2" class="hash-link" aria-label="Direct link to Shared prompt renderer (current v2)" title="Direct link to Shared prompt renderer (current v2)" translate="no">​</a></h3>
+<p>Prompt rendering now goes through a shared Thymeleaf-backed path.</p>
+<p>Supported template styles:</p>
+<ul>
+<li class="">legacy <code>{{var}}</code></li>
+<li class=""><code>#{...}</code></li>
+<li class=""><code>[${...}]</code></li>
+</ul>
+<p>Current prompt/session variables now include:</p>
+<ul>
+<li class=""><code>session</code></li>
+<li class=""><code>inputParams</code></li>
+<li class=""><code>rawInputParams</code></li>
+<li class=""><code>context</code></li>
+<li class=""><code>schema</code></li>
+<li class=""><code>schemaJson</code></li>
+<li class=""><code>promptVars</code></li>
+<li class=""><code>standalone_query</code></li>
+<li class=""><code>resolved_user_input</code></li>
+</ul>
+<p>This same rendering path is used by:</p>
+<ul>
+<li class="">prompt templates</li>
+<li class=""><code>ce_verbose.message</code></li>
+<li class=""><code>ce_verbose.error_message</code></li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="8-verbose-runtime-and-step-telemetry-are-first-class-features">8. Verbose Runtime and Step Telemetry Are First-Class Features<a href="#8-verbose-runtime-and-step-telemetry-are-first-class-features" class="hash-link" aria-label="Direct link to 8. Verbose Runtime and Step Telemetry Are First-Class Features" title="Direct link to 8. Verbose Runtime and Step Telemetry Are First-Class Features" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="ce_verbose-newer-v2-addition"><code>ce_verbose</code> (newer v2 addition)<a href="#ce_verbose-newer-v2-addition" class="hash-link" aria-label="Direct link to ce_verbose-newer-v2-addition" title="Direct link to ce_verbose-newer-v2-addition" translate="no">​</a></h3>
+<p>The old page did not cover the current verbose runtime model.</p>
+<p><code>ce_verbose</code> is now a core control-plane table for runtime progress/error messaging:</p>
+<ul>
+<li class="">statically cached</li>
+<li class="">startup validated</li>
+<li class="">scoped by <code>intent_code</code> and <code>state_code</code></li>
+<li class="">matched by determinant + step matcher + optional rule/tool filters</li>
+</ul>
+<p>Current matching inputs include:</p>
+<ul>
+<li class=""><code>intent_code</code></li>
+<li class=""><code>state_code</code></li>
+<li class=""><code>determinant</code></li>
+<li class=""><code>step_match</code></li>
+<li class=""><code>step_value</code></li>
+<li class="">optional <code>rule_id</code></li>
+<li class="">optional <code>tool_code</code></li>
+<li class=""><code>priority</code></li>
+</ul>
+<p>Step match types are validated (<code>EXACT</code>, <code>REGEX</code>, <code>JSON_PATH</code>).</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="determinant-coverage">Determinant coverage<a href="#determinant-coverage" class="hash-link" aria-label="Direct link to Determinant coverage" title="Direct link to Determinant coverage" translate="no">​</a></h3>
+<p>Current runtime emits determinants across:</p>
+<ul>
+<li class="">step enter/exit/error</li>
+<li class="">dialogue act LLM lifecycle</li>
+<li class="">intent resolution lifecycle</li>
+<li class="">schema extraction lifecycle</li>
+<li class="">MCP planning/tool lifecycle</li>
+<li class="">direct tool orchestration lifecycle</li>
+<li class="">rule matching/application</li>
+<li class="">response generation lifecycle</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="stream-transport">Stream transport<a href="#stream-transport" class="hash-link" aria-label="Direct link to Stream transport" title="Direct link to Stream transport" translate="no">​</a></h3>
+<p>Both SSE and STOMP now publish:</p>
+<ul>
+<li class=""><code>AUDIT</code> events</li>
+<li class=""><code>VERBOSE</code> events</li>
+</ul>
+<p>The stream envelope includes a <code>VerboseStreamPayload</code> so clients can render progress updates without scraping audit rows.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="step-telemetry-in-session">Step telemetry in session<a href="#step-telemetry-in-session" class="hash-link" aria-label="Direct link to Step telemetry in session" title="Direct link to Step telemetry in session" translate="no">​</a></h3>
+<p>Current v2 also records per-step execution details in <code>EngineSession.stepInfos</code>:</p>
+<ul>
+<li class="">status</li>
+<li class="">timing</li>
+<li class="">outcome</li>
+<li class="">error metadata</li>
+</ul>
+<p>This supports deterministic diagnostics and replay-friendly inspection.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="9-memory-continuity-and-reset-handling-expanded">9. Memory, Continuity, and Reset Handling Expanded<a href="#9-memory-continuity-and-reset-handling-expanded" class="hash-link" aria-label="Direct link to 9. Memory, Continuity, and Reset Handling Expanded" title="Direct link to 9. Memory, Continuity, and Reset Handling Expanded" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="memorystep"><code>MemoryStep</code><a href="#memorystep" class="hash-link" aria-label="Direct link to memorystep" title="Direct link to memorystep" translate="no">​</a></h3>
+<p>Memory remains optional and config-driven through <code>convengine.flow.memory.*</code>.</p>
+<p>Current behavior:</p>
+<ul>
+<li class="">writes <code>memory.session_summary</code> into context</li>
+<li class="">can use pluggable <code>ConversationMemoryStore</code></li>
+<li class="">compresses recent conversation context instead of endlessly replaying full history</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="query-rewrite-and-resolved-input">Query rewrite and resolved input<a href="#query-rewrite-and-resolved-input" class="hash-link" aria-label="Direct link to Query rewrite and resolved input" title="Direct link to Query rewrite and resolved input" translate="no">​</a></h3>
+<p>Current v2 also supports query rewriting:</p>
+<ul>
+<li class=""><code>convengine.flow.query-rewrite.enabled</code></li>
+<li class=""><code>standalone_query</code> can be generated for follow-up turns</li>
+<li class=""><code>resolved_user_input</code> gives downstream steps a stable &quot;effective user text&quot;</li>
+</ul>
+<p>This is important for MCP, schema extraction, and prompt rendering because the framework now distinguishes raw user text from resolved conversational intent.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="reset-and-fallback-handling">Reset and fallback handling<a href="#reset-and-fallback-handling" class="hash-link" aria-label="Direct link to Reset and fallback handling" title="Direct link to Reset and fallback handling" translate="no">​</a></h3>
+<p>The v2 line also includes:</p>
+<ul>
+<li class="">explicit conversation reset</li>
+<li class="">reset-by-configured-intent via <code>ResetResolvedIntentStep</code></li>
+<li class="">fallback filling of missing intent/state through <code>FallbackIntentStateStep</code></li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="10-cache-startup-validation-and-operational-safety-are-core-v2-features">10. Cache, Startup Validation, and Operational Safety Are Core v2 Features<a href="#10-cache-startup-validation-and-operational-safety-are-core-v2-features" class="hash-link" aria-label="Direct link to 10. Cache, Startup Validation, and Operational Safety Are Core v2 Features" title="Direct link to 10. Cache, Startup Validation, and Operational Safety Are Core v2 Features" translate="no">​</a></h2>
+<p>The current v2 line is much stricter operationally than the original feature list suggested.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="static-cache-model">Static cache model<a href="#static-cache-model" class="hash-link" aria-label="Direct link to Static cache model" title="Direct link to Static cache model" translate="no">​</a></h3>
+<p>Control-plane tables are preloaded and cached, including:</p>
+<ul>
+<li class=""><code>ce_intent</code></li>
+<li class=""><code>ce_intent_classifier</code></li>
 <li class=""><code>ce_rule</code></li>
 <li class=""><code>ce_response</code></li>
+<li class=""><code>ce_output_schema</code></li>
+<li class=""><code>ce_prompt_template</code></li>
 <li class=""><code>ce_pending_action</code></li>
 <li class=""><code>ce_mcp_tool</code></li>
-<li class=""><code>convengine.flow.*</code></li>
+<li class=""><code>ce_mcp_planner</code></li>
+<li class=""><code>ce_verbose</code></li>
 </ul>
-<p>Avoid hardcoding conversational decisions in controller/service code.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/salilvnair/convengine-docs/tree/main/docs/v2/deep-dive/v2-features.mdx" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/v2/deep-dive/mcp-audit"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">MCP and Audit</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/v2/deep-dive/failure-gotchas"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Data Correctness Gotchas</div></a></nav></div></div><div class="col col--3 ce-toc-container"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#1-dialogueactstep" class="table-of-contents__link toc-highlight">1. DialogueActStep</a></li><li><a href="#2-interactionpolicystep" class="table-of-contents__link toc-highlight">2. InteractionPolicyStep</a></li><li><a href="#3-actionlifecyclestep" class="table-of-contents__link toc-highlight">3. ActionLifecycleStep</a></li><li><a href="#4-toolorchestrationstep" class="table-of-contents__link toc-highlight">4. ToolOrchestrationStep</a></li><li><a href="#5-guardrailstep" class="table-of-contents__link toc-highlight">5. GuardrailStep</a></li><li><a href="#6-stategraphstep-validate-mode" class="table-of-contents__link toc-highlight">6. StateGraphStep (validate mode)</a></li><li><a href="#7-disambiguationstep" class="table-of-contents__link toc-highlight">7. DisambiguationStep</a></li><li><a href="#8-memorystep" class="table-of-contents__link toc-highlight">8. MemoryStep</a></li><li><a href="#9-evaltrace-framework" class="table-of-contents__link toc-highlight">9. Eval/Trace framework</a></li><li><a href="#10-consumer-contract-docs" class="table-of-contents__link toc-highlight">10. Consumer contract docs</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/v2/overview">Overview</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/architecture">Architecture</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/local-development">Local Development</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Reference</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/v2/api/rest-api">REST API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/api/java-api">Java API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/deep-dive">Deep Dive</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 ConvEngine.</div></div></div></footer></div>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="startup-integrity-validation">Startup integrity validation<a href="#startup-integrity-validation" class="hash-link" aria-label="Direct link to Startup integrity validation" title="Direct link to Startup integrity validation" translate="no">​</a></h3>
+<p>Startup validation now checks scope correctness and row integrity for critical tables such as:</p>
+<ul>
+<li class=""><code>ce_pending_action</code></li>
+<li class=""><code>ce_mcp_tool</code></li>
+<li class=""><code>ce_mcp_planner</code></li>
+<li class=""><code>ce_verbose</code></li>
+</ul>
+<p>This means invalid scope rows or malformed verbose matchers can fail startup instead of producing unpredictable runtime behavior.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="cache-analysis-and-refresh">Cache analysis and refresh<a href="#cache-analysis-and-refresh" class="hash-link" aria-label="Direct link to Cache analysis and refresh" title="Direct link to Cache analysis and refresh" translate="no">​</a></h3>
+<p>Operational tooling now includes:</p>
+<ul>
+<li class="">cache refresh endpoint</li>
+<li class="">cache analyzer endpoint for visibility into cache wiring and warm state</li>
+</ul>
+<p>These were added specifically to reduce config debugging friction in real deployments.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="11-consumer-integration-and-extension-points-are-broader">11. Consumer Integration and Extension Points Are Broader<a href="#11-consumer-integration-and-extension-points-are-broader" class="hash-link" aria-label="Direct link to 11. Consumer Integration and Extension Points Are Broader" title="Direct link to 11. Consumer Integration and Extension Points Are Broader" translate="no">​</a></h2>
+<p>Current v2 supports several framework-level integration hooks beyond the original basic engine enablement.</p>
+<p>Key annotations and extension surfaces include:</p>
+<ul>
+<li class=""><code>@EnableConvEngine</code></li>
+<li class=""><code>@EnableConvEngineCaching</code></li>
+<li class=""><code>@EnableConvEngineAsyncConversation</code></li>
+<li class=""><code>@EnableConvEngineAsyncAuditDispatch</code></li>
+<li class="">optional streaming enablement for SSE/STOMP paths</li>
+</ul>
+<p>Consumer-side custom code can also extend behavior through:</p>
+<ul>
+<li class="">tool handlers/executors</li>
+<li class="">container transformers</li>
+<li class="">response transformers</li>
+<li class="">verbose adapter publishing (<code>ConvEngineVerboseAdapter</code>)</li>
+</ul>
+<p>This lets consumers add UI progress messaging, custom transport shaping, and domain logic without forking core engine flow.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="12-what-changed-from-the-old-page">12. What Changed From the Old Page<a href="#12-what-changed-from-the-old-page" class="hash-link" aria-label="Direct link to 12. What Changed From the Old Page" title="Direct link to 12. What Changed From the Old Page" translate="no">​</a></h2>
+<p>The old version of this document was incomplete and partially outdated. The main gaps were:</p>
+<ul>
+<li class="">it treated MCP tool scope as nullable/wildcard, but current v2 requires explicit scope with <code>ANY</code> / <code>UNKNOWN</code></li>
+<li class="">it missed <code>CorrectionStep</code></li>
+<li class="">it missed <code>PendingActionStep</code>, <code>AutoAdvanceStep</code>, <code>PolicyEnforcementStep</code>, reset/fallback steps, and the broader DAG</li>
+<li class="">it missed <code>ce_mcp_planner</code></li>
+<li class="">it missed newer rule phases (<code>POST_DIALOGUE_ACT</code>, <code>POST_SCHEMA_EXTRACTION</code>, <code>PRE_AGENT_MCP</code>)</li>
+<li class="">it missed <code>SET_INPUT_PARAM</code></li>
+<li class="">it missed <code>ce_verbose</code>, stream verbose events, and step telemetry</li>
+<li class="">it missed Thymeleaf-backed prompt rendering and the newer prompt variable model</li>
+<li class="">it did not reflect the stricter startup validation and static cache architecture now present in the repo</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="related-deep-dives">Related Deep Dives<a href="#related-deep-dives" class="hash-link" aria-label="Direct link to Related Deep Dives" title="Direct link to Related Deep Dives" translate="no">​</a></h2>
+<ul>
+<li class=""><a class="" href="/docs/v2/deep-dive/pipeline-steps">Pipeline &amp; Steps</a></li>
+<li class=""><a class="" href="/docs/v2/deep-dive/rules-responses">Rules &amp; Responses</a></li>
+<li class=""><a class="" href="/docs/v2/deep-dive/verbose-and-conversation-runtime">Verbose and Conversation Runtime</a></li>
+<li class=""><a class="" href="/docs/v2/deep-dive/mcp-audit">MCP and Audit</a></li>
+<li class=""><a class="" href="/docs/v2/version-history">Version History</a></li>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/salilvnair/convengine-docs/tree/main/docs/v2/deep-dive/v2-features.mdx" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/v2/deep-dive/mcp-audit"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">MCP and Audit</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/v2/deep-dive/failure-gotchas"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Data Correctness Gotchas</div></a></nav></div></div><div class="col col--3 ce-toc-container"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#1-runtime-pipeline-is-now-a-full-multi-step-dag" class="table-of-contents__link toc-highlight">1. Runtime Pipeline Is Now a Full Multi-Step DAG</a></li><li><a href="#2-dialogue-handling-is-more-than-intent-classification" class="table-of-contents__link toc-highlight">2. Dialogue Handling Is More Than Intent Classification</a><ul><li><a href="#dialogueactstep" class="table-of-contents__link toc-highlight"><code>DialogueActStep</code></a></li><li><a href="#interactionpolicystep" class="table-of-contents__link toc-highlight"><code>InteractionPolicyStep</code></a></li><li><a href="#correctionstep-newer-v2-addition" class="table-of-contents__link toc-highlight"><code>CorrectionStep</code> (newer v2 addition)</a></li></ul></li><li><a href="#3-pending-actions-are-runtime-controlled-not-just-static-rows" class="table-of-contents__link toc-highlight">3. Pending Actions Are Runtime-Controlled, Not Just Static Rows</a><ul><li><a href="#ce_pending_action" class="table-of-contents__link toc-highlight"><code>ce_pending_action</code></a></li><li><a href="#actionlifecyclestep" class="table-of-contents__link toc-highlight"><code>ActionLifecycleStep</code></a></li><li><a href="#disambiguationstep" class="table-of-contents__link toc-highlight"><code>DisambiguationStep</code></a></li><li><a href="#pendingactionstep" class="table-of-contents__link toc-highlight"><code>PendingActionStep</code></a></li></ul></li><li><a href="#4-tool-execution-is-split-into-two-distinct-paths" class="table-of-contents__link toc-highlight">4. Tool Execution Is Split Into Two Distinct Paths</a><ul><li><a href="#direct-tool-path-toolorchestrationstep" class="table-of-contents__link toc-highlight">Direct tool path: <code>ToolOrchestrationStep</code></a></li><li><a href="#supported-tool-group-model" class="table-of-contents__link toc-highlight">Supported tool group model</a></li></ul></li><li><a href="#5-mcp-is-now-planner-scoped-guarded-and-explicitly-scoped" class="table-of-contents__link toc-highlight">5. MCP Is Now Planner-Scoped, Guarded, and Explicitly Scoped</a><ul><li><a href="#ce_mcp_tool-scope-rules-correct-current-behavior" class="table-of-contents__link toc-highlight"><code>ce_mcp_tool</code> scope rules (correct current behavior)</a></li><li><a href="#ce_mcp_planner-newer-v2-addition" class="table-of-contents__link toc-highlight"><code>ce_mcp_planner</code> (newer v2 addition)</a></li><li><a href="#mcptoolstep" class="table-of-contents__link toc-highlight"><code>McpToolStep</code></a></li><li><a href="#mcp-runtime-metadata-important-for-ce_rule-json_path" class="table-of-contents__link toc-highlight">MCP runtime metadata (important for <code>ce_rule</code> JSON_PATH)</a></li><li><a href="#mcp-next-tool-guardrails" class="table-of-contents__link toc-highlight">MCP next-tool guardrails</a></li></ul></li><li><a href="#6-rules-are-broader-than-the-original-v2-rule-model" class="table-of-contents__link toc-highlight">6. Rules Are Broader Than the Original v2 Rule Model</a><ul><li><a href="#current-rule-phases" class="table-of-contents__link toc-highlight">Current rule phases</a></li><li><a href="#current-rule-actions" class="table-of-contents__link toc-highlight">Current rule actions</a></li></ul></li><li><a href="#7-schema-prompt-and-response-handling-are-richer-in-current-v2" class="table-of-contents__link toc-highlight">7. Schema, Prompt, and Response Handling Are Richer in Current v2</a><ul><li><a href="#schemaextractionstep" class="table-of-contents__link toc-highlight"><code>SchemaExtractionStep</code></a></li><li><a href="#autoadvancestep" class="table-of-contents__link toc-highlight"><code>AutoAdvanceStep</code></a></li><li><a href="#responseresolutionstep" class="table-of-contents__link toc-highlight"><code>ResponseResolutionStep</code></a></li><li><a href="#prompt-template-interaction-semantics" class="table-of-contents__link toc-highlight">Prompt template interaction semantics</a></li><li><a href="#shared-prompt-renderer-current-v2" class="table-of-contents__link toc-highlight">Shared prompt renderer (current v2)</a></li></ul></li><li><a href="#8-verbose-runtime-and-step-telemetry-are-first-class-features" class="table-of-contents__link toc-highlight">8. Verbose Runtime and Step Telemetry Are First-Class Features</a><ul><li><a href="#ce_verbose-newer-v2-addition" class="table-of-contents__link toc-highlight"><code>ce_verbose</code> (newer v2 addition)</a></li><li><a href="#determinant-coverage" class="table-of-contents__link toc-highlight">Determinant coverage</a></li><li><a href="#stream-transport" class="table-of-contents__link toc-highlight">Stream transport</a></li><li><a href="#step-telemetry-in-session" class="table-of-contents__link toc-highlight">Step telemetry in session</a></li></ul></li><li><a href="#9-memory-continuity-and-reset-handling-expanded" class="table-of-contents__link toc-highlight">9. Memory, Continuity, and Reset Handling Expanded</a><ul><li><a href="#memorystep" class="table-of-contents__link toc-highlight"><code>MemoryStep</code></a></li><li><a href="#query-rewrite-and-resolved-input" class="table-of-contents__link toc-highlight">Query rewrite and resolved input</a></li><li><a href="#reset-and-fallback-handling" class="table-of-contents__link toc-highlight">Reset and fallback handling</a></li></ul></li><li><a href="#10-cache-startup-validation-and-operational-safety-are-core-v2-features" class="table-of-contents__link toc-highlight">10. Cache, Startup Validation, and Operational Safety Are Core v2 Features</a><ul><li><a href="#static-cache-model" class="table-of-contents__link toc-highlight">Static cache model</a></li><li><a href="#startup-integrity-validation" class="table-of-contents__link toc-highlight">Startup integrity validation</a></li><li><a href="#cache-analysis-and-refresh" class="table-of-contents__link toc-highlight">Cache analysis and refresh</a></li></ul></li><li><a href="#11-consumer-integration-and-extension-points-are-broader" class="table-of-contents__link toc-highlight">11. Consumer Integration and Extension Points Are Broader</a></li><li><a href="#12-what-changed-from-the-old-page" class="table-of-contents__link toc-highlight">12. What Changed From the Old Page</a></li><li><a href="#related-deep-dives" class="table-of-contents__link toc-highlight">Related Deep Dives</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/v2/overview">Overview</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/architecture">Architecture</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/local-development">Local Development</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Reference</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/v2/api/rest-api">REST API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/api/java-api">Java API</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/v2/deep-dive">Deep Dive</a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 ConvEngine.</div></div></div></footer></div>
 </body>
 </html>
