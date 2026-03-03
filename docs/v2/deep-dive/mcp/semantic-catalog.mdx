@@ -32,7 +32,9 @@ This page documents the semantic DB metadata lookup path used by MCP when tool c
   columns={["Component", "Type", "Role"]}
   rows={[
     ["`DbSemanticCatalogToolHandler`", "DbToolHandler", "MCP DB tool handler for `db.semantic.catalog`; extracts `question`/`query`/`user_input` and delegates to service."],
-    ["`DbSemanticCatalogService`", "Service", "Loads metadata rows, tokenizes question, computes ranking, and returns compact JSON payload."],
+    ["`DbSemanticCatalogService`", "Service", "Loads metadata rows, builds capsule metadata, computes lexical/vector ranking, and returns compact JSON payload."],
+    ["`SemanticCatalogVectorSearchInterceptor`", "SPI", "Pluggable vector search strategy. Consumer bean can override framework fallback and use DB-native cosine/pgvector queries."],
+    ["`DefaultSemanticCatalogVectorSearchInterceptor`", "Service", "Least-priority framework fallback using `LlmClient.generateEmbedding(...)` + stored row vectors + cosine in Java."],
     ["`McpDbToolExecutor`", "Executor", "Routes MCP DB tools to registered handlers first; falls back to `ce_mcp_db_tool` only when no handler matches."],
     ["`McpPlanner`", "Planner", "Consumes semantic output inside `mcp_observations`, then picks next `CALL_TOOL`/`ANSWER`."],
     ["`ce_mcp_tool`", "Table", "Registers `db.semantic.catalog` as an MCP tool available in planner scope."],
@@ -84,9 +86,29 @@ Accepted argument aliases:
       "tableName": "zp_ui_data_history",
       "columnName": "zp_action_id",
       "description": "Action/state transition code",
-      "tags": ["state", "history"]
+      "tags": ["state", "history"],
+      "validValues": ["100", "200", "300", "400", "500"]
     }
   ],
+  "dbkgCapsule": {
+    "version": "semantic-catalog-capsule-v2",
+    "sourceCoverage": {
+      "ce_mcp_query_knowledge": 42,
+      "ce_mcp_schema_knowledge": 380
+    },
+    "sqlGraph": {
+      "objects": ["zp_request", "zp_billbank_record"],
+      "columnsByObject": {
+        "zp_request": ["zp_request_id", "request_status"],
+        "zp_billbank_record": ["bill_cease_status", "record_status"]
+      },
+      "validValuesByObject": {
+        "zp_billbank_record": {
+          "bill_cease_status": ["ACTIVE", "CEASED"]
+        }
+      }
+    }
+  },
   "insights": {
     "suggestedPreparedQueries": ["SELECT ..."],
     "suggestedTables": ["zp_ui_data_history"]
@@ -113,6 +135,19 @@ Accepted argument aliases:
 Quality is mostly driven by good `tags`, `description`, and realistic `prepared_sql` examples in knowledge tables.
 </Highlight>
 
+## Capsule and ranking behavior
+
+When `knowledge-capsule=true`, semantic catalog returns `dbkgCapsule` directly from semantic metadata tables.
+
+- Planner consumes this capsule as primary grounding context (`{{dbkg_capsule}}`).
+- This avoids relying only on tiny ranked `schemaKnowledge` subsets when your semantic catalog is large.
+- Ranked lists still exist (`queryKnowledge`, `schemaKnowledge`) for next-step guidance.
+
+If `vector-search.enabled=true`, ranking can run via interceptor path:
+
+- framework default: embedding + Java cosine fallback
+- consumer override: DB-native vector search (for example `pgvector` cosine distance)
+
 ## Metadata tables used
 
 <DbTable
@@ -133,6 +168,8 @@ Quality is mostly driven by good `tags`, `description`, and realistic `prepared_
   rows={[
     ["`table_name`", "Ranking text + insight", "Primary table grounding for planner."],
     ["`column_name`", "Ranking text", "Column-level grounding."],
+    ["`valid_values`", "Ranking text + planner hint", "Optional enum-like business values for states/codes/channels/types."],
+    ["`vector`", "Optional vector ranking", "Consumer-populated embedding vector used when vector-search is enabled."],
     ["`description`", "Ranking text", "Business meaning for table/column."],
     ["`tags`", "Ranking text", "Domain tags to improve retrieval."],
   ]}
@@ -161,8 +198,13 @@ convengine:
         schema-catalog-table: ce_mcp_schema_knowledge
         schema-table-name-column: table_name
         schema-column-name-column: column_name
+        schema-valid-values-column: valid_values
         schema-description-column: description
         schema-tags-column: tags
+        vector-search:
+          enabled: false
+          max-results: 10
+          vector-column: vector
 ```
 
 <Highlight type="info" title="No semantic tool-code property">
@@ -183,6 +225,76 @@ VALUES ('db.semantic.catalog', 'DB', 'ANY', 'ANY', 'Semantic query/schema knowle
 ```
 
 `ce_mcp_db_tool` is not required for this tool because execution is handler-based (`DbSemanticCatalogToolHandler`), not SQL-template based.
+
+Recommended `ce_mcp_schema_knowledge` shape:
+
+```sql
+CREATE TABLE IF NOT EXISTS ce_mcp_schema_knowledge (
+  id BIGINT PRIMARY KEY,
+  table_name VARCHAR(255) NOT NULL,
+  column_name VARCHAR(255),
+  valid_values VARCHAR(2000),
+  vector VECTOR, -- consumer-managed (or TEXT if you store serialized vectors)
+  description VARCHAR(2000),
+  tags VARCHAR(1000)
+);
+```
+
+## Consumer vector interceptor example
+
+```java
+@Component
+@Order(10) // higher priority than framework fallback
+@RequiredArgsConstructor
+public class PgVectorSemanticSearchInterceptor implements SemanticCatalogVectorSearchInterceptor {
+
+  private final JdbcTemplate jdbcTemplate;
+  private final LlmClient llmClient;
+
+  @Override
+  public boolean supports(ConvEngineMcpConfig.Db.Knowledge.VectorSearch config) {
+    return config != null && config.isEnabled();
+  }
+
+  @Override
+  public List<Map<String, Object>> rank(
+      String sourceType,
+      String question,
+      List<Map<String, Object>> rows,
+      ConvEngineMcpConfig.Db.Knowledge cfg) {
+
+    float[] embedding = llmClient.generateEmbedding(question);
+    String embeddingLiteral = toPgVectorLiteral(embedding);
+
+    String table = "query".equalsIgnoreCase(sourceType)
+        ? cfg.getQueryCatalogTable()
+        : cfg.getSchemaCatalogTable();
+
+    int maxResults = Math.max(1, cfg.getVectorSearch().getMaxResults());
+    String vectorCol = cfg.getVectorSearch().getVectorColumn();
+
+    String sql = """
+      SELECT t.*, (1 - (t.%s <=> ?::vector)) AS _vector_score
+      FROM %s t
+      WHERE t.%s IS NOT NULL
+      ORDER BY t.%s <=> ?::vector
+      LIMIT ?
+      """.formatted(vectorCol, table, vectorCol, vectorCol);
+
+    return jdbcTemplate.queryForList(sql, embeddingLiteral, embeddingLiteral, maxResults);
+  }
+
+  private String toPgVectorLiteral(float[] vector) {
+    StringBuilder sb = new StringBuilder("[");
+    for (int i = 0; i < vector.length; i++) {
+      if (i > 0) sb.append(",");
+      sb.append(vector[i]);
+    }
+    sb.append("]");
+    return sb.toString();
+  }
+}
+```
 
 ## Safety model
 

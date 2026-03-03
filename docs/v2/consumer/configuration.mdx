@@ -142,8 +142,13 @@ Below is a complete reference of the default configuration options exposed by Co
           schema-catalog-table: ce_mcp_schema_knowledge
           schema-table-name-column: table_name
           schema-column-name-column: column_name
+          schema-valid-values-column: valid_values
           schema-description-column: description
           schema-tags-column: tags
+          vector-search:
+            enabled: false
+            max-results: 10
+            vector-column: vector
         knowledge-graph:
           enabled: false
           max-results: 5
@@ -450,7 +455,10 @@ The `convengine.flow.*` properties control the nuanced routing behavior without 
     ["max-results / scan-limit", "5 / 5000", "Controls depth vs breadth of the semantic distance search queries."],
     ["min-score", "0.15", "Relevance threshold to drop weak catalog matched schemas/queries."],
     ["table overrides", "ce_mcp_*", "Allows consumers to remap the query knowledge and schema knowledge semantic tables."],
-    ["column overrides", "...", "Allows rewiring of fields such as query_text, description, tags, etc."]
+    ["column overrides", "...", "Allows rewiring of fields such as query_text, description, tags, valid_values, etc."],
+    ["vector-search.enabled", "false", "Enables vector ranking path for semantic catalog."],
+    ["vector-search.max-results", "10", "Top K rows retained from vector ranking interceptor."],
+    ["vector-search.vector-column", "vector", "Column name that stores row vectors in semantic catalog tables."]
   ]}
 />
 
