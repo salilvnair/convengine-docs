@@ -5,7 +5,7 @@ sidebar_position: 11
 
 # ConvEngine Detailed Features (Current v2 Line)
 
-This page reflects the current v2 codebase, not just the original `2.0.0` launch set. It consolidates the active runtime behavior across the v2 release line through the current repo state (including later additions such as `CorrectionStep`, `ce_mcp_planner`, `ce_verbose`, extra rule phases, and Thymeleaf-backed prompt rendering).
+This page reflects the current v2 codebase, not just the original `2.0.0` launch set. It consolidates the active runtime behavior across the v2 release line through the current repo state (including later additions such as `CorrectionStep`, `ce_mcp_planner`, `ce_verbose`, Database Knowledge Graph (DBKG), extra rule phases, and Thymeleaf-backed prompt rendering).
 
 If you need exact internals for one subsystem, use the linked deep-dive pages. This page is the high-level, top-to-bottom feature inventory.
 
@@ -321,6 +321,73 @@ If the planner proposes a blocked next tool:
 
 ## 6. Rules Are Broader Than the Original v2 Rule Model
 
+## 6. Database Knowledge Graph (DBKG) Turns MCP Into a DB-Driven Investigation Engine
+
+This is the biggest newer addition missing from older v2 summaries.
+
+Database Knowledge Graph (DBKG) (`dbkg.*`) extends MCP from "tool calling" into a configurable investigation runtime for production support and data debugging.
+
+Current Database Knowledge Graph (DBKG) flow:
+
+- `dbkg.case.resolve`
+- `dbkg.knowledge.lookup`
+- `dbkg.investigate.plan`
+- `dbkg.playbook.validate`
+- `dbkg.investigate.execute`
+- planner `ANSWER`
+
+What makes Database Knowledge Graph (DBKG) different from legacy DB lookup:
+
+- it resolves a business case first, not raw SQL first
+- it uses live schema introspection plus optional semantic overlays
+- it chooses a playbook from DB metadata
+- it validates the playbook graph before execution
+- it executes only approved query templates and derived steps
+- it resolves final outcomes from DB-stored diagnosis rules
+
+Current Database Knowledge Graph (DBKG) control-plane tables include:
+
+- case resolution:
+  - `ce_mcp_case_type`
+  - `ce_mcp_case_signal`
+- playbook selection and graph:
+  - `ce_mcp_playbook`
+  - `ce_mcp_playbook_signal`
+  - `ce_mcp_playbook_step`
+  - `ce_mcp_playbook_transition`
+  - `ce_mcp_outcome_rule`
+- knowledge graph:
+  - `ce_mcp_domain_entity`
+  - `ce_mcp_domain_relation`
+  - `ce_mcp_system_node`
+  - `ce_mcp_api_flow`
+  - `ce_mcp_system_relation`
+  - `ce_mcp_db_object`
+  - `ce_mcp_db_column`
+  - `ce_mcp_db_join_path`
+  - `ce_mcp_status_dictionary`
+  - `ce_mcp_id_lineage`
+- execution:
+  - `ce_mcp_executor_template`
+  - `ce_mcp_query_template`
+  - `ce_mcp_query_param_rule`
+
+Current Database Knowledge Graph (DBKG) runtime guard model:
+
+- planner prompt sequencing is DB-driven
+- `DbkgPlaybookValidator` validates the graph before execute
+- `McpToolStep` hard-blocks `dbkg.investigate.execute` if a successful validation observation is missing
+- the block reason is explicit (`DBKG_VALIDATION_REQUIRED_BEFORE_EXECUTION`)
+
+If you need the full Database Knowledge Graph (DBKG) model, use the dedicated deep dives:
+
+- [MCP](/docs/v2/deep-dive/mcp)
+- [MCP Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog)
+- [MCP Knowledge (Database Knowledge Graph (DBKG))](/docs/v2/deep-dive/mcp/knowledge)
+- [MCP Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4)
+
+## 7. Rules Are Broader Than the Original v2 Rule Model
+
 ### Current rule phases
 
 The runtime rule surface is larger now:
@@ -356,7 +423,7 @@ The rule engine now supports both retrieval-style and mutation-style actions:
 
 That means `ce_rule` is not just for state transitions anymore. It can mutate input params, inject task directives, and branch across more pipeline phases.
 
-## 7. Schema, Prompt, and Response Handling Are Richer in Current v2
+## 8. Schema, Prompt, and Response Handling Are Richer in Current v2
 
 ### `SchemaExtractionStep`
 
@@ -415,7 +482,7 @@ This same rendering path is used by:
 - `ce_verbose.message`
 - `ce_verbose.error_message`
 
-## 8. Verbose Runtime and Step Telemetry Are First-Class Features
+## 9. Verbose Runtime and Step Telemetry Are First-Class Features
 
 ### `ce_verbose` (newer v2 addition)
 
@@ -474,7 +541,7 @@ Current v2 also records per-step execution details in `EngineSession.stepInfos`:
 
 This supports deterministic diagnostics and replay-friendly inspection.
 
-## 9. Memory, Continuity, and Reset Handling Expanded
+## 10. Memory, Continuity, and Reset Handling Expanded
 
 ### `MemoryStep`
 
@@ -504,7 +571,7 @@ The v2 line also includes:
 - reset-by-configured-intent via `ResetResolvedIntentStep`
 - fallback filling of missing intent/state through `FallbackIntentStateStep`
 
-## 10. Cache, Startup Validation, and Operational Safety Are Core v2 Features
+## 11. Cache, Startup Validation, and Operational Safety Are Core v2 Features
 
 The current v2 line is much stricter operationally than the original feature list suggested.
 
@@ -543,7 +610,7 @@ Operational tooling now includes:
 
 These were added specifically to reduce config debugging friction in real deployments.
 
-## 11. Consumer Integration and Extension Points Are Broader
+## 12. Consumer Integration and Extension Points Are Broader
 
 Current v2 supports several framework-level integration hooks beyond the original basic engine enablement.
 
@@ -564,7 +631,39 @@ Consumer-side custom code can also extend behavior through:
 
 This lets consumers add UI progress messaging, custom transport shaping, and domain logic without forking core engine flow.
 
-## 12. What Changed From the Old Page
+## 13. Release-Line Additions That Matter (2.0.6 to 2.0.9)
+
+The current repo includes several important changes from the later v2 line that are easy to miss if you only read older high-level docs.
+
+### 2.0.6 line
+
+- cache reliability and diagnostics became first-class operational features
+- static cache analysis and refresh tooling were added for faster environment debugging
+- cache/proxy behavior was tightened so static `ce_*` config lookups stay stable after warmup
+
+### 2.0.7 line
+
+- MCP became planner-scoped with `ce_mcp_planner`
+- MCP scope validation became strict for `ce_mcp_tool` and `ce_mcp_planner`
+- guardrail-blocked next-tool behavior became deterministic
+- richer MCP lifecycle metadata became available in `context.mcp.*`
+- advanced MCP HTTP handler models were added
+
+### 2.0.8 line
+
+- `ce_verbose` was added as a true control-plane table
+- verbose events started flowing through SSE and STOMP, not just audit rows
+- step telemetry was added to runtime session state
+- MCP schema completeness checks became stricter and deterministic
+
+### 2.0.9 line
+
+- `CorrectionStep` became a real routing layer instead of a documentation gap
+- prompt-template interaction semantics (`interaction_mode`, `interaction_contract`) became part of actual runtime flow
+- prompt rendering consolidated around the shared Thymeleaf-backed renderer
+- Database Knowledge Graph (DBKG) was added as the DB-driven MCP investigation model for business-to-database diagnostics
+
+## 14. What Changed From the Old Page
 
 The old version of this document was incomplete and partially outdated. The main gaps were:
 
@@ -572,6 +671,7 @@ The old version of this document was incomplete and partially outdated. The main
 - it missed `CorrectionStep`
 - it missed `PendingActionStep`, `AutoAdvanceStep`, `PolicyEnforcementStep`, reset/fallback steps, and the broader DAG
 - it missed `ce_mcp_planner`
+- it missed Database Knowledge Graph (DBKG) and the DB-backed knowledge graph / playbook model
 - it missed newer rule phases (`POST_DIALOGUE_ACT`, `POST_SCHEMA_EXTRACTION`, `PRE_AGENT_MCP`)
 - it missed `SET_INPUT_PARAM`
 - it missed `ce_verbose`, stream verbose events, and step telemetry
@@ -583,5 +683,8 @@ The old version of this document was incomplete and partially outdated. The main
 - [Pipeline & Steps](/docs/v2/deep-dive/pipeline-steps)
 - [Rules & Responses](/docs/v2/deep-dive/rules-responses)
 - [Verbose and Conversation Runtime](/docs/v2/deep-dive/verbose-and-conversation-runtime)
-- [MCP and Audit](/docs/v2/deep-dive/mcp-audit)
+- [Table Config](/docs/v2/deep-dive/table-config)
+- [MCP](/docs/v2/deep-dive/mcp)
+- [MCP Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog)
+- [MCP Knowledge (Database Knowledge Graph (DBKG))](/docs/v2/deep-dive/mcp/knowledge)
 - [Version History](/docs/v2/version-history)

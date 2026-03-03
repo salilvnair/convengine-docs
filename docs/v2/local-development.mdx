@@ -138,6 +138,8 @@ convengine:
     level: ALL
     include-stages: []
     exclude-stages: []
+    include-intents: []
+    exclude-intents: []
     persistence:
       mode: IMMEDIATE
       jdbc-batch-size: 200
@@ -261,6 +263,10 @@ Check:
 - `MCP_TOOL_RESULT`
 - `MCP_TOOL_ERROR`
 - `MCP_FINAL_ANSWER`
+- `MCP_DB_SQL_EXECUTION`
+- `DBKG_QUERY_SQL_EXECUTION`
+
+For SQL-backed MCP and Database Knowledge Graph (DBKG) queries, inspect the audit payload metadata: `sql`, `params`, `row_count`, and `rows`.
 
 Remember that current MCP scope is explicit. If a tool is not visible, verify `intent_code`, `state_code`, and whether the row is too narrow or too broad.
 

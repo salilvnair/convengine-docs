@@ -1,0 +1,168 @@
+---
+title: MCP
+sidebar_position: 1
+---
+
+import { DbTable, Highlight } from "@site/src/components/convengine";
+
+# MCP
+
+MCP in ConvEngine is the runtime control layer that lets the engine decide when to call tools, how to sequence them, how to record each observation, and how to turn those observations back into one final assistant response. The important part is not just "tool calling"; it is deterministic orchestration with audit visibility, rule hooks, and data-driven control from `ce_*` tables.
+
+<Highlight type="info" title="What this section covers">
+Use this section when you need the internal execution model: planner loops, tool execution, Database Knowledge Graph (DBKG) investigation flow, audit stages, and real end-to-end examples.
+</Highlight>
+
+## Quick navigation
+
+- [Database Knowledge Graph (DBKG) at a glance](#database-knowledge-graph-dbkg-at-a-glance)
+- [In this MCP section](#in-this-mcp-section)
+- [Two tool paths](#two-tool-paths)
+- [Guardrail blocked branch](#guardrail-blocked-branch)
+- [Rule-ready MCP metadata](#rule-ready-mcp-metadata)
+- [JSON_PATH examples for `ce_rule.match_pattern`](#json_path-examples-for-ce_rulematch_pattern)
+- [Audit stages to watch](#audit-stages-to-watch)
+- [Scope enforcement](#scope-enforcement)
+- [Basics](/docs/v2/deep-dive/mcp/basics)
+- [Advanced Guide](/docs/v2/deep-dive/mcp/advanced)
+- [Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog)
+- [DB Knowledge Graph](/docs/v2/deep-dive/mcp/knowledge)
+- [HTTP Tool](/docs/v2/deep-dive/mcp/http-tool)
+- [Deep Dive](/docs/v2/deep-dive/mcp/deep-dive)
+- [Example 1](/docs/v2/deep-dive/mcp/example1)
+- [Example 2](/docs/v2/deep-dive/mcp/example2)
+- [Example 3](/docs/v2/deep-dive/mcp/example3)
+- [Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4)
+
+## Database Knowledge Graph (DBKG) at a glance
+
+Database Knowledge Graph (DBKG) is the DB-driven investigation layer inside MCP. It is designed for production support and debugging use cases where the user asks in business language and the engine has to translate that into safe, explainable database investigation steps.
+
+At a high level, Database Knowledge Graph (DBKG) works like this:
+
+1. The user asks a business question such as "show requests assigned then rejected in last 24 hours" or "why is there no disconnect id after submit?"
+2. `IntentResolutionStep` and `RulesStep` route the conversation into the MCP diagnostic path.
+3. `McpToolStep` starts the planner loop.
+4. Database Knowledge Graph (DBKG) resolves the business case from `ce_mcp_case_type` and `ce_mcp_case_signal`.
+5. Database Knowledge Graph (DBKG) loads ranked knowledge from the semantic graph, API flow catalog, live schema introspection, and overlay hints.
+6. Database Knowledge Graph (DBKG) chooses a playbook from `ce_mcp_playbook`, loads its steps and transitions, and validates the graph before execution.
+7. Database Knowledge Graph (DBKG) executes only approved query templates and derived steps, follows graph transitions, and resolves the final outcome from `ce_mcp_outcome_rule`.
+8. The planner returns `ANSWER`, `POST_AGENT_MCP` rules can still react, and `ResponseResolutionStep` produces one final user-facing response.
+
+Why Database Knowledge Graph (DBKG) matters:
+
+- The user does not need to know physical table names.
+- The engine can use live Postgres schema discovery plus optional semantic hints.
+- The investigation path is configurable in DB tables, not hardcoded in Java.
+- Every step is auditable through MCP observations and normal ConvEngine audit stages.
+- Execution is guarded: playbook validation must succeed before the Database Knowledge Graph (DBKG) execute step is allowed.
+
+<DbTable
+  title="Database Knowledge Graph (DBKG) high-level model"
+  columns={["Layer", "What it stores", "Why it matters"]}
+  rows={[
+    ["Case resolution", "case types + weighted signals", "Turns business wording into a structured investigation family."],
+    ["Knowledge graph", "domain entities, systems, api flows, schema overlays, status dictionary, ID lineage", "Gives the planner business meaning on top of physical schema."],
+    ["Playbook graph", "playbooks, steps, transitions, executor templates", "Defines the investigation path as a DB-driven DAG."],
+    ["Execution controls", "query templates, param rules, outcome rules", "Keeps execution safe, reproducible, and explainable."],
+    ["Audit surface", "context.mcp.* + ce_audit stages", "Lets operators see what the engine decided, ran, and returned."]
+  ]}
+/>
+
+## In this MCP section
+
+<DbTable
+  title="MCP page map"
+  columns={["Page", "Purpose", "When to read it"]}
+  rows={[
+    ["[Basics](/docs/v2/deep-dive/mcp/basics)", "Core MCP mental model.", "Start here if you want the shortest possible overview."],
+    ["[Advanced Guide](/docs/v2/deep-dive/mcp/advanced)", "Planner, guardrails, phases, and runtime metadata.", "Use this when configuring real tool chains."],
+    ["[Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog)", "Metadata grounding path for planner hints.", "Use this for `db.semantic.catalog`, ranking behavior, and semantic table design."],
+    ["[DB Knowledge Graph](/docs/v2/deep-dive/mcp/knowledge)", "DB-driven knowledge graph and investigation runtime.", "Use this for the full Database Knowledge Graph (DBKG) model and metadata tables."],
+    ["[HTTP Tool](/docs/v2/deep-dive/mcp/http-tool)", "HTTP tool execution path.", "Use this when your tool talks to REST/SOAP endpoints."],
+    ["[Deep Dive](/docs/v2/deep-dive/mcp/deep-dive)", "Planner-loop execution graph.", "Use this when tracing the confirmation-first MCP lifecycle."],
+    ["[Example 1](/docs/v2/deep-dive/mcp/example1)", "Mockey + demo integration example.", "Use this for the simplest end-to-end example."],
+    ["[Example 2](/docs/v2/deep-dive/mcp/example2)", "Loan application flow.", "Use this for a practical business flow with tools."],
+    ["[Example 3](/docs/v2/deep-dive/mcp/example3)", "Extended loan application flow.", "Use this for correction + confirmation behavior."],
+    ["[Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4)", "Database Knowledge Graph (DBKG)-based production investigation example.", "Use this for the full Zapper diagnostic story."],
+  ]}
+/>
+
+## Two tool paths
+
+1. `ToolOrchestrationStep` (direct tool mode)
+- request-driven via `tool_request`
+- executes one tool
+- runs `POST_TOOL_EXECUTION` rules
+- writes `context.mcp.toolExecution.*`
+
+2. `McpToolStep` (planner loop mode)
+- planner loop (`CALL_TOOL` / `ANSWER`)
+- writes `context.mcp.observations[]` and `context.mcp.finalAnswer`
+- runs `POST_AGENT_MCP` rules
+- writes `context.mcp.lifecycle.*`
+
+## Guardrail blocked branch
+
+If the planner proposes a blocked next tool:
+
+- `mcp_status=GUARDRAIL_BLOCKED_NEXT_TOOL`
+- fallback final text is written to `context.mcp.finalAnswer`
+- `POST_AGENT_MCP` rules still run
+- response is still finalized by `ce_response` resolution
+
+## Rule-ready MCP metadata
+
+`context.mcp.lifecycle` includes:
+
+- `phase`, `status`, `outcome`, `finished`
+- `blocked`, `error`, `errorMessage`
+- `lastAction`, `lastToolCode`, `lastToolGroup`, `lastToolArgs`
+- `toolExecuted`
+
+`context.mcp.toolExecution` includes:
+
+- `phase`, `status`, `outcome`, `finished`
+- `error`, `scopeMismatch`, `toolExecuted`
+- `toolCode`, `toolGroup`, `meta`, `result`, `errorMessage`
+
+## JSON_PATH examples for `ce_rule.match_pattern`
+
+```text
+$[?(@.context.mcp.lifecycle.finished == true && @.context.mcp.lifecycle.outcome == 'BLOCKED')]
+$[?(@.context.mcp.lifecycle.error == true)]
+$[?(@.context.mcp.toolExecution.phase == 'POST_TOOL_EXECUTION' && @.context.mcp.toolExecution.status == 'SUCCESS')]
+$[?(@.context.mcp.toolExecution.scopeMismatch == true)]
+```
+
+## Audit stages to watch
+
+Tool orchestration path:
+
+- `TOOL_ORCHESTRATION_REQUEST`
+- `TOOL_ORCHESTRATION_RESULT`
+- `TOOL_ORCHESTRATION_ERROR`
+
+Planner MCP path:
+
+- `MCP_PLAN_LLM_INPUT`
+- `MCP_PLAN_LLM_OUTPUT`
+- `MCP_TOOL_CALL`
+- `MCP_TOOL_RESULT`
+- `MCP_TOOL_ERROR`
+- `MCP_FINAL_ANSWER`
+
+Rule phases around these paths:
+
+- `RULE_MATCH (McpToolStep)` / `RULE_NO_MATCH (McpToolStep)`
+- `RULE_MATCH (ToolOrchestrationStep PostTool)` / `RULE_NO_MATCH (ToolOrchestrationStep PostTool)`
+- `RULE_MATCH (AgentIntentResolver)` / `RULE_NO_MATCH (AgentIntentResolver)`
+- `RULE_MATCH (RulesStep)` / `RULE_NO_MATCH (RulesStep)`
+
+## Scope enforcement
+
+`ce_mcp_tool` and `ce_mcp_planner` are scope-validated at startup:
+
+- null/blank scope rows are rejected
+- `intent_code` must be `ANY`, `UNKNOWN`, or defined in `ce_intent`
+- `state_code` must be `ANY`, `UNKNOWN`, or present in `ce_rule.state_code`

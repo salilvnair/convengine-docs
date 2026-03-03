@@ -326,37 +326,45 @@ If user says "yes" but flow loops back to confirmation, check in order:
   <TabItem value="db" label="Required ce_* Rows">
 
 <CodeBlockToggle title="Dynamic Slot & Task DML" language="sql" defaultOpen={true}>
-{`INSERT INTO ce_intent (intent_code, enabled) VALUES ('CANCEL_ORDER', true);
+{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+VALUES ('CANCEL_ORDER', 'Cancel an order after collecting order number and confirmation.', 100, true);
 
-INSERT INTO ce_output_schema (intent_code, format_type, schema_json, enabled)
-VALUES ('CANCEL_ORDER', 'JSON', '{"type":"object","properties":{"orderNumber":{"type":"string"}},"required":["orderNumber"]}', true);
+INSERT INTO ce_output_schema (intent_code, state_code, json_schema, description, enabled, priority)
+VALUES (
+  'CANCEL_ORDER',
+  'IDLE',
+  '{"type":"object","properties":{"orderNumber":{"type":"string"}},"required":["orderNumber"]}',
+  'Required order number for cancellation.',
+  true,
+  100
+);
 
-INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, enabled)
-VALUES ('CANCEL_ORDER', 'SCHEMA_COLLECTION', 'Extract JSON schema fields.', true);
+INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, temperature, enabled)
+VALUES ('CANCEL_ORDER', 'IDLE', 'DERIVED', 'Extract schema fields.', 'Collect the order number from the user input.', 0.0, true);
 
-INSERT INTO ce_rule (intent_code, state_code, rule_type, rule_value, action, action_value, phase, priority, enabled)
+INSERT INTO ce_rule (intent_code, state_code, rule_type, match_pattern, "action", action_value, phase, priority, enabled)
 VALUES ('CANCEL_ORDER', 'IDLE', 'JSON_PATH', '$[?(@.context.orderNumber != null && @.context.orderNumber != '''')]', 'SET_STATE', 'CONFIRM_CANCEL', 'PRE_RESPONSE_RESOLUTION', 10, true);
 
-INSERT INTO ce_response (intent_code, state_code, response_type, exact_text, enabled)
-VALUES ('CANCEL_ORDER', 'IDLE', 'EXACT', 'I can help you cancel your order. What is your order number?', true);
+INSERT INTO ce_response (intent_code, state_code, output_format, response_type, exact_text, priority, enabled)
+VALUES ('CANCEL_ORDER', 'IDLE', 'TEXT', 'EXACT', 'I can help you cancel your order. What is your order number?', 10, true);
 
-INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, user_prompt, template_id, enabled)
-VALUES ('CANCEL_ORDER', 'DERIVED', 'Format order number cleanly.', 'Are you sure you want to cancel order {{context.orderNumber}}? This action is irreversible.', 'tmpl_confirm_cancel', true);
+INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, temperature, enabled)
+VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'DERIVED', 'Format order number cleanly.', 'Are you sure you want to cancel order {{context.orderNumber}}? This action is irreversible.', 0.0, true);
 
-INSERT INTO ce_response (intent_code, state_code, response_type, template_id, enabled)
-VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'DERIVED', 'tmpl_confirm_cancel', true);
+INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
+VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'TEXT', 'DERIVED', 'Render the CONFIRM_CANCEL prompt using context.orderNumber.', 10, true);
 
 INSERT INTO ce_pending_action (intent_code, state_code, action_key, bean_name, method_names, priority, enabled, description)
 VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'stripe_cancel', 'stripeCancelTask', 'execute', 10, true, 'Cancel the order in the provider system');
 
-INSERT INTO ce_rule (intent_code, state_code, rule_type, rule_value, action, action_value, phase, priority, enabled)
+INSERT INTO ce_rule (intent_code, state_code, rule_type, match_pattern, "action", action_value, phase, priority, enabled)
 VALUES ('CANCEL_ORDER', 'CONFIRM_CANCEL', 'EXACT', 'ANY', 'SET_STATE', 'CANCELLED', 'PRE_RESPONSE_RESOLUTION', 20, true);
 
-INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, user_prompt, template_id, enabled)
-VALUES ('CANCEL_ORDER', 'DERIVED', 'Format cleanly.', 'Order {{context.orderNumber}} has been completely cancelled.', 'tmpl_cancelled', true);
+INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, temperature, enabled)
+VALUES ('CANCEL_ORDER', 'CANCELLED', 'DERIVED', 'Format cleanly.', 'Order {{context.orderNumber}} has been completely cancelled.', 0.0, true);
 
-INSERT INTO ce_response (intent_code, state_code, response_type, template_id, enabled)
-VALUES ('CANCEL_ORDER', 'CANCELLED', 'DERIVED', 'tmpl_cancelled', true);`}
+INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
+VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Render the CANCELLED prompt using context.orderNumber.', 10, true);`}
 </CodeBlockToggle>
 
   </TabItem>
@@ -422,16 +430,17 @@ VALUES ('CANCEL_ORDER', 'CANCELLED', 'DERIVED', 'tmpl_cancelled', true);`}
   <TabItem value="db" label="Required ce_* Rows">
 
 <CodeBlockToggle title="Tool Orchestration DML" language="sql" defaultOpen={true}>
-{`INSERT INTO ce_intent (intent_code, enabled) VALUES ('DATABASE_QUERY', true);
+{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+VALUES ('DATABASE_QUERY', 'Answer read-only inventory queries using MCP DB tools.', 100, true);
 
-INSERT INTO ce_mcp_tool (intent_code, tool_group, required_params_json, execution_timeout_ms, enabled)
-VALUES ('DATABASE_QUERY', 'INVENTORY_DB', '["itemType", "warehouseId"]', 5000, true);
+INSERT INTO ce_mcp_tool (tool_code, tool_group, intent_code, state_code, enabled, description)
+VALUES ('inventory.lookup', 'DB', 'DATABASE_QUERY', 'IDLE', true, 'Read-only inventory lookup tool.');
 
-INSERT INTO ce_prompt_template (intent_code, response_type, system_prompt, user_prompt, template_id, enabled)
-VALUES ('DATABASE_QUERY', 'DERIVED', 'You are an inventory assistant.', 'Answer from these database results: {{tool_result.dbList}}', 'tmpl_inventory_gen', true);
+INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, temperature, enabled)
+VALUES ('DATABASE_QUERY', 'COMPLETED', 'DERIVED', 'You are an inventory assistant.', 'Answer from these database results: {{context.mcp.finalAnswer}}', 0.0, true);
 
-INSERT INTO ce_response (intent_code, state_code, response_type, template_id, priority, enabled)
-VALUES ('DATABASE_QUERY', 'IDLE', 'DERIVED', 'tmpl_inventory_gen', 10, true);`}
+INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
+VALUES ('DATABASE_QUERY', 'COMPLETED', 'TEXT', 'DERIVED', 'Render the final answer from context.mcp.finalAnswer.', 10, true);`}
 </CodeBlockToggle>
 
   </TabItem>

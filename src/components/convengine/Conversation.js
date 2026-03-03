@@ -25,11 +25,13 @@ export function User({ children, name = "User", json, tables, info }) {
   );
 }
 
-export function Assistant({ children, name = "ConvEngine", json, tables, info }) {
+export function Assistant({ children, name = "ConvEngine", intent, state, json, tables, info }) {
   return (
     <TraceChatBubble
       role="assistant"
       name={name}
+      intent={intent}
+      state={state}
       json={json}
       tables={tables}
       info={info}

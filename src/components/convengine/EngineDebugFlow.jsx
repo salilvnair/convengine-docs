@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -35,7 +35,13 @@ function DebugFlowNode({ data, selected }) {
 }
 
 function EngineDebugFlowInner({ title, subtitle, nodes = [], edges = [], detailsById = {}, defaultSelectedId }) {
-  const [selectedId, setSelectedId] = useState(defaultSelectedId || (nodes[0] && nodes[0].id));
+  const initialSelectedId = useMemo(() => {
+    if (defaultSelectedId && nodes.some((n) => n.id === defaultSelectedId)) {
+      return defaultSelectedId;
+    }
+    return nodes[0] && nodes[0].id;
+  }, [defaultSelectedId, nodes]);
+  const [selectedId, setSelectedId] = useState(initialSelectedId);
   const rf = useReactFlow();
   const nodeIndex = useMemo(() => {
     const m = new Map();
@@ -170,6 +176,12 @@ function EngineDebugFlowInner({ title, subtitle, nodes = [], edges = [], details
     return m;
   }, [flowNodes]);
 
+  useEffect(() => {
+    if (!selectedId || !nodesById.has(selectedId)) {
+      setSelectedId(initialSelectedId);
+    }
+  }, [selectedId, nodesById, initialSelectedId]);
+
   const selectNode = useCallback(
     (id) => {
       setSelectedId(id);
@@ -181,7 +193,7 @@ function EngineDebugFlowInner({ title, subtitle, nodes = [], edges = [], details
     [nodesById, rf]
   );
 
-  const selected = detailsById[selectedId] || {};
+  const selected = selectedId ? (detailsById[selectedId] || {}) : {};
   const nodeTypes = useMemo(() => ({ debugNode: DebugFlowNode }), []);
 
   return (
@@ -237,24 +249,26 @@ function EngineDebugFlowInner({ title, subtitle, nodes = [], edges = [], details
             {selected.stage ? <div className="ce-debug-stage-pill">{selected.stage}</div> : null}
             {selected.summary ? <p>{selected.summary}</p> : null}
           </div>
-          <div className="ce-debug-detail-card">
-            {selected.file ? (
-              <div className="ce-debug-kv">
-                <span>file</span>
-                <code className="ce-debug-path-code" title={selected.file}>
-                  {compactFilePath(selected.file)}
-                </code>
-              </div>
-            ) : null}
-            {selected.method ? (
-              <div className="ce-debug-kv">
-                <span>method</span>
-                <code className="ce-debug-method-code" title={selected.method}>
-                  {selected.method}
-                </code>
-              </div>
-            ) : null}
-          </div>
+          {selected.file || selected.method ? (
+            <div className="ce-debug-detail-card">
+              {selected.file ? (
+                <div className="ce-debug-kv">
+                  <span>file</span>
+                  <code className="ce-debug-path-code" title={selected.file}>
+                    {compactFilePath(selected.file)}
+                  </code>
+                </div>
+              ) : null}
+              {selected.method ? (
+                <div className="ce-debug-kv">
+                  <span>method</span>
+                  <code className="ce-debug-method-code" title={selected.method}>
+                    {selected.method}
+                  </code>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {selected.session ? (
             <div className="ce-debug-detail-card">
               <div className="ce-debug-detail-subtitle">Session Snapshot</div>

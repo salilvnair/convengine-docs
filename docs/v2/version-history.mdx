@@ -38,6 +38,8 @@ sidebar_position: 30
     - MCP planning
     - response generation
   - `MCP_TOOL_CALL` now emits richer metadata (`tool_code`, args, action, intent, state, routing decision, observation context)
+  - new MCP SQL observability stages: `MCP_DB_SQL_EXECUTION` and `DBKG_QUERY_SQL_EXECUTION`
+  - both carry `sql`, `params`, `row_count`, and `rows` in audit payloads and can be surfaced through `ce_verbose`
 - Consumer extension support:
   - new `ConvEngineVerboseAdapter` allows hooks, container transformers, response transformers, and custom beans to emit either:
     - DB-resolved `ce_verbose` events
@@ -119,7 +121,7 @@ sidebar_position: 30
   - runtime normalization keeps old phase values compatible during migration.
 - MCP docs expansion:
   - advanced guide updates for metadata and rule patterns.
-  - new dedicated [MCP Deep Dive](/docs/v2/consumer/mcp/deep-dive) with chat-by-chat flow, table impact, and step graph.
+  - new dedicated [MCP Deep Dive](/docs/v2/deep-dive/mcp/deep-dive) with chat-by-chat flow, table impact, and step graph.
 
 ## 2.0.6
 

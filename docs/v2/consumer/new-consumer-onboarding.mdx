@@ -17,6 +17,7 @@ The older onboarding page was written around the original `2.0.0` launch assumpt
 - `CorrectionStep`
 - `ce_mcp_planner`
 - `ce_verbose`
+- Database Knowledge Graph (DBKG) (`dbkg.*`)
 - extra rule phases (`POST_SCHEMA_EXTRACTION`, `PRE_AGENT_MCP`, `POST_DIALOGUE_ACT`)
 - richer MCP metadata
 - shared Thymeleaf prompt rendering
@@ -41,7 +42,7 @@ So a modern integration should be set up with those capabilities in mind from da
 
 Use the current framework version from the repo:
 
-- `convengine:2.0.9`
+- `convengine:2.0.10`
 
 ## 1. Add the framework dependency
 
@@ -52,7 +53,7 @@ Use the current framework version from the repo:
 {`<dependency>
   <groupId>com.github.salilvnair</groupId>
   <artifactId>convengine</artifactId>
-  <version>2.0.9</version>
+  <version>2.0.10</version>
 </dependency>`}
 </CodeBlockToggle>
 
@@ -60,7 +61,7 @@ Use the current framework version from the repo:
   <TabItem value="gradle" label="build.gradle.kts">
 
 <CodeBlockToggle title="Gradle dependency" language="kotlin">
-{`implementation("com.github.salilvnair:convengine:2.0.9")`}
+{`implementation("com.github.salilvnair:convengine:2.0.10")`}
 </CodeBlockToggle>
 
   </TabItem>
@@ -126,6 +127,16 @@ Use these only when the feature is actually in scope:
 - `ce_verbose`
 - `ce_container_config`
 - `ce_policy`
+
+If you are onboarding with Database Knowledge Graph (DBKG), also apply and seed the Database Knowledge Graph (DBKG) package:
+
+- `sql/mcp/dbkg/ddl_postgres.sql` or `sql/mcp/dbkg/ddl_sqlite.sql`
+- `sql/mcp/dbkg/seed.sql`
+
+If you want the live Zapper-style test schema used in the Database Knowledge Graph (DBKG) docs/examples:
+
+- `sql/zapper/ddl_postgres.sql` or `sql/zapper/ddl_sqlite.sql`
+- `sql/zapper/seed.sql`
 
 ## 5. Seed one complete vertical slice first
 
@@ -232,6 +243,21 @@ This is what allows `CorrectionStep` to safely do in-place confirm/edit/retry ro
     guardrail:
       enabled: false
       fail-closed: false
+      allowed-next-by-current-tool: {}
+    db:
+      knowledge-graph:
+        enabled: false
+        schema-introspection-enabled: true
+        included-schemas:
+          - public
+        excluded-schemas:
+          - information_schema
+          - pg_catalog
+        case-resolve-tool-code: dbkg.case.resolve
+        knowledge-lookup-tool-code: dbkg.knowledge.lookup
+        investigate-plan-tool-code: dbkg.investigate.plan
+        playbook-validate-tool-code: dbkg.playbook.validate
+        investigate-execute-tool-code: dbkg.investigate.execute
 
   experimental:
     enabled: false`}
@@ -261,7 +287,28 @@ Bad first MCP rollout:
 - no rule inspection of lifecycle outcomes
 - no handler-level business authorization
 
-## 9. Use `ce_verbose` early
+## 9. If you adopt Database Knowledge Graph (DBKG), start even narrower
+
+Database Knowledge Graph (DBKG) is powerful, but it should still start as one controlled vertical slice.
+
+Good first Database Knowledge Graph (DBKG) rollout:
+
+- one investigative intent
+- one or two case types
+- one playbook
+- one or two query templates
+- one explicit validation path
+- one response path for success and one for blocked/invalid playbook
+
+Bad first Database Knowledge Graph (DBKG) rollout:
+
+- many case types on day one
+- dozens of playbooks before you have trace discipline
+- no `ce_mcp_outcome_rule` coverage
+- direct ad hoc SQL outside `ce_mcp_query_template`
+- project-specific investigation logic hardcoded into Java handlers
+
+## 10. Use `ce_verbose` early
 
 Modern onboarding should include `ce_verbose`, not just raw audit inspection.
 
@@ -280,7 +327,7 @@ Even a small first rollout should seed a handful of verbose rows for:
 - `RESOLVE_RESPONSE_SELECTED`
 - `MCP_TOOL_CALL` / `MCP_TOOL_ERROR` if you use MCP
 
-## 10. Validate with a real pre-production checklist
+## 11. Validate with a real pre-production checklist
 
 <DbTable
   title="Minimum readiness checklist"
@@ -295,10 +342,10 @@ Even a small first rollout should seed a handful of verbose rows for:
   ]}
 />
 
-## 11. Recommended onboarding sequence
+## 12. Recommended onboarding sequence
 
 <FlowStep step="1" title="Wire framework and LLM">
-Add the `2.0.9` dependency, enable ConvEngine, and provide a production-grade `LlmClient`.
+Add the `2.0.10` dependency, enable ConvEngine, and provide a production-grade `LlmClient`.
 </FlowStep>
 
 <FlowStep step="2" title="Apply schema and seed one narrow flow">
@@ -316,6 +363,36 @@ Test missing fields, user edits, retries, guardrail skips, and no-response edge 
 <FlowStep step="5" title="Add MCP or pending actions only after the core path is stable">
 Expand into tools or task execution after the base conversational path is deterministic and traceable.
 </FlowStep>
+
+<FlowStep step="6" title="Add Database Knowledge Graph (DBKG) only after you can explain one full trace end-to-end">
+Enable Database Knowledge Graph (DBKG) after your team can read the audit trail, understand the playbook graph, and explain why a validation or execute step was chosen.
+</FlowStep>
+
+## Database Knowledge Graph (DBKG)-ready starter config
+
+<CodeBlockToggle title="Starter config with Database Knowledge Graph (DBKG) disabled by default" language="yaml">
+{`convengine:
+  mcp:
+    guardrail:
+      enabled: false
+      fail-closed: false
+      allowed-next-by-current-tool: {}
+    db:
+      knowledge-graph:
+        enabled: false
+        schema-introspection-enabled: true
+        schema-object-limit: 200
+        included-schemas:
+          - public
+        excluded-schemas:
+          - information_schema
+          - pg_catalog
+        case-resolve-tool-code: dbkg.case.resolve
+        knowledge-lookup-tool-code: dbkg.knowledge.lookup
+        investigate-plan-tool-code: dbkg.investigate.plan
+        playbook-validate-tool-code: dbkg.playbook.validate
+        investigate-execute-tool-code: dbkg.investigate.execute`}
+</CodeBlockToggle>
 
 ## Common onboarding mistakes in the current framework
 

@@ -1,0 +1,37 @@
+---
+title: Deep Dive
+sidebar_position: 5
+---
+
+import { DbTable, Highlight } from "@site/src/components/convengine";
+
+# Deep Dive
+
+The detailed MCP runtime material now lives in [Advanced Guide](/docs/v2/deep-dive/mcp/advanced).
+
+This page is intentionally condensed so the section is not duplicated. Use it as a quick routing page:
+
+- use [Advanced Guide](/docs/v2/deep-dive/mcp/advanced) for the current `2.0.10` execution model
+- use [Example 3](/docs/v2/deep-dive/mcp/example3) for the full confirmation-first planner flow
+- use [Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog) for metadata grounding and dynamic SQL hinting
+- use [Knowledge (Database Knowledge Graph (DBKG))](/docs/v2/deep-dive/mcp/knowledge) for the DB-driven investigation architecture
+- use [Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4) for the guarded Database Knowledge Graph (DBKG) runtime in action
+
+<DbTable
+  title="Where to go now"
+  columns={["Need", "Best page", "Why"]}
+  rows={[
+    ["Current MCP execution order", "Advanced Guide", "This now carries the condensed but complete `2.0.10` runtime model."],
+    ["Planner/tool confirmation flow", "Example 3", "Shows the confirmation-first multi-turn MCP branch."],
+    ["Database Knowledge Graph (DBKG) internals", "Knowledge", "Covers the DBKG tables, runtime chain, and guard model in detail."],
+    ["Real DBKG production-debug example", "Example 4 - Zapper Disconnect", "Shows the full guarded DBKG path with a real transaction story."]
+  ]}
+/>
+
+## What this page still means
+
+Historically, this page held the long-form planner trace. That material was moved into Advanced Guide to avoid duplicating the same lifecycle explanation across two pages.
+
+<Highlight type="tip" title="Recommended read path">
+Read [Basics](/docs/v2/deep-dive/mcp/basics), then [Advanced Guide](/docs/v2/deep-dive/mcp/advanced), then [Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog), then jump into examples or Database Knowledge Graph (DBKG) pages based on what you are debugging.
+</Highlight>

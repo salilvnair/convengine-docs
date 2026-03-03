@@ -484,7 +484,7 @@ The output maps to the `InteractionPolicyDecision` enum:
    - `isExecutePendingOnAffirm()`: If true, `AFFIRM` + `hasPendingAction` -> `EXECUTE_PENDING_ACTION`
    - `isRejectPendingOnNegate()`: If true, `NEGATE` + `hasPendingAction` -> `REJECT_PENDING_ACTION`
    - `isFillPendingSlotOnNonNewRequest()`: If true, `!= NEW_REQUEST && != GREETING` + `hasPendingSlot` -> `FILL_PENDING_SLOT`
-4. Most crucially, if any of these policy decisions trigger, it sets `skipIntentResolution = true`. This stops Step 11 (`IntentResolutionStep`) from overriding the sticky intent. The payload is attached with `POLICY_DECISION`.
+4. Most crucially, if any of these policy decisions trigger, it sets `skipIntentResolution = true`. This stops Step 13 (`IntentResolutionStep`) from overriding the sticky intent. The payload is attached with `POLICY_DECISION`.
 
 <CodeBlockToggle title="InteractionPolicyStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/InteractionPolicyStep.java" defaultOpen={true}>
 {`public StepResult execute(EngineSession session) {
@@ -560,6 +560,58 @@ The output maps to the `InteractionPolicyDecision` enum:
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
     <span className="ce-step-badge-index">9</span>
+    <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>CorrectionStep</span>
+  </div>
+</div>
+
+**Responsibility:** Route confirmation turns and apply in-place correction patches  
+**Session Mutations:** `routing_decision, skip_schema_extraction, correction_applied`  
+**Config/Table Dependencies:** `ce_output_schema, session context, ce_audit`  
+
+<details open>
+<summary>Detailed Execution Logic</summary>
+
+This step handles confirmation-aware correction before the engine re-enters normal intent and schema processing. It is the bridge between "the user replied to a prior question" and "the engine should patch the existing structured request instead of treating the reply as a brand-new request."
+
+What it does:
+- Inspects the active prompt-template interaction contract to understand whether the turn is confirming, editing, retrying, or continuing collection.
+- Looks at current session context, pending schema facts, and correction markers already present in the conversation.
+- Decides whether to patch prior extracted fields in place, keep them as-is, or let later steps continue with full extraction.
+- Sets routing hints so downstream steps know whether schema extraction should be skipped or whether corrected values are already in context.
+
+Why it matters:
+- Without this step, a user saying "No, use Irving not Dallas" would often be reclassified as a new request instead of a correction to the existing structured input.
+- It keeps correction behavior data-driven through prompt-template interaction semantics instead of hardcoded state-name parsing.
+
+<CodeBlockToggle title="CorrectionStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/CorrectionStep.java" defaultOpen={true}>
+{`public StepResult execute(EngineSession session) {
+        // inspect interaction contract + pending structured context
+        CorrectionDecision decision = correctionResolver.resolve(session);
+
+        session.putInputParam("routing_decision", decision.routingDecision());
+        session.putInputParam("skip_schema_extraction", decision.skipSchemaExtraction());
+        session.putInputParam("correction_applied", decision.correctionApplied());
+
+        if (decision.updatedContext() != null) {
+            session.mergeContext(decision.updatedContext());
+        }
+
+        audit.audit(ConvEngineAuditStage.CORRECTION_APPLIED, session.getConversationId(), mapOf(
+                "routingDecision", decision.routingDecision(),
+                "skipSchemaExtraction", decision.skipSchemaExtraction(),
+                "correctionApplied", decision.correctionApplied()
+        ));
+
+        return new StepResult.Continue();
+    }`}
+</CodeBlockToggle>
+</details>
+
+---
+
+<div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
+  <div className="ce-step-badge-item">
+    <span className="ce-step-badge-index">10</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>ActionLifecycleStep</span>
   </div>
 </div>
@@ -667,7 +719,7 @@ Status transitions (Enum `PendingActionStatus`):
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">10</span>
+    <span className="ce-step-badge-index">11</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>DisambiguationStep</span>
   </div>
 </div>
@@ -757,7 +809,7 @@ It dynamically builds a multiple-choice prompt (or LLM synthesis) asking the use
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">11</span>
+    <span className="ce-step-badge-index">12</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>GuardrailStep</span>
   </div>
 </div>
@@ -827,7 +879,7 @@ If a command is flagged as "sensitive" (e.g., destructive actions like closing a
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">12</span>
+    <span className="ce-step-badge-index">13</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>IntentResolutionStep</span>
   </div>
 </div>
@@ -931,7 +983,7 @@ Otherwise:
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">13</span>
+    <span className="ce-step-badge-index">14</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>ResetResolvedIntentStep</span>
   </div>
 </div>
@@ -979,7 +1031,7 @@ A quality of life check. If the resolved intent matches one of the `RESET_INTENT
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">14</span>
+    <span className="ce-step-badge-index">15</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>FallbackIntentStateStep</span>
   </div>
 </div>
@@ -1029,7 +1081,7 @@ A safety net. If the classifier fails to return any confidence, or an exception 
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">15</span>
+    <span className="ce-step-badge-index">16</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>AddContainerDataStep</span>
   </div>
 </div>
@@ -1170,7 +1222,7 @@ Bridges static tenant/consumer configurations. Evaluates `ce_container_config` t
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">16</span>
+    <span className="ce-step-badge-index">17</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>PendingActionStep</span>
   </div>
 </div>
@@ -1267,7 +1319,7 @@ It invokes `CeTaskExecutor.execute()`, runs the backend transaction (e.g. Stripe
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">17</span>
+    <span className="ce-step-badge-index">18</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>ToolOrchestrationStep</span>
   </div>
 </div>
@@ -1363,7 +1415,7 @@ The gateway for Model Context Protocol (MCP) tooling. If `ce_tool` specifies tha
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">18</span>
+    <span className="ce-step-badge-index">19</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>McpToolStep</span>
   </div>
 </div>
@@ -1493,7 +1545,7 @@ Specifically iterates over `ce_mcp_tool` bindings. Instead of static grouped too
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">19</span>
+    <span className="ce-step-badge-index">20</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>SchemaExtractionStep</span>
   </div>
 </div>
@@ -1551,7 +1603,7 @@ It then runs `missingFieldEvaluator.evaluate()`. If fields are missing, it sets 
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">20</span>
+    <span className="ce-step-badge-index">21</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>AutoAdvanceStep</span>
   </div>
 </div>
@@ -1598,7 +1650,7 @@ In V1, rules had to manually check if schema extraction was done. In V2, this st
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">21</span>
+    <span className="ce-step-badge-index">22</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>RulesStep</span>
   </div>
 </div>
@@ -1628,7 +1680,7 @@ If a rule matches, it executes the target `action` (e.g. `SET_STATE` to `CONFIRM
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">22</span>
+    <span className="ce-step-badge-index">23</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>StateGraphStep</span>
   </div>
 </div>
@@ -1685,7 +1737,7 @@ A strict validater. Checks `ce_state_graph` to see if the transition that just o
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">23</span>
+    <span className="ce-step-badge-index">24</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>ResponseResolutionStep</span>
   </div>
 </div>
@@ -1804,7 +1856,7 @@ Sets `session.getConversation().setLastAssistantJson()` with the payload.
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">24</span>
+    <span className="ce-step-badge-index">25</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>MemoryStep</span>
   </div>
 </div>
@@ -1876,7 +1928,7 @@ Evaluates the rolling history. If `ce_memory` is configured, and `recentTurns` e
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">25</span>
+    <span className="ce-step-badge-index">26</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>PersistConversationStep</span>
   </div>
 </div>
@@ -1933,7 +1985,7 @@ The database commit step. Writes the `CeConversation` row, saving the mutated `c
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: '1rem' }}>
   <div className="ce-step-badge-item">
-    <span className="ce-step-badge-index">26</span>
+    <span className="ce-step-badge-index">27</span>
     <span className="ce-step-badge-label" style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>PipelineEndGuardStep</span>
   </div>
 </div>
