@@ -448,7 +448,7 @@ The `convengine.flow.*` properties control the nuanced routing behavior without 
   title="convengine.mcp.db.semantic-catalog"
   columns={["Property", "Default", "Description"]}
   rows={[
-    ["enabled", "false", "Turns the raw semantic Database Knowledge lookup tool on/off."],
+    ["enabled", "false", "Enables/disables `db.semantic.catalog` metadata grounding."],
     ["knowledge-capsule", "true", "If false, planner input excludes DBKG capsule construction/usage from semantic-catalog observations."],
     ["schema-knowledge", "true", "If false, ce_mcp_schema_knowledge is not read or ranked."],
     ["query-knowledge", "true", "If false, ce_mcp_query_knowledge is not read or ranked."],
@@ -461,6 +461,32 @@ The `convengine.flow.*` properties control the nuanced routing behavior without 
     ["vector-search.vector-column", "vector", "Column name that stores row vectors in semantic catalog tables."]
   ]}
 />
+
+<Highlight type="info" title="`postgres.query` interceptor SPI">
+`postgres.query` execution now supports consumer-overridable interceptor beans (`PostgresQueryInterceptor`) that run before SQL guardrail + execution.  
+Framework default interceptor (`DefaultPostgresQueryInterceptor`, lowest precedence) auto-corrects invalid epoch conversion on timestamp/date columns (for example `to_timestamp(ts_col/1000.0)` when `ts_col` is already timestamp/date).  
+There is no config key for this SPI; override by providing your own interceptor bean with higher `@Order`.
+</Highlight>
+
+<CodeBlockToggle title="PostgresQueryInterceptor consumer example" language="java">
+{`@Component
+@Order(10) // higher priority than framework fallback
+public class TenantSqlInterceptor implements PostgresQueryInterceptor {
+
+  @Override
+  public boolean supports(CeMcpTool tool, EngineSession session, Map<String, Object> args) {
+    return tool != null && "postgres.query".equalsIgnoreCase(tool.getToolCode());
+  }
+
+  @Override
+  public String intercept(String sql, CeMcpTool tool, EngineSession session, Map<String, Object> args) {
+    // Example: enforce fully-qualified schema or org SQL conventions
+    if (sql == null) return null;
+    return sql.replace(" FROM zp_", " FROM v2.zp_")
+              .replace(" JOIN zp_", " JOIN v2.zp_");
+  }
+}`}
+</CodeBlockToggle>
 
 <DbTable
   title="convengine.mcp.db.knowledge-graph"

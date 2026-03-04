@@ -296,6 +296,40 @@ public class PgVectorSemanticSearchInterceptor implements SemanticCatalogVectorS
 }
 ```
 
+## Postgres query interceptor (execution safety)
+
+`postgres.query` now supports consumer-overridable SQL interceptors before read-only guardrail + execution.
+
+Runtime shape:
+
+1. Planner generates SQL.
+2. `PostgresQueryToolHandler` runs interceptor chain (`PostgresQueryInterceptor` beans by order).
+3. Normalized SQL is validated by `McpSqlGuardrail`.
+4. Query executes.
+
+Framework default interceptor (`DefaultPostgresQueryInterceptor`, lowest precedence) auto-fixes a common LLM error:
+
+- bad: `to_timestamp(ts_col/1000.0)` when `ts_col` is already `timestamp/date`
+- fix: rewrites to raw `ts_col`
+
+Column type is resolved from `information_schema.columns` under current schemas, so this is schema-aware and avoids runtime errors like:
+
+- `operator does not exist: timestamp with time zone / numeric`
+
+Consumer override example:
+
+```java
+@Component
+@Order(10) // higher priority than framework fallback
+public class MyPostgresQueryInterceptor implements PostgresQueryInterceptor {
+  @Override
+  public String intercept(String sql, CeMcpTool tool, EngineSession session, Map<String, Object> args) {
+    // enforce tenant/schema rules, sql normalization, org conventions, etc.
+    return sql;
+  }
+}
+```
+
 ## Safety model
 
 1. Metadata table and column identifiers are validated against a strict safe identifier regex.

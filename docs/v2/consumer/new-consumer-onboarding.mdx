@@ -245,6 +245,11 @@ This is what allows `CorrectionStep` to safely do in-place confirm/edit/retry ro
       fail-closed: false
       allowed-next-by-current-tool: {}
     db:
+      semantic-catalog:
+        enabled: false
+        knowledge-capsule: true
+        schema-knowledge: true
+        query-knowledge: true
       knowledge-graph:
         enabled: false
         schema-introspection-enabled: true
@@ -378,6 +383,11 @@ Enable Database Knowledge Graph (DBKG) after your team can read the audit trail,
       fail-closed: false
       allowed-next-by-current-tool: {}
     db:
+      semantic-catalog:
+        enabled: false
+        knowledge-capsule: true
+        schema-knowledge: true
+        query-knowledge: true
       knowledge-graph:
         enabled: false
         schema-introspection-enabled: true

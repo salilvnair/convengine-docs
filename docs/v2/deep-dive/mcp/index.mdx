@@ -119,6 +119,9 @@ If the planner proposes a blocked next tool:
 - `blocked`, `error`, `errorMessage`
 - `lastAction`, `lastToolCode`, `lastToolGroup`, `lastToolArgs`
 - `toolExecuted`
+- `finalAnswerDetermined` (true when MCP final answer is set)
+- `toolExecutionAbrupted` (true when loop stops due to max-loop guard without final answer)
+- `toolExecutionAbruptionLimit` (configured loop guard limit)
 
 `context.mcp.toolExecution` includes:
 

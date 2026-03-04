@@ -125,6 +125,12 @@ All MCP DB execution is now enforced as read-only.
 - `SELECT INTO`, `FOR UPDATE`, and multi-statement SQL are blocked
 - `ce_mcp_sql_guardrail` can extend function allow/block rules without making the runtime writable
 
+For `postgres.query`, an interceptor SPI runs before guardrail + execution:
+
+- `PostgresQueryInterceptor` (consumer extension point, ordered chain)
+- `DefaultPostgresQueryInterceptor` (framework fallback, lowest precedence)
+- default behavior auto-corrects invalid epoch conversion on timestamp/date columns (for example `to_timestamp(ts_col/1000.0)` when `ts_col` is already timestamp/date)
+
 ## MCP metadata model for rules
 
 `context.mcp.lifecycle`:
@@ -133,6 +139,9 @@ All MCP DB execution is now enforced as read-only.
 - `blocked`, `error`, `errorMessage`
 - `lastAction`, `lastToolCode`, `lastToolGroup`, `lastToolArgs`
 - `toolExecuted`
+- `finalAnswerDetermined` (true when MCP final answer is set)
+- `toolExecutionAbrupted` (true when loop stops due to max-loop guard without final answer)
+- `toolExecutionAbruptionLimit` (configured loop guard limit)
 
 `context.mcp.toolExecution`:
 

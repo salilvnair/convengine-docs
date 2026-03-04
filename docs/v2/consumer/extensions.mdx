@@ -124,6 +124,108 @@ Recommended pattern:
 - use `publish(...)` when the wording should be controlled by `ce_verbose`
 - use `publishText(...)` when the wording should come directly from consumer Java
 
+## MCP extension SPI map (consumer-overridable)
+
+<DbTable
+  title="MCP and runtime extension points"
+  columns={["Extension", "Where it runs", "Typical consumer use"]}
+  rows={[
+    ["`SemanticCatalogVectorSearchInterceptor`", "`db.semantic.catalog` ranking path", "Use pgvector or custom ANN retrieval instead of framework cosine fallback."],
+    ["`PostgresQueryInterceptor`", "`postgres.query` pre-guardrail execution path", "Normalize/repair SQL, enforce schema prefixes, tenant constraints, org SQL policy."],
+    ["`DbToolHandler`", "MCP DB tool execution path", "Register new DB-backed MCP tool_code handlers in Java."],
+    ["`HttpApiRequestingToolHandler` / `HttpApiProcessorToolHandler`", "MCP HTTP tool path", "Add custom request/response mapping logic for HTTP tools."],
+    ["`MessageResolver`", "verbose message resolution", "Custom verbose token mapping and templated payload behavior."],
+  ]}
+/>
+
+## `SemanticCatalogVectorSearchInterceptor` - custom vector ranking {#61-semanticcatalogvectorsearchinterceptor---custom-vector-ranking}
+
+Real scenario: use PGVector cosine distance directly from your DB instead of Java fallback ranking.
+
+<CodeBlockToggle title="SemanticCatalogVectorSearchInterceptor example" language="java" packagePath="com.zapper.convengine.mcp">
+{`@Component
+@Order(10) // higher priority than framework fallback
+@RequiredArgsConstructor
+public class PgVectorSemanticSearchInterceptor implements SemanticCatalogVectorSearchInterceptor {
+
+    private final JdbcTemplate jdbcTemplate;
+    private final LlmClient llmClient;
+
+    @Override
+    public boolean supports(ConvEngineMcpConfig.Db.Knowledge.VectorSearch config) {
+        return config != null && config.isEnabled();
+    }
+
+    @Override
+    public List<Map<String, Object>> rank(
+            String sourceType,
+            String question,
+            List<Map<String, Object>> rows,
+            ConvEngineMcpConfig.Db.Knowledge cfg) {
+
+        String embedding = llmClient.generateEmbedding(question); // consumer-controlled impl
+        String table = "query".equalsIgnoreCase(sourceType)
+                ? cfg.getQueryCatalogTable()
+                : cfg.getSchemaCatalogTable();
+        int k = Math.max(1, cfg.getVectorSearch().getMaxResults());
+
+        String sql = "SELECT t.*, 1 - (t.vector <=> CAST(:embedding AS vector)) AS _vector_score " +
+                "FROM " + table + " t " +
+                "ORDER BY t.vector <=> CAST(:embedding AS vector) " +
+                "LIMIT :k";
+
+        return jdbcTemplate.queryForList(sql, Map.of("embedding", embedding, "k", k));
+    }
+}`}
+</CodeBlockToggle>
+
+## `PostgresQueryInterceptor` - normalize/fix SQL before execution {#62-postgresqueryinterceptor---normalizefix-sql-before-execution}
+
+Real scenario: planner generated epoch conversion for a timestamp column (`to_timestamp(ts_col/1000.0)`), causing Postgres error.  
+Interceptor rewrites SQL before `McpSqlGuardrail` and execution.
+
+<CodeBlockToggle title="PostgresQueryInterceptor example" language="java" packagePath="com.zapper.convengine.mcp">
+{`@Component
+@Order(10) // runs before framework default interceptor
+public class PostgresTimestampFixInterceptor implements PostgresQueryInterceptor {
+
+    @Override
+    public boolean supports(CeMcpTool tool, EngineSession session, Map<String, Object> args) {
+        return tool != null && "postgres.query".equalsIgnoreCase(tool.getToolCode());
+    }
+
+    @Override
+    public String intercept(String sql, CeMcpTool tool, EngineSession session, Map<String, Object> args) {
+        if (sql == null || sql.isBlank()) return sql;
+        // sample targeted rewrite policy
+        return sql.replaceAll("(?i)to_timestamp\\\\(\\\\s*r\\\\.requested_at\\\\s*/\\\\s*1000(?:\\\\.0+)?\\\\s*\\\\)", "r.requested_at")
+                  .replaceAll("(?i)to_timestamp\\\\(\\\\s*b\\\\.updated_at\\\\s*/\\\\s*1000(?:\\\\.0+)?\\\\s*\\\\)", "b.updated_at");
+    }
+}`}
+</CodeBlockToggle>
+
+<Highlight type="tip" title="Order and fallback">
+Framework provides `DefaultPostgresQueryInterceptor` with lowest precedence.  
+Define your interceptor bean with higher `@Order` to override/augment behavior.
+</Highlight>
+
+## Additional framework extension interfaces
+
+<DbTable
+  title="Other consumer extension interfaces available"
+  columns={["Interface", "Purpose"]}
+  rows={[
+    ["`IntentResolver`", "Provide custom intent resolution strategy."],
+    ["`IntentCollisionResolver`", "Resolve ties when multiple intents match."],
+    ["`RuleActionResolver`", "Add custom rule action execution logic."],
+    ["`RuleTypeResolver`", "Add custom rule match/evaluation type."],
+    ["`OutputFormatResolver`", "Add/override output format handling."],
+    ["`ResponseTypeResolver`", "Add/override response type handling."],
+    ["`ConversationHistoryProvider`", "Customize conversation history loading source."],
+    ["`ConvEngineSchemaResolver`", "Customize schema extraction and mapping behavior."],
+  ]}
+/>
+
 ## Rule Action Playbook (`SET_TASK`, `SET_JSON`, `GET_CONTEXT`, `GET_SESSION`, `SET_INPUT_PARAM`, `SET_DIALOGUE_ACT`) {#6-rule-action-playbook-set_task-set_json-get_context-get_session-set_input_param-set_dialogue_act}
 
 These actions execute inside <MethodRef>RulesStep.execute(...)</MethodRef> and mutate the live <MethodRef>EngineSession</MethodRef>.
