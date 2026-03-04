@@ -32,9 +32,12 @@ import { CodeBlockToggle, DbTable, MethodRef } from "@site/src/components/conven
 
 <CodeBlockToggle title="LlmClient" language="java" packagePath="com.github.salilvnair.convengine.llm.core">
 {`public interface LlmClient {
-    String generateText(String hint, String contextJson);
-    String generateJson(String hint, String jsonSchema, String contextJson);
-    float[] generateEmbedding(String input);
+    String generateText(EngineSession session, String hint, String contextJson);
+    String generateJson(EngineSession session, String hint, String jsonSchema, String contextJson);
+    float[] generateEmbedding(EngineSession session, String input);
+    default String generateJsonStrict(EngineSession session, String hint, String jsonSchema, String context) {
+        return generateJson(session, hint, jsonSchema, context);
+    }
 }`}
 </CodeBlockToggle>
 
