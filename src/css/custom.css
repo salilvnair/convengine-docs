@@ -4152,3 +4152,48 @@ a.ce-version-dropdown {
   border-color: rgba(96, 165, 250, 0.5);
   background: rgba(59, 130, 246, 0.24);
 }
+
+/* DBKG knowledge page: runtime path chips neon/shiny in dark mode */
+[data-theme='dark'] .ce-dbkg-runtime-path .ce-step-badge-item {
+  position: relative;
+  overflow: hidden;
+  color: #eaf2ff;
+  border-color: rgba(96, 165, 250, 0.62);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.18) inset,
+    0 0 14px rgba(56, 189, 248, 0.26),
+    0 0 28px rgba(59, 130, 246, 0.18);
+}
+
+[data-theme='dark'] .ce-dbkg-runtime-path .ce-step-badge-index {
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.7),
+    0 0 22px rgba(59, 130, 246, 0.45);
+}
+
+[data-theme='dark'] .ce-dbkg-runtime-path .ce-step-badge-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(186, 230, 253, 0.38) 50%,
+    rgba(255, 255, 255, 0) 62%,
+    transparent 100%
+  );
+  transform: translateX(-140%);
+  animation: ceDbkgRuntimeChipShine 3.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes ceDbkgRuntimeChipShine {
+  0%,
+  100% {
+    transform: translateX(-140%);
+  }
+
+  45%,
+  55% {
+    transform: translateX(140%);
+  }
+}

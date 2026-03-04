@@ -7,7 +7,7 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import { DbTable, Highlight, CodeBlockToggle, ChatContainer, TraceChatBubble } from "@site/src/components/convengine";
 
-# MCP Knowledge (Database Knowledge Graph (DBKG))
+# MCP Knowledge (Database Knowledge Graph)
 
 This page is the database-backed MCP knowledge model for ConvEngine. It documents the new `dbkg.*` tool chain, the `ce_*` metadata package behind it, and the runtime safety model that makes the DB investigation flow configurable instead of hardcoded in Java.
 
@@ -16,9 +16,9 @@ This page is the database-backed MCP knowledge model for ConvEngine. It document
 </Highlight>
 
 
-## Story first: how Database Knowledge Graph (DBKG) works from a real user question
+## Story first: how Database Knowledge Graph works from a real user question
 
-Start from the operator, not the table. A real user does not know `zp_ui_data_history`, `ce_mcp_query_template`, or `ce_mcp_playbook_transition`. They speak in support language, and the engine has to do the translation. The story below is intentionally broken into real turn-by-turn cards so you can see exactly what happens before, during, and after the Database Knowledge Graph (DBKG) tool chain.
+Start from the operator, not the table. A real user does not know `zp_ui_data_history`, `ce_mcp_query_template`, or `ce_mcp_playbook_transition`. They speak in support language, and the engine has to do the translation. The story below is intentionally broken into real turn-by-turn cards so you can see exactly what happens before, during, and after the Database Knowledge Graph tool chain.
 
 ### Turn 0
 
@@ -32,7 +32,7 @@ Start from the operator, not the table. A real user does not know `zp_ui_data_hi
     message="Hi"
     info={[
       "Simple greeting turn.",
-      "This is the baseline path before any Database Knowledge Graph (DBKG) work starts."
+      "This is the baseline path before any Database Knowledge Graph work starts."
     ]}
   />
 
@@ -56,7 +56,7 @@ Start from the operator, not the table. A real user does not know `zp_ui_data_hi
     ]}
     info={[
       "Intent classifier resolves GREETING.",
-      "McpToolStep does not start the Database Knowledge Graph (DBKG) chain for this turn."
+      "McpToolStep does not start the Database Knowledge Graph chain for this turn."
     ]}
   />
 </ChatContainer>
@@ -115,7 +115,7 @@ Start from the operator, not the table. A real user does not know `zp_ui_data_hi
     name="Turn 1 - User"
     message="I need help with a Zapper disconnect issue for UPS in Irving."
     info={[
-      "This is the entry into the Database Knowledge Graph (DBKG) diagnostic path.",
+      "This is the entry into the Database Knowledge Graph diagnostic path.",
       "The wording includes business terms, not technical table names."
     ]}
   />
@@ -204,7 +204,7 @@ Start from the operator, not the table. A real user does not know `zp_ui_data_hi
     message="AccountId is UPSA100, accLocId is ACCLOC1001, and ASR says inventory not found for the Irving disconnect."
     info={[
       "The user now provides concrete identifiers plus the actual symptom.",
-      "This is the first point where the Database Knowledge Graph (DBKG) flow has enough grounded evidence to investigate."
+      "This is the first point where the Database Knowledge Graph flow has enough grounded evidence to investigate."
     ]}
   />
 
@@ -244,7 +244,7 @@ Start from the operator, not the table. A real user does not know `zp_ui_data_hi
       "ce_audit (W)"
     ]}
     info={[
-      "The Database Knowledge Graph (DBKG) chain now runs because the turn contains both identifiers and the symptom.",
+      "The Database Knowledge Graph chain now runs because the turn contains both identifiers and the symptom.",
       "The selected playbook is the inventory-mismatch playbook.",
       "The engine answers with a diagnosis, not just a raw query dump."
     ]}
@@ -486,7 +486,7 @@ Start from the operator, not the table. A real user does not know `zp_ui_data_hi
     name="Turn 2 - User"
     message="Show all requests where ASR assigned and then rejected in last 24 hours."
     info={[
-      "This is the first full Database Knowledge Graph (DBKG) execution turn.",
+      "This is the first full Database Knowledge Graph execution turn.",
       "The user asks in business language only."
     ]}
   />
@@ -531,7 +531,7 @@ Start from the operator, not the table. A real user does not know `zp_ui_data_hi
       "ce_audit (W)"
     ]}
     info={[
-      "The planner starts the guarded Database Knowledge Graph (DBKG) chain.",
+      "The planner starts the guarded Database Knowledge Graph chain.",
       "The case resolves to SERVICE_DISCONNECT.",
       "The playbook resolves to ASR_ASSIGN_REJECT_AUDIT.",
       "Validation succeeds before SQL execution is allowed.",
@@ -563,7 +563,7 @@ Start from the operator, not the table. A real user does not know `zp_ui_data_hi
   title="Turn 2 tables"
   columns={["Table group", "Tables", "Why"]}
   rows={[
-    ["Planner", "ce_mcp_planner, ce_mcp_tool", "Choose the next Database Knowledge Graph (DBKG) tool."],
+    ["Planner", "ce_mcp_planner, ce_mcp_tool", "Choose the next Database Knowledge Graph tool."],
     ["Case selection", "ce_mcp_case_type, ce_mcp_case_signal", "Resolve the case."],
     ["Playbook graph", "ce_mcp_playbook, ce_mcp_playbook_step, ce_mcp_playbook_transition", "Choose and validate the execution graph."],
     ["Execution", "ce_mcp_query_template, ce_mcp_query_param_rule, zp_ui_data_history", "Run the approved SQL template."],
@@ -800,18 +800,20 @@ Start from the operator, not the table. A real user does not know `zp_ui_data_hi
   columns={["Turn", "What the user sees", "What the engine is really doing"]}
   rows={[
     ["0", "A simple greeting response.", "No MCP work at all."],
-    ["1", "A request for investigation details/ids.", "Intent, rules, schema, and response setup establish the Database Knowledge Graph (DBKG) path."],
-    ["2", "A concrete assigned->rejected diagnosis.", "The full Database Knowledge Graph (DBKG) tool chain executes and returns a real result."],
-    ["3", "A concrete inventory-gap diagnosis.", "Database Knowledge Graph (DBKG) chains multiple query steps using runtime-bound params."],
-    ["4", "A concrete downstream-failure diagnosis.", "Database Knowledge Graph (DBKG) uses a time-derived step plus an approved trace query."],
-    ["5", "A concrete BillBank propagation-gap diagnosis.", "Database Knowledge Graph (DBKG) reconciles across systems without the user naming the tables."]
+    ["1", "A request for investigation details/ids.", "Intent, rules, schema, and response setup establish the Database Knowledge Graph path."],
+    ["2", "A concrete assigned->rejected diagnosis.", "The full Database Knowledge Graph tool chain executes and returns a real result."],
+    ["3", "A concrete inventory-gap diagnosis.", "Database Knowledge Graph chains multiple query steps using runtime-bound params."],
+    ["4", "A concrete downstream-failure diagnosis.", "Database Knowledge Graph uses a time-derived step plus an approved trace query."],
+    ["5", "A concrete BillBank propagation-gap diagnosis.", "Database Knowledge Graph reconciles across systems without the user naming the tables."]
   ]}
 />
 
-## Database Knowledge Graph (DBKG) runtime path
+## Database Knowledge Graph runtime path
+
+<div className="ce-dbkg-runtime-path">
 
 <Highlight type="info" title="Full runtime lifecycle">
-This is the complete end-to-end Database Knowledge Graph (DBKG) path for one investigative turn. Each step below uses the same lifecycle-style chip presentation as the deep-dive pipeline steps page, but scoped to the Database Knowledge Graph (DBKG) chain.
+This is the complete end-to-end Database Knowledge Graph path for one investigative turn. Each step below uses the same lifecycle-style chip presentation as the deep-dive pipeline steps page, but scoped to the Database Knowledge Graph chain.
 </Highlight>
 
 <div className="ce-step-badge-list" role="list" style={{ marginBottom: "1rem" }}>
@@ -834,7 +836,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
     </CodeBlockToggle>
   </TabItem>
   <TabItem value="logic" label="Detailed Execution Logic">
-    <p>The Database Knowledge Graph (DBKG) story starts before any classifier runs. The raw message is preserved as the exact text that later gets classified, planned, and audited.</p>
+    <p>The Database Knowledge Graph story starts before any classifier runs. The raw message is preserved as the exact text that later gets classified, planned, and audited.</p>
   </TabItem>
   <TabItem value="tables" label="Tables Involved">
     <DbTable
@@ -874,7 +876,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
     </CodeBlockToggle>
   </TabItem>
   <TabItem value="logic" label="Detailed Execution Logic">
-    <p>This decides whether the turn is greeting, normal FAQ, or Database Knowledge Graph (DBKG) diagnostics. In the Zapper path it resolves the investigative intent.</p>
+    <p>This decides whether the turn is greeting, normal FAQ, or Database Knowledge Graph diagnostics. In the Zapper path it resolves the investigative intent.</p>
   </TabItem>
   <TabItem value="tables" label="Tables Involved">
     <DbTable
@@ -991,7 +993,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
     </CodeBlockToggle>
   </TabItem>
   <TabItem value="logic" label="Detailed Execution Logic">
-    <p>For Database Knowledge Graph (DBKG) it chooses the strict sequence: resolve, lookup, plan, validate, execute, then ANSWER.</p>
+    <p>For Database Knowledge Graph it chooses the strict sequence: resolve, lookup, plan, validate, execute, then ANSWER.</p>
   </TabItem>
   <TabItem value="tables" label="Tables Involved">
     <DbTable
@@ -1014,7 +1016,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
   </div>
 </div>
 
-**Responsibility:** Bridges the MCP tool call into the Database Knowledge Graph (DBKG) case resolver runtime.
+**Responsibility:** Bridges the MCP tool call into the Database Knowledge Graph case resolver runtime.
 
 **Session Mutations:** Writes dbkg.case.resolve observation payload.
 
@@ -1128,7 +1130,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
   </div>
 </div>
 
-**Responsibility:** Builds the ranked Database Knowledge Graph (DBKG) knowledge pack for the current case.
+**Responsibility:** Builds the ranked Database Knowledge Graph knowledge pack for the current case.
 
 **Session Mutations:** entities, systems, apiFlows, objects, columns, joins, statuses, lineage.
 
@@ -1143,7 +1145,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
     </CodeBlockToggle>
   </TabItem>
   <TabItem value="logic" label="Detailed Execution Logic">
-    <p>This combines live schema introspection with optional semantic overlays so Database Knowledge Graph (DBKG) can reason from both database structure and business metadata.</p>
+    <p>This combines live schema introspection with optional semantic overlays so Database Knowledge Graph can reason from both database structure and business metadata.</p>
   </TabItem>
   <TabItem value="tables" label="Tables Involved">
     <DbTable
@@ -1288,7 +1290,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
   </div>
 </div>
 
-**Responsibility:** Validates the Database Knowledge Graph (DBKG) step DAG before SQL runs.
+**Responsibility:** Validates the Database Knowledge Graph step DAG before SQL runs.
 
 **Session Mutations:** valid, canExecute, graphError, startStepCode.
 
@@ -1379,7 +1381,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
     </CodeBlockToggle>
   </TabItem>
   <TabItem value="logic" label="Detailed Execution Logic">
-    <p>This is the core Database Knowledge Graph (DBKG) runtime engine. It follows transitions, evaluates condition_expr, executes approved templates, detects cycles, and resolves the final outcome.</p>
+    <p>This is the core Database Knowledge Graph runtime engine. It follows transitions, evaluates condition_expr, executes approved templates, detects cycles, and resolves the final outcome.</p>
   </TabItem>
   <TabItem value="tables" label="Tables Involved">
     <DbTable
@@ -1421,7 +1423,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
     </CodeBlockToggle>
   </TabItem>
   <TabItem value="logic" label="Detailed Execution Logic">
-    <p>This second appearance matters: after execute finishes, McpToolStep feeds the new observation back to the planner and enforces the Database Knowledge Graph (DBKG) validation requirement.</p>
+    <p>This second appearance matters: after execute finishes, McpToolStep feeds the new observation back to the planner and enforces the Database Knowledge Graph validation requirement.</p>
   </TabItem>
   <TabItem value="tables" label="Tables Involved">
     <DbTable
@@ -1444,7 +1446,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
   </div>
 </div>
 
-**Responsibility:** Consumes the final Database Knowledge Graph (DBKG) observation and emits ANSWER.
+**Responsibility:** Consumes the final Database Knowledge Graph observation and emits ANSWER.
 
 **Session Mutations:** finalAnswer, planner completion state.
 
@@ -1452,7 +1454,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
 
 <Tabs groupId="dbkg-runtime-step-17">
   <TabItem value="code" label="Code" default>
-    <CodeBlockToggle title="McpPlanner.plan() after Database Knowledge Graph (DBKG) execute" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/McpPlanner.java" defaultOpen={true}>
+    <CodeBlockToggle title="McpPlanner.plan() after Database Knowledge Graph execute" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/McpPlanner.java" defaultOpen={true}>
 {`public McpPlan plan(McpPlanningRequest request) {
   return answerPlan;
 }`}
@@ -1560,7 +1562,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
   </div>
 </div>
 
-**Responsibility:** The user sees one final assistant response, not internal Database Knowledge Graph (DBKG) sub-steps.
+**Responsibility:** The user sees one final assistant response, not internal Database Knowledge Graph sub-steps.
 
 **Session Mutations:** final HTTP response body only.
 
@@ -1573,7 +1575,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
     </CodeBlockToggle>
   </TabItem>
   <TabItem value="logic" label="Detailed Execution Logic">
-    <p>Even though Database Knowledge Graph (DBKG) runs several internal observations, ConvEngine still returns one assistant message. The operator sees the diagnosis, not the orchestration noise.</p>
+    <p>Even though Database Knowledge Graph runs several internal observations, ConvEngine still returns one assistant message. The operator sees the diagnosis, not the orchestration noise.</p>
   </TabItem>
   <TabItem value="tables" label="Tables Involved">
     <DbTable
@@ -1589,17 +1591,19 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
 
 ---
 
+</div>
+
 ## Config surface
 
 <DbTable
   title="convengine.mcp.db.knowledge-graph config"
   columns={["Property", "Meaning", "Why it matters"]}
   rows={[
-    ["enabled", "Turns Database Knowledge Graph (DBKG) handlers on or off.", "Without this, none of the dbkg.* tool handlers are active."],
-    ["schemaIntrospectionEnabled", "Reads physical schema from JDBC DatabaseMetaData.", "Lets Database Knowledge Graph (DBKG) see live Postgres tables/columns/foreign keys without manual metadata duplication."],
-    ["includedSchemas / excludedSchemas", "Controls which DB schemas are introspected.", "Keeps Database Knowledge Graph (DBKG) focused on consumer tables instead of pg_catalog / information_schema noise."],
-    ["caseResolveToolCode / knowledgeLookupToolCode / investigatePlanToolCode / playbookValidateToolCode / investigateExecuteToolCode", "Tool codes bound to the Database Knowledge Graph (DBKG) runtime.", "Lets you rename tool codes without changing handler logic."],
-    ["caseTypeTable ... outcomeRuleTable", "Table names for all Database Knowledge Graph (DBKG) metadata catalogs.", "The runtime is table-name configurable, so consumers can remap naming if needed."],
+    ["enabled", "Turns Database Knowledge Graph handlers on or off.", "Without this, none of the dbkg.* tool handlers are active."],
+    ["schemaIntrospectionEnabled", "Reads physical schema from JDBC DatabaseMetaData.", "Lets Database Knowledge Graph see live Postgres tables/columns/foreign keys without manual metadata duplication."],
+    ["includedSchemas / excludedSchemas", "Controls which DB schemas are introspected.", "Keeps Database Knowledge Graph focused on consumer tables instead of pg_catalog / information_schema noise."],
+    ["caseResolveToolCode / knowledgeLookupToolCode / investigatePlanToolCode / playbookValidateToolCode / investigateExecuteToolCode", "Tool codes bound to the Database Knowledge Graph runtime.", "Lets you rename tool codes without changing handler logic."],
+    ["caseTypeTable ... outcomeRuleTable", "Table names for all Database Knowledge Graph metadata catalogs.", "The runtime is table-name configurable, so consumers can remap naming if needed."],
     ["maxResults / scanLimit", "Ranking caps.", "Prevents large metadata scans from flooding the planner with low-value candidates."]
   ]}
 />
@@ -1612,7 +1616,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
   ]}
 />
 
-## Database Knowledge Graph (DBKG) metadata tables
+## Database Knowledge Graph metadata tables
 
 ### 1. Resolution + intent mapping
 
@@ -1636,7 +1640,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
     ["ce_mcp_domain_entity", "Business nouns such as Customer, Disconnect Request, Billing Record, with synonyms + llm_hint + metadata_json.", "Returned by dbkg.knowledge.lookup so the planner can reason in business language instead of table names only."],
     ["ce_mcp_domain_relation", "Edges between domain entities.", "Documents the business graph and can be surfaced in ranked knowledge results."],
     ["ce_mcp_system_node", "System registry such as ZapperCentral, Zapper Order Service, BillBank.", "Used to explain which application layer owns the failure or state transition."],
-    ["ce_mcp_api_flow", "Declarative call-chain metadata with involved tables/IDs in metadata_json.", "Lets Database Knowledge Graph (DBKG) tell the planner which APIs and downstream systems are relevant to the question."],
+    ["ce_mcp_api_flow", "Declarative call-chain metadata with involved tables/IDs in metadata_json.", "Lets Database Knowledge Graph tell the planner which APIs and downstream systems are relevant to the question."],
     ["ce_mcp_system_relation", "Edges between systems.", "Documents orchestration order such as UI -> Central -> Order -> BillBank."]
   ]}
 />
@@ -1670,11 +1674,11 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
   ]}
 />
 
-## Why Database Knowledge Graph (DBKG) is different from legacy DB tools
+## Why Database Knowledge Graph is different from legacy DB tools
 
 <DbTable
-  title="Semantic catalog (db.semantic.catalog) vs Database Knowledge Graph (DBKG)"
-  columns={["Concern", "Semantic catalog (db.semantic.catalog)", "Database Knowledge Graph (DBKG)"]}
+  title="Semantic catalog (db.semantic.catalog) vs Database Knowledge Graph"
+  columns={["Concern", "Semantic catalog (db.semantic.catalog)", "Database Knowledge Graph"]}
   rows={[
     ["Primary job", "Rank SQL and schema hints.", "Resolve a business case, select a playbook, then execute a validated investigation graph."],
     ["Schema awareness", "Catalog-driven only.", "JDBC schema introspection + optional semantic overlays."],
@@ -1688,7 +1692,7 @@ This is the complete end-to-end Database Knowledge Graph (DBKG) path for one inv
 
 ### `DbKnowledgeGraphRuntimeService`
 
-This is the thin facade. It should stay small. It exposes the public Database Knowledge Graph (DBKG) entry points and delegates to focused services.
+This is the thin facade. It should stay small. It exposes the public Database Knowledge Graph entry points and delegates to focused services.
 
 <CodeBlockToggle title="DbKnowledgeGraphRuntimeService (facade)" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/knowledge/DbKnowledgeGraphRuntimeService.java" defaultOpen={true}>
 {`public Map<String, Object> resolveCase(Map<String, Object> args, EngineSession session) {
@@ -1717,7 +1721,7 @@ Why it exists: it keeps the MCP handlers stable while the implementation stays d
 
 ### `DbkgPlaybookValidator`
 
-This is the structural safety gate for the Database Knowledge Graph (DBKG) graph.
+This is the structural safety gate for the Database Knowledge Graph graph.
 
 <CodeBlockToggle title="DbkgPlaybookValidator.validateGraph" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/knowledge/DbkgPlaybookValidator.java">
 {`public String validateGraph(List<Map<String, Object>> steps, List<Map<String, Object>> transitions) {
@@ -1747,7 +1751,7 @@ Why it matters: a DB-driven DAG is only safe if the metadata graph is validated 
 
 ### `DbkgPlaybookEngine`
 
-This is the execution engine for the Database Knowledge Graph (DBKG) graph.
+This is the execution engine for the Database Knowledge Graph graph.
 
 <CodeBlockToggle title="DbkgPlaybookEngine.executeInvestigation" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/knowledge/DbkgPlaybookEngine.java">
 {`String graphValidationError = playbookValidator.validateGraph(steps, transitions);
@@ -1807,7 +1811,7 @@ Why it matters: branching stays in DB metadata instead of becoming hardcoded Jav
 
 The planner prompt is not enough. Runtime still enforces validation before execution.
 
-<CodeBlockToggle title="McpToolStep Database Knowledge Graph (DBKG) execution guard" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/McpToolStep.java">
+<CodeBlockToggle title="McpToolStep Database Knowledge Graph execution guard" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/McpToolStep.java">
 {`private String nextToolGuardrailBlockReason(String nextToolCode, List<McpObservation> observations) {
   if (!isAllowedByDbkgValidationGuard(nextToolCode, observations)) {
     return "DBKG_VALIDATION_REQUIRED_BEFORE_EXECUTION";
@@ -1821,11 +1825,11 @@ The planner prompt is not enough. Runtime still enforces validation before execu
 
 What it does: `dbkg.investigate.execute` is blocked unless a prior `dbkg.playbook.validate` observation exists with `valid=true` and `canExecute=true`.
 
-Why it matters: even if the planner misorders tools, Database Knowledge Graph (DBKG) still refuses to run the playbook.
+Why it matters: even if the planner misorders tools, Database Knowledge Graph still refuses to run the playbook.
 
 ### `McpSqlGuardrail`
 
-This is the shared SQL safety gate used by both the generic MCP DB tool path and the Database Knowledge Graph (DBKG) query-template executor.
+This is the shared SQL safety gate used by both the generic MCP DB tool path and the Database Knowledge Graph query-template executor.
 
 <CodeBlockToggle title="McpSqlGuardrail.assertReadOnly" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/McpSqlGuardrail.java">
 {`public void assertReadOnly(String sql, String source) {
@@ -1860,7 +1864,7 @@ Why it matters: read-only is enforced in Java now, not just implied by conventio
 
 Both SQL-backed MCP paths now emit dedicated audit stages and optional `ce_verbose` hooks:
 - `MCP_DB_SQL_EXECUTION` from `McpDbExecutor` for classic `ce_mcp_db_tool` SQL templates
-- `DBKG_QUERY_SQL_EXECUTION` from `DbkgQueryTemplateStepExecutor` for Database Knowledge Graph (DBKG) query-template steps
+- `DBKG_QUERY_SQL_EXECUTION` from `DbkgQueryTemplateStepExecutor` for Database Knowledge Graph query-template steps
 
 Both payloads include:
 - `sql`
@@ -1885,7 +1889,7 @@ That gives consumers one place to inspect the executed SQL text and the returned
 <Tabs groupId="dbkg-sql-tabs">
   <TabItem value="ddl" label="DDL" default>
 
-<CodeBlockToggle title="Database Knowledge Graph (DBKG) DDL excerpt" language="sql" filePath="src/main/resources/sql/mcp/dbkg/ddl_postgres.sql">
+<CodeBlockToggle title="Database Knowledge Graph DDL excerpt" language="sql" filePath="src/main/resources/sql/mcp/dbkg/ddl_postgres.sql">
 {`CREATE TABLE IF NOT EXISTS ce_mcp_case_type (...);
 CREATE TABLE IF NOT EXISTS ce_mcp_case_signal (...);
 CREATE TABLE IF NOT EXISTS ce_mcp_playbook (...);
@@ -1911,7 +1915,7 @@ CREATE TABLE IF NOT EXISTS ce_mcp_outcome_rule (...);`}
   </TabItem>
   <TabItem value="seed" label="Seed SQL">
 
-<CodeBlockToggle title="Database Knowledge Graph (DBKG) seed excerpt" language="sql" filePath="src/main/resources/sql/mcp/dbkg/seed.sql">
+<CodeBlockToggle title="Database Knowledge Graph seed excerpt" language="sql" filePath="src/main/resources/sql/mcp/dbkg/seed.sql">
 {`INSERT INTO ce_mcp_tool (...)
 VALUES
   (9101, 'dbkg.case.resolve', ...),
@@ -1935,8 +1939,8 @@ INSERT INTO ce_mcp_outcome_rule (...);`}
 
 ## Recommended read path
 
-1. Start with this page to understand the Database Knowledge Graph (DBKG) control model.
-2. Load the Database Knowledge Graph (DBKG) SQL package (`src/main/resources/sql/mcp/dbkg`).
+1. Start with this page to understand the Database Knowledge Graph control model.
+2. Load the Database Knowledge Graph SQL package (`src/main/resources/sql/mcp/dbkg`).
 3. Load the Zapper demo schema (`src/main/resources/sql/zapper`).
 4. Walk through the concrete trace in [MCP Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4).
 
