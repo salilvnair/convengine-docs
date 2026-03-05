@@ -42,39 +42,51 @@ function normalizeYaml(snippet) {
     .split("\n")
     .map((line) => line.replace(/\t/g, "  ").replace(/\s+$/g, ""));
 
-  // Safety net for docs snippets: if "convengine:" appears as a root key,
-  // ensure immediately-following peer keys are nested under it.
+  // Repair occasional MDX/list-context flattening where child keys lose one indent level.
+  // Example:
+  // settings:
+  // default_limit: 100
+  // should become:
+  // settings:
+  //   default_limit: 100
+  const isKeyOnly = (t) => /^[A-Za-z0-9_-]+:\s*$/.test(t);
+  const isChildCandidate = (t) => /^[A-Za-z0-9_-]+:\s*.*$/.test(t) || /^-\s+/.test(t);
+
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    const match = line.match(/^(\s*)convengine:\s*$/);
-    if (!match) {
+    const trimmed = line.trim();
+    if (!trimmed || !isKeyOnly(trimmed)) {
+      continue;
+    }
+    const parentIndent = (line.match(/^\s*/) || [""])[0].length;
+
+    let j = i + 1;
+    while (j < lines.length && !lines[j].trim()) {
+      j += 1;
+    }
+    if (j >= lines.length) {
       continue;
     }
 
-    const baseIndent = match[1].length;
-    for (let j = i + 1; j < lines.length; j += 1) {
-      const next = lines[j];
-      if (!next.trim()) {
-        continue;
-      }
-      const nextIndent = (next.match(/^\s*/) || [""])[0].length;
-      if (nextIndent < baseIndent) {
+    const nextLine = lines[j];
+    const nextTrimmed = nextLine.trim();
+    const nextIndent = (nextLine.match(/^\s*/) || [""])[0].length;
+    if (nextIndent > parentIndent || !isChildCandidate(nextTrimmed)) {
+      continue;
+    }
+
+    // Indent this child block by one YAML level until blank line or hard dedent.
+    for (let k = j; k < lines.length; k += 1) {
+      const current = lines[k];
+      const currentTrimmed = current.trim();
+      if (!currentTrimmed) {
         break;
       }
-
-      // Keep already-indented children as-is.
-      if (nextIndent > baseIndent) {
-        continue;
+      const currentIndent = (current.match(/^\s*/) || [""])[0].length;
+      if (currentIndent < parentIndent) {
+        break;
       }
-
-      // Same-level key after convengine => treat as child key.
-      if (/^[A-Za-z0-9_-]+\s*:/.test(next.trim())) {
-        lines[j] = `  ${next}`;
-        continue;
-      }
-
-      // Non-key tokens at same level end this block.
-      break;
+      lines[k] = `  ${current}`;
     }
   }
 
@@ -85,8 +97,13 @@ function normalizeCodeSnippet(children, language) {
   if (typeof children !== "string") {
     return children;
   }
+  const normalizedLanguage = String(language || "").toLowerCase();
   const normalizedNewlines = children.replace(/\r\n/g, "\n");
   const trimmed = normalizedNewlines.replace(/^\n+|\n+$/g, "");
+  if (normalizedLanguage === "yaml" || normalizedLanguage === "yml") {
+    // Preserve user-authored YAML indentation exactly; only normalize tabs/trailing spaces.
+    return normalizeYaml(trimmed);
+  }
   const lines = trimmed.split("\n");
   const nonEmpty = lines.filter((line) => line.trim().length > 0);
   if (nonEmpty.length === 0) {
@@ -103,17 +120,32 @@ function normalizeCodeSnippet(children, language) {
     .join("\n");
 
   const braceLanguages = new Set(["java", "javascript", "js", "typescript", "ts", "tsx", "jsx", "c", "cpp"]);
-  const normalizedLanguage = String(language || "").toLowerCase();
   if (braceLanguages.has(normalizedLanguage)) {
     return autoIndentBraceCode(base);
   }
   if (normalizedLanguage === "json") {
     return normalizeJson(base);
   }
-  if (normalizedLanguage === "yaml" || normalizedLanguage === "yml") {
-    return normalizeYaml(base);
-  }
   return base;
+}
+
+function splitHttpJsonBody(snippet) {
+  if (typeof snippet !== "string" || !snippet.trim()) {
+    return { requestPart: snippet, jsonPart: null };
+  }
+  const sections = snippet.split(/\n\s*\n/);
+  if (sections.length < 2) {
+    return { requestPart: snippet, jsonPart: null };
+  }
+  const requestPart = sections[0].trimEnd();
+  const bodyPart = sections.slice(1).join("\n\n").trim();
+  if (!bodyPart.startsWith("{") && !bodyPart.startsWith("[")) {
+    return { requestPart: snippet, jsonPart: null };
+  }
+  return {
+    requestPart,
+    jsonPart: normalizeJson(bodyPart),
+  };
 }
 
 export function CodeBlockToggle({
@@ -125,6 +157,8 @@ export function CodeBlockToggle({
   children,
 }) {
   const snippet = normalizeCodeSnippet(children, language);
+  const isHttp = String(language || "").toLowerCase() === "http";
+  const { requestPart, jsonPart } = isHttp ? splitHttpJsonBody(snippet) : { requestPart: snippet, jsonPart: null };
   const lineCount = typeof snippet === "string" ? snippet.split("\n").length : 0;
   const initialOpen = typeof defaultOpen === "boolean" ? defaultOpen : lineCount <= 50;
   const [open, setOpen] = useState(initialOpen);
@@ -167,7 +201,10 @@ export function CodeBlockToggle({
 
       {open && (
         <div className="ce-code-panel-body">
-          <CodeBlock language={language}>{snippet}</CodeBlock>
+          <CodeBlock language={language}>{requestPart}</CodeBlock>
+          {jsonPart && (
+            <CodeBlock language="json">{jsonPart}</CodeBlock>
+          )}
         </div>
       )}
     </section>

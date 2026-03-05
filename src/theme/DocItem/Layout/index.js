@@ -13,6 +13,17 @@ import DocBreadcrumbs from '@theme/DocBreadcrumbs';
 import ContentVisibility from '@theme/ContentVisibility';
 import styles from './styles.module.css';
 
+function slugifyHeading(value = '') {
+  return String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
 function flattenToc(items = []) {
   const result = [];
   for (const item of items) {
@@ -95,8 +106,36 @@ export default function DocItemLayout({ children }) {
     }
     return window.location.hash ? window.location.hash.slice(1) : '';
   });
-  const hasToc = docTOC.headings.length > 0;
-  const markers = buildHierarchicalMarkers(docTOC.headings);
+  const [fallbackHeadings, setFallbackHeadings] = useState([]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const root = document.querySelector('.theme-doc-markdown');
+    if (!root) return;
+    const nodes = Array.from(root.querySelectorAll('h2, h3'));
+    if (!nodes.length) return;
+
+    const idCounter = {};
+    const next = nodes
+      .map((node) => {
+        const raw = (node.innerHTML || '').trim();
+        if (!raw) return null;
+        const level = Number(String(node.tagName || '').slice(1)) || 2;
+        if (!node.id) {
+          const base = slugifyHeading(node.textContent || raw) || `section-${level}`;
+          const seen = (idCounter[base] || 0) + 1;
+          idCounter[base] = seen;
+          node.id = seen === 1 ? base : `${base}-${seen}`;
+        }
+        return { id: node.id, value: raw, level };
+      })
+      .filter(Boolean);
+    setFallbackHeadings(next);
+  }, [children, metadata?.permalink]);
+
+  const effectiveHeadings = docTOC.headings.length > 0 ? docTOC.headings : fallbackHeadings;
+  const hasToc = effectiveHeadings.length > 0;
+  const markers = buildHierarchicalMarkers(effectiveHeadings);
 
   const clearAutoCloseTimer = useCallback(() => {
     if (autoCloseTimerRef.current && typeof window !== 'undefined') {
@@ -234,7 +273,7 @@ export default function DocItemLayout({ children }) {
                     <button type="button" onClick={() => setOpenSections(false)} aria-label="Close sections menu">✕</button>
                   </div>
                   <div className="ce-sections-drawer-body">
-                    {docTOC.headings.map((h, idx) => (
+                    {effectiveHeadings.map((h, idx) => (
                       (() => {
                         const numbered = isNumberedHeading(h.value);
                         const displayValue = numbered ? stripHeadingNumberPrefix(h.value) : h.value;

@@ -2447,6 +2447,12 @@ body.docs-doc-page {
     var(--ce-apple-bg);
 }
 
+/* Keep docs pages pure white in light mode. */
+[data-theme='light'] body.docs-doc-page,
+[data-theme='light'] .main-wrapper {
+  background: #ffffff;
+}
+
 .docs-doc-page .theme-doc-markdown {
   color: var(--ce-apple-text);
 }
@@ -3631,6 +3637,54 @@ body.docs-doc-page {
   display: table-cell !important;
 }
 
+/* -----------------------------------------------------------------------------
+   Final override: make markdown tables rendered inside docs chat bubbles match
+   convengine-ui table visuals (no zebra tint, no hover tint on body rows).
+   ----------------------------------------------------------------------------- */
+.ce-chat-trace-text .ce-table-card tbody tr,
+.ce-chat-trace-text .ce-table-card tbody tr:nth-child(odd),
+.ce-chat-trace-text .ce-table-card tbody tr:nth-child(even),
+.ce-chat-trace-text .ce-table-card tbody tr:hover {
+  background: transparent !important;
+}
+
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody tr,
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody tr:nth-child(odd),
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody tr:nth-child(even),
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody tr:hover {
+  background: transparent !important;
+}
+
+/* Remove docs-only colored "chip" cell rendering inside chat tables. */
+.ce-chat-trace-text .ce-table-card tbody .ce-table-cell-body,
+.ce-chat-trace-text .ce-table-card tbody td:nth-child(1) .ce-table-cell-body,
+.ce-chat-trace-text .ce-table-card tbody td:nth-child(2) .ce-table-cell-body,
+.ce-chat-trace-text .ce-table-card tbody td:nth-child(3) .ce-table-cell-body,
+.ce-chat-trace-text .ce-table-card tbody td:nth-child(4) .ce-table-cell-body,
+.ce-chat-trace-text .ce-table-card tbody td:nth-child(5) .ce-table-cell-body {
+  background: transparent !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: auto !important;
+  display: block !important;
+  color: inherit !important;
+}
+
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody .ce-table-cell-body,
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody td:nth-child(1) .ce-table-cell-body,
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody td:nth-child(2) .ce-table-cell-body,
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody td:nth-child(3) .ce-table-cell-body,
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody td:nth-child(4) .ce-table-cell-body,
+[data-theme='dark'] .ce-chat-trace-text .ce-table-card tbody td:nth-child(5) .ce-table-cell-body {
+  background: transparent !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  color: inherit !important;
+}
+
 /* Global docs search + term popup */
 .ce-search-launcher {
   position: fixed;
@@ -4049,7 +4103,6 @@ body.docs-doc-page {
   }
 }
 
-
 /* Clickable convengine tokens across docs */
 .ce-file-ref,
 .ce-method-ref,
@@ -4057,7 +4110,6 @@ body.docs-doc-page {
 .ce-table-cell-content {
   cursor: pointer;
 }
-
 
 .ce-v1-notice {
   margin: 0.75rem 0 1rem;
@@ -4196,4 +4248,84 @@ a.ce-version-dropdown {
   55% {
     transform: translateX(140%);
   }
+}
+
+/* Semantic query operator/function chips */
+.ce-semantic-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.16rem 0.52rem;
+  border-radius: 999px;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #1e3a8a;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+}
+
+.ce-semantic-accent {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+[data-theme='dark'] .ce-semantic-chip {
+  color: #dbeafe;
+  background: rgba(37, 99, 235, 0.28);
+  border-color: rgba(96, 165, 250, 0.65);
+}
+
+[data-theme='dark'] .ce-semantic-accent {
+  color: #93c5fd;
+}
+
+.ce-semantic-op {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.44rem;
+  border-radius: 999px;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+[data-theme='dark'] .ce-semantic-op {
+  color: #bfdbfe;
+  background: rgba(29, 78, 216, 0.28);
+  border-color: rgba(147, 197, 253, 0.62);
+}
+
+/* PromptSuite: inline-code look without using <code> tags (no term popup trigger) */
+.ce-prompt-suite .ce-prompt-inline {
+  display: inline-block;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-family: var(--ifm-font-family-monospace);
+  line-height: 1.35;
+}
+
+.ce-prompt-suite .ce-prompt-inline--default,
+.ce-prompt-suite .ce-prompt-inline--negative {
+  color: #7f1d1d !important;
+}
+
+.ce-prompt-suite .ce-prompt-inline--positive {
+  color: #1d4ed8 !important;
+}
+
+[data-theme='dark'] .ce-prompt-suite .ce-prompt-inline--default,
+[data-theme='dark'] .ce-prompt-suite .ce-prompt-inline--positive {
+  color: #93c5fd !important;
+}
+
+[data-theme='dark'] .ce-prompt-suite .ce-prompt-inline--negative {
+  color: #fca5a5 !important;
 }

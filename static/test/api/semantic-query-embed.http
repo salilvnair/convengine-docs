@@ -1,0 +1,9 @@
+POST http://localhost:8080/api/v1/db/semantic/embeddings/rebuild
+Content-Type: application/json
+
+{
+  "namespace": "semantic-model:zapper_ops",
+  "clearNamespace": true,
+  "includeEntities": true,
+  "includeTables": true
+}

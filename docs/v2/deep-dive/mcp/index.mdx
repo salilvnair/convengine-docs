@@ -26,6 +26,7 @@ Use this section when you need the internal execution model: planner loops, tool
 - [Basics](/docs/v2/deep-dive/mcp/basics)
 - [Advanced Guide](/docs/v2/deep-dive/mcp/advanced)
 - [Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog)
+- [Semantic Query](/docs/v2/deep-dive/mcp/semantic-query)
 - [DB Knowledge Graph](/docs/v2/deep-dive/mcp/knowledge)
 - [HTTP Tool](/docs/v2/deep-dive/mcp/http-tool)
 - [Deep Dive](/docs/v2/deep-dive/mcp/deep-dive)
@@ -33,6 +34,7 @@ Use this section when you need the internal execution model: planner loops, tool
 - [Example 2](/docs/v2/deep-dive/mcp/example2)
 - [Example 3](/docs/v2/deep-dive/mcp/example3)
 - [Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4)
+- [Example 5 - Semantic Query (Zapper)](/docs/v2/deep-dive/mcp/example5)
 
 ## Database Knowledge Graph (DBKG) at a glance
 
@@ -78,6 +80,7 @@ Why Database Knowledge Graph (DBKG) matters:
     ["[Basics](/docs/v2/deep-dive/mcp/basics)", "Core MCP mental model.", "Start here if you want the shortest possible overview."],
     ["[Advanced Guide](/docs/v2/deep-dive/mcp/advanced)", "Planner, guardrails, phases, and runtime metadata.", "Use this when configuring real tool chains."],
     ["[Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog)", "Metadata grounding path for planner hints.", "Use this for `db.semantic.catalog`, ranking behavior, and semantic table design."],
+    ["[Semantic Query](/docs/v2/deep-dive/mcp/semantic-query)", "Text -> AST -> deterministic SQL runtime path.", "Use this for stage-by-stage semantic-query architecture, AST model, and compiler/handler flow."],
     ["[DB Knowledge Graph](/docs/v2/deep-dive/mcp/knowledge)", "DB-driven knowledge graph and investigation runtime.", "Use this for the full Database Knowledge Graph (DBKG) model and metadata tables."],
     ["[HTTP Tool](/docs/v2/deep-dive/mcp/http-tool)", "HTTP tool execution path.", "Use this when your tool talks to REST/SOAP endpoints."],
     ["[Deep Dive](/docs/v2/deep-dive/mcp/deep-dive)", "Planner-loop execution graph.", "Use this when tracing the confirmation-first MCP lifecycle."],
@@ -85,6 +88,7 @@ Why Database Knowledge Graph (DBKG) matters:
     ["[Example 2](/docs/v2/deep-dive/mcp/example2)", "Loan application flow.", "Use this for a practical business flow with tools."],
     ["[Example 3](/docs/v2/deep-dive/mcp/example3)", "Extended loan application flow.", "Use this for correction + confirmation behavior."],
     ["[Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4)", "Database Knowledge Graph (DBKG)-based production investigation example.", "Use this for the full Zapper diagnostic story."],
+    ["[Example 5 - Semantic Query (Zapper)](/docs/v2/deep-dive/mcp/example5)", "Semantic-query runtime example over zapper transactional schema.", "Use this for retrieval -> join path -> AST -> SQL compile/execute -> summary tracing."],
   ]}
 />
 

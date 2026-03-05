@@ -53,6 +53,7 @@ function isInterestingTerm(term) {
 
 function extractTerm(target) {
   if (!target) return null;
+  if (target.closest('.ce-no-term-lookup')) return null;
   const el = target.closest(
     '.ce-file-ref, .ce-method-ref, .ce-table-cell-content, code'
   );
