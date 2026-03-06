@@ -1638,6 +1638,247 @@ rules:
   max_result_limit: 500`}
 </CodeBlockToggle>
 
+## `semantic-layer.yaml`
+
+This section explains every major tag in the full sample and what ConvEngine actually does with it at runtime.
+
+<Highlight type="info" title="Important runtime behavior">
+`SemanticModelLoader` is configured with `FAIL_ON_UNKNOWN_PROPERTIES=false`.  
+That means unknown/unmapped YAML tags are ignored safely at load time.
+</Highlight>
+
+<DbTable
+  title="Top-level tag behavior"
+  columns={["Tag", "Loaded into model", "Runtime effect", "Primary code path"]}
+  rows={[
+    ["version", "Yes", "Returned in output/audit as semanticModelVersion.", "model/SemanticModel, runtime/core/SemanticQueryRuntimeService"],
+    ["database", "Yes", "Informational model identity.", "model/SemanticModel"],
+    ["description", "Yes", "Used as descriptive context only.", "model/SemanticModel"],
+    ["entities", "Yes", "Core retrieval + AST schema specialization + field validation + SQL compile mapping.", "retrieval/*, llm/DefaultSemanticAstGenerator, ast/validate/DefaultAstValidator, sql/*"],
+    ["tables", "Yes", "Schema graph and model validation for physical table references.", "model/SemanticModelValidator, graph/*"],
+    ["relationships", "Yes", "Join-path planning and correlation predicates.", "graph/provider/DefaultJoinPathResolver, sql/handler/clause/*"],
+    ["metrics", "Yes", "Allowed metric keys and SQL expressions in aggregate queries.", "llm/DefaultSemanticAstGenerator, ast/validate/DefaultAstValidator, sql/handler/clause/*"],
+    ["synonyms", "Yes (top-level map)", "Currently loaded; retrieval mainly uses entity-level synonyms.", "model/SemanticModel, retrieval/provider/DefaultSemanticEntityTableRetriever"],
+    ["settings", "No (ignored currently)", "No direct runtime effect from YAML tag itself; limits/timezone come from application config.", "config/ConvEngineMcpConfig"],
+    ["join_hints", "No (ignored currently)", "No direct runtime effect from YAML tag currently.", "N/A (ignored by loader)"],
+    ["rules", "No (ignored currently)", "No direct runtime effect from YAML tag currently.", "N/A (ignored by loader)"]
+  ]}
+/>
+
+### 1) Model identity tags
+
+<CodeBlockToggle title="Snippet: model identity" language="yaml" defaultOpen={false}>
+{`version: 1
+database: zapper_ops
+description: Semantic model for Zapper disconnect workflow analytics.`}
+</CodeBlockToggle>
+
+What this does:
+- `version`: surfaces as `semanticModelVersion` in runtime output and stage payloads.
+- `database` + `description`: metadata/context only; not a SQL generator by itself.
+
+### 2) `entities` block
+
+<CodeBlockToggle title="Snippet: one entity contract" language="yaml" defaultOpen={false}>
+{`entities:
+  DisconnectRequest:
+    description: Main disconnect workflow entity
+    synonyms: [disconnect, disconnection, service termination]
+    tables:
+      primary: zp_request
+      related: [zp_disconnect_order, zp_order_downstream_check, zp_ui_data]
+    fields:
+      requestId:
+        column: zp_request.zp_request_id
+        type: string
+        key: true
+        searchable: true
+        filterable: true
+      teamNotes:
+        column: zp_ui_data.zp_asr_team_notes
+        type: string`}
+</CodeBlockToggle>
+
+How each child tag is used:
+
+<DbTable
+  title="Entity tag behavior"
+  columns={["Tag", "Used by", "Effect on AST/SQL"]}
+  rows={[
+    ["entities.<name>", "retrieval + validator", "Becomes candidate entity and AST entity target."],
+    ["description", "retrieval + LLM prompt", "Improves retrieval relevance and LLM grounding context."],
+    ["synonyms", "retrieval (+ embedding text)", "Raises deterministic synonym score for candidate ranking."],
+    ["tables.primary", "planner/compiler/validator", "Primary base table candidate for joins and projections."],
+    ["tables.related", "retrieval/planner", "Expands table candidates for join-path resolution."],
+    ["fields.<fieldName>.column", "compiler", "Maps semantic field key to physical table.column in SQL select/where/order/group."],
+    ["fields.<fieldName>.type", "validator", "Operator/type validation (e.g., ILIKE requires string-like field)."],
+    ["fields.<fieldName>.description", "retrieval", "Extra lexical signal for entity/field matching."],
+    ["fields.<fieldName>.filterable/searchable/key", "currently metadata", "Carried in model; not strict query gating in current validator/compiler."]
+  ]}
+/>
+
+Example:
+- User asks: `show requests where teamNotes contains billing`
+- Retrieval picks `DisconnectRequest` (field ownership + lexical/synonym/vector signals).
+- AST schema specialization restricts allowed field keys for selected entity.
+- Compiler uses `teamNotes -> zp_ui_data.zp_asr_team_notes`.
+
+### 3) `tables` + `columns` + `foreign_key`
+
+<CodeBlockToggle title="Snippet: physical table dictionary" language="yaml" defaultOpen={false}>
+{`tables:
+  zp_request:
+    description: disconnect request master table
+    columns:
+      zp_request_id:
+        type: varchar
+        primary_key: true
+      account_id:
+        type: varchar
+        foreign_key:
+          table: zp_account
+          column: account_id
+      request_status:
+        type: varchar
+      requested_at:
+        type: timestamptz`}
+</CodeBlockToggle>
+
+What this does:
+- Provides table/column metadata for schema validation and graph wiring.
+- `primary_key` and `foreign_key` are model-level structure hints.
+- `foreign_key.table/column` can contribute to relationship sanity and graph traversal completeness.
+
+### 4) `relationships`
+
+<CodeBlockToggle title="Snippet: relationship edge" language="yaml" defaultOpen={false}>
+{`relationships:
+  - name: request_to_disconnect_order
+    description: request to downstream disconnect order
+    from: { table: zp_request, column: zp_request_id }
+    to:   { table: zp_disconnect_order, column: zp_request_id }
+    type: one_to_many`}
+</CodeBlockToggle>
+
+What this does:
+- Join-path stage builds traversal edges from these mappings.
+- SQL compiler uses edges to generate deterministic joins.
+- Correlation predicates for EXISTS/subqueries also rely on relationship knowledge.
+
+### 5) `metrics`
+
+<CodeBlockToggle title="Snippet: metric definition" language="yaml" defaultOpen={false}>
+{`metrics:
+  billbank_gap_count:
+    description: count of disconnect orders missing billbank linkage
+    sql: |
+      COUNT(CASE WHEN zp_disconnect_order.zp_disconnect_id IS NOT NULL
+                 AND zp_billbank_record.zp_disconnect_id IS NULL THEN 1 END)`}
+</CodeBlockToggle>
+
+What this does:
+- Metric key becomes allowed value in AST `metrics[]`.
+- Metric SQL is inserted by compiler when aggregation is requested.
+- Having clause can reference metric keys.
+
+Critical rule:
+- If `metrics` is present with detail projections, selected fields must be grouped (`group_by`) or query is invalid.
+
+### 6) `synonyms` (top-level)
+
+<CodeBlockToggle title="Snippet: top-level synonyms map" language="yaml" defaultOpen={false}>
+{`synonyms:
+  disconnect: [service termination, disconnection]
+  billing: [billbank, invoice, reconciliation]`}
+</CodeBlockToggle>
+
+Current behavior:
+- Loaded into model and available for future expansion.
+- Main retrieval scoring today relies primarily on entity-level synonyms + fields + descriptions.
+
+### 7) `settings`, `join_hints`, `rules`, and other descriptive tags
+
+<CodeBlockToggle title="Snippet: currently ignored-by-loader tags" language="yaml" defaultOpen={false}>
+{`settings:
+  default_limit: 100
+  timezone: UTC
+  sql_dialect: postgres
+
+join_hints:
+  zp_request:
+    commonly_joined_with: [zp_disconnect_order, zp_ui_data]
+
+rules:
+  allowed_tables: [zp_request, zp_disconnect_order]
+  deny_operations: [DELETE, UPDATE, DROP]
+  max_result_limit: 500`}
+</CodeBlockToggle>
+
+Current status:
+- These tags are excellent documentation for model authors.
+- They are not currently bound to `SemanticModel` records, so runtime ignores them.
+- Effective runtime limit/timezone/dialect come from `application.yml` (`convengine.mcp.db.semantic.*`).
+- DML/DDL guardrails are enforced by SQL policy/guardrail steps, not YAML `rules`.
+
+Other descriptive tags in sample:
+- `example_questions`, `allowed_values`, `example` are currently prompt/documentation aids and are not strict runtime-enforced model fields.
+
+## AST + SQL impact walkthrough (your metric error example)
+
+User question:
+- `show billbank gaps with request and order details`
+
+LLM generated AST (problem shape):
+
+<CodeBlockToggle title="Invalid mixed AST (detail + metric)" language="json" defaultOpen={false}>
+{`{
+  "entity": "BillingRecord",
+  "select": ["billbankId","accountId","disconnectId","recordStatus","pendingBillAmount","updatedAt"],
+  "group_by": [],
+  "metrics": ["billbank_gap_count"],
+  "having": {
+    "op": "AND",
+    "conditions": [{"field":"billbank_gap_count","op":">","value":0}],
+    "groups": []
+  }
+}`}
+</CodeBlockToggle>
+
+Why validator rejects:
+- Metrics + detailed select fields requires grouping.
+- With empty `group_by`, SQL semantics are invalid.
+
+With current normalizer fix:
+- Mixed aggregate/detail AST is demoted to detail query.
+- `metrics/having/group_by` are removed deterministically before validation.
+
+<CodeBlockToggle title="Normalized AST after fix (detail mode)" language="json" defaultOpen={false}>
+{`{
+  "entity": "BillingRecord",
+  "select": ["billbankId","accountId","disconnectId","recordStatus","pendingBillAmount","updatedAt"],
+  "group_by": [],
+  "metrics": [],
+  "having": {"op":"AND","conditions":[],"groups":[]}
+}`}
+</CodeBlockToggle>
+
+Typical SQL shape after fix:
+
+<CodeBlockToggle title="Compiled SQL shape (detail mode)" language="sql" defaultOpen={false}>
+{`select
+  t0.billbank_id as billbankId,
+  t0.account_id as accountId,
+  t0.zp_disconnect_id as disconnectId,
+  t0.record_status as recordStatus,
+  t0.pending_bill_amount as pendingBillAmount,
+  t0.updated_at as updatedAt
+from zp_billbank_record t0
+limit :__limit`}
+</CodeBlockToggle>
+
+If you want aggregate output intentionally, prompt explicitly:
+- `show billbank gap count by accountId`
+
 ## Post feedback + rebuild embeddings
 
 Use this flow to validate that thumbs feedback is now improving semantic retrieval ranking.
