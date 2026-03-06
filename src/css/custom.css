@@ -4366,3 +4366,78 @@ a.ce-version-dropdown {
   color: #bfdbfe;
   background: rgba(59, 130, 246, 0.28);
 }
+
+/* Deep-dive step chip wrapping for long filenames/text */
+.ce-step-badge-item {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.ce-step-badge-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ce-step-badge-label a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ce-step-badge-label .ce-semantic-chip {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+  line-height: 1.2;
+}
+
+/* Global wrap hardening for deep-dive long headings/links and TOC popup */
+.theme-doc-toc-desktop,
+.theme-doc-toc-mobile,
+.table-of-contents,
+.table-of-contents__left-border,
+.table-of-contents li,
+.table-of-contents__link {
+  max-width: 99vw;
+  overflow-x: hidden;
+}
+
+.table-of-contents__link {
+  display: block;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Keep very long deep-dive step labels within viewport width */
+.ce-step-badge-list,
+.ce-step-badge-item,
+.ce-step-badge-label {
+  max-width: 99vw;
+}
+
+/* Number badge visual centering */
+.ce-step-badge-index {
+  align-self: center;
+  line-height: 1;
+}
+
+/* TOC: allow long code-style heading labels to wrap (Sections popup + side TOC) */
+.table-of-contents__link code,
+.theme-doc-toc-mobile .table-of-contents__link code,
+.theme-doc-toc-desktop .table-of-contents__link code {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.theme-doc-toc-mobile .table-of-contents li,
+.theme-doc-toc-mobile .table-of-contents__link {
+  min-width: 0;
+  max-width: 100%;
+}
