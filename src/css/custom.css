@@ -4441,3 +4441,42 @@ a.ce-version-dropdown {
   min-width: 0;
   max-width: 100%;
 }
+
+/* Sections drawer: render heading text as normal wrapped text (no chip look) */
+.ce-sections-link {
+  align-items: flex-start;
+}
+
+.ce-sections-link > :not(.ce-sections-link-index) {
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ce-sections-link code,
+[data-theme='dark'] .ce-sections-link code {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  color: inherit !important;
+  font: inherit !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Sections drawer: keep index bubble centered and sized for nested indexes like 17.1.39 */
+.ce-sections-link-index {
+  width: auto;
+  min-width: 2.5rem;
+  height: 1.55rem;
+  padding: 0 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex: 0 0 auto;
+}

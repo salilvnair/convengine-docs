@@ -251,9 +251,10 @@ JGraphT powers schema traversal and shortest join-path resolution. It prevents L
 
 Flow:
 1. Graph engine refreshes vertices/edges from schema inspector FK joins.
-2. Join-path resolver chooses base table and required tables from retrieval.
-3. Shortest paths are found with hop limits.
-4. Resolved edges are de-duplicated and returned to compiler.
+2. Join-path resolver chooses base table and initial required tables from retrieval.
+3. SQL compile expands required tables from AST references (projections, `where`, `having`, `exists`, `subquery`, `sort`, `group_by`, `time_range`, metrics) before final join assembly.
+4. Shortest paths are found with hop limits.
+5. Resolved edges are de-duplicated and returned to compiler.
 
 ### JGraphT traversal examples
 
@@ -1330,6 +1331,7 @@ entities:
     example_questions:
       - list failed checks for DON9001
       - which check failed for request ZPR1003
+      - show failure reason for request ZPR1003
       - show downstream validation failures last 24 hours
     tables:
       primary: zp_order_downstream_check
@@ -1348,6 +1350,12 @@ entities:
         filterable: true
         searchable: true
         description: disconnect order linked to this check
+      requestId:
+        column: zp_disconnect_order.zp_request_id
+        type: string
+        filterable: true
+        searchable: true
+        description: request id associated with this downstream check via disconnect order
       checkCode:
         column: zp_order_downstream_check.check_code
         type: string
@@ -1760,7 +1768,7 @@ Example:
 - User asks: `show requests where teamNotes contains billing`
 - Retrieval picks `DisconnectRequest` (field ownership + lexical/synonym/vector signals).
 - AST schema specialization restricts allowed field keys for selected entity.
-- Compiler uses `teamNotes -> zp_ui_data.zp_asr_team_notes`.
+- Compiler uses `teamNotes -> zp_ui_data.zp_asr_team_notes` and, if filters reference another table-owned field (for example `requestId -> zp_request.zp_request_id`), compile stage auto-expands required tables and adds the join path.
 
 ### 3) `tables` + `columns` + `foreign_key`
 
@@ -1972,8 +1980,11 @@ Runtime files below show how the semantic tool call is orchestrated from handler
 </div>
 
 <CodeBlockToggle title="DbSemanticQueryToolHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/handler/DbSemanticQueryToolHandler.java" defaultOpen={false}>
-{`// Entry MCP tool adapter for semantic query execution.
-// Delegates to runtime service and returns tool-safe response payload.
+{`// DbSemanticQueryToolHandler.java
+// Purpose: MCP tool handler entrypoint for semantic query execution.
+// Flow 1: Accepts tool args and extracts the semantic question payload.
+// Flow 2: Delegates planning/execution to SemanticQueryRuntimeService.
+// Flow 3: Returns normalized tool result envelope to MCP step.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.handler;
 
@@ -1992,23 +2003,27 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "convengine.mcp.db.semantic", name = "enabled", havingValue = "true")
+// Primary type declaration for this component.
 public class DbSemanticQueryToolHandler implements DbToolHandler {
 
     private final ConvEngineMcpConfig mcpConfig;
     private final SemanticQueryRuntimeService runtimeService;
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String toolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         return cfg.getToolCode() == null || cfg.getToolCode().isBlank() ? "db.semantic.query" : cfg.getToolCode();
     }
 
     @Override
+// Executes core stage/operation logic and mutates shared context/state.
     public Object execute(CeMcpTool tool, Map<String, Object> args, EngineSession session) {
         String question = extractQuestion(args, session);
         return runtimeService.plan(question, session);
     }
 
+// Helper method used by the main runtime flow in this component.
     private String extractQuestion(Map<String, Object> args, EngineSession session) {
         if (args != null) {
             Object query = args.get("question");
@@ -2044,25 +2059,31 @@ public class DbSemanticQueryToolHandler implements DbToolHandler {
 </div>
 
 <CodeBlockToggle title="SemanticQueryStageInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/core/SemanticQueryStageInterceptor.java" defaultOpen={false}>
-{`// Extension hook contract around stage lifecycle (before/after/onError).
-// Consumers can add audit/meta behavior without changing stage logic.
+{`// SemanticQueryStageInterceptor.java
+// Purpose: Stage lifecycle extension contract.
+// Flow 1: Defines before/after/onError hooks around each runtime stage.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.core;
 
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
+// Primary type declaration for this component.
 public interface SemanticQueryStageInterceptor {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(EngineSession session) {
         return true;
     }
 
+// Helper method used by the main runtime flow in this component.
     default void beforeStage(String stage, EngineSession session, Object payload) {
     }
 
+// Helper method used by the main runtime flow in this component.
     default void afterStage(String stage, EngineSession session, Object payload) {
     }
 
+// Helper method used by the main runtime flow in this component.
     default void onError(String stage, EngineSession session, Exception ex) {
     }
 }
@@ -2084,8 +2105,9 @@ public interface SemanticQueryStageInterceptor {
 </div>
 
 <CodeBlockToggle title="DefaultSemanticQueryStageInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/core/DefaultSemanticQueryStageInterceptor.java" defaultOpen={false}>
-{`// Default pass-through interceptor to keep hook chain stable.
-// Useful as baseline ordering point for custom interceptors.
+{`// DefaultSemanticQueryStageInterceptor.java
+// Purpose: Default no-op stage interceptor.
+// Flow 1: Provides baseline ordered interceptor bean for override chains.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.core;
 
@@ -2095,6 +2117,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultSemanticQueryStageInterceptor implements SemanticQueryStageInterceptor {
 }
 `}
@@ -2115,8 +2138,9 @@ public class DefaultSemanticQueryStageInterceptor implements SemanticQueryStageI
 </div>
 
 <CodeBlockToggle title="SemanticStagePipelineFactory.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/pipeline/SemanticStagePipelineFactory.java" defaultOpen={false}>
-{`// Resolves stage beans and produces deterministic ordered pipeline.
-// Enforces dependency/ordering constraints during pipeline build.
+{`// SemanticStagePipelineFactory.java
+// Purpose: Builds ordered stage pipeline.
+// Flow 1: Resolves stage beans, applies ordering constraints, returns pipeline.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.pipeline;
 
@@ -2133,6 +2157,7 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class SemanticStagePipelineFactory {
 
     private static final Logger log = LoggerFactory.getLogger(SemanticStagePipelineFactory.class);
@@ -2143,6 +2168,7 @@ public class SemanticStagePipelineFactory {
     private SemanticStagePipeline pipeline;
 
     @PostConstruct
+// Helper method used by the main runtime flow in this component.
     public void init() {
         List<SemanticQueryStage> ordered = dagOrderer.order(
                 discoveredStages,
@@ -2155,6 +2181,7 @@ public class SemanticStagePipelineFactory {
         this.pipeline = new SemanticStagePipeline(ordered);
     }
 
+// Helper method used by the main runtime flow in this component.
     public SemanticStagePipeline create() {
         return pipeline;
     }
@@ -2177,8 +2204,9 @@ public class SemanticStagePipelineFactory {
 </div>
 
 <CodeBlockToggle title="SemanticStagePipeline.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/pipeline/SemanticStagePipeline.java" defaultOpen={false}>
-{`// Executes resolved semantic stages sequentially with shared context.
-// Stops on stage exception so runtime can emit deterministic error audit.
+{`// SemanticStagePipeline.java
+// Purpose: Executes resolved stage list in order.
+// Flow 1: Invokes each stage with shared context and short-circuits on error.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.pipeline;
 
@@ -2186,6 +2214,7 @@ import com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.
 
 import java.util.List;
 
+// Primary type declaration for this component.
 public class SemanticStagePipeline {
 
     private final List<SemanticQueryStage> orderedStages;
@@ -2194,6 +2223,7 @@ public class SemanticStagePipeline {
         this.orderedStages = orderedStages == null ? List.of() : List.copyOf(orderedStages);
     }
 
+// Helper method used by the main runtime flow in this component.
     public List<SemanticQueryStage> stages() {
         return orderedStages;
     }
@@ -2216,8 +2246,9 @@ public class SemanticStagePipeline {
 </div>
 
 <CodeBlockToggle title="SemanticQueryContext.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/context/SemanticQueryContext.java" defaultOpen={false}>
-{`// Shared mutable runtime context passed across semantic stages.
-// Carries retrieval, joinPath, AST, compiledSql, execution rows, summary.
+{`// SemanticQueryContext.java
+// Purpose: Shared mutable context across semantic stages.
+// Flow 1: Stores retrieval/joinPath/AST/SQL/execution/summary artifacts.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.context;
 
@@ -2230,6 +2261,7 @@ import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.Compi
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.execute.SemanticExecutionResult;
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
+// Primary type declaration for this component.
 public class SemanticQueryContext {
 
     private final String question;
@@ -2249,74 +2281,92 @@ public class SemanticQueryContext {
         this.session = session;
     }
 
+// Helper method used by the main runtime flow in this component.
     public String question() {
         return question;
     }
 
+// Helper method used by the main runtime flow in this component.
     public EngineSession session() {
         return session;
     }
 
+// Helper method used by the main runtime flow in this component.
     public RetrievalResult retrieval() {
         return retrieval;
     }
 
+// Helper method used by the main runtime flow in this component.
     public void retrieval(RetrievalResult retrieval) {
         this.retrieval = retrieval;
     }
 
+// Helper method used by the main runtime flow in this component.
     public JoinPathPlan joinPath() {
         return joinPath;
     }
 
+// Helper method used by the main runtime flow in this component.
     public void joinPath(JoinPathPlan joinPath) {
         this.joinPath = joinPath;
     }
 
+// Helper method used by the main runtime flow in this component.
     public AstGenerationResult astGeneration() {
         return astGeneration;
     }
 
+// Helper method used by the main runtime flow in this component.
     public void astGeneration(AstGenerationResult astGeneration) {
         this.astGeneration = astGeneration;
     }
 
+// Helper method used by the main runtime flow in this component.
     public AstValidationResult astValidation() {
         return astValidation;
     }
 
+// Helper method used by the main runtime flow in this component.
     public CanonicalAst canonicalAst() {
         return canonicalAst;
     }
 
+// Helper method used by the main runtime flow in this component.
     public void canonicalAst(CanonicalAst canonicalAst) {
         this.canonicalAst = canonicalAst;
     }
 
+// Helper method used by the main runtime flow in this component.
     public void astValidation(AstValidationResult astValidation) {
         this.astValidation = astValidation;
     }
 
+// Compiles canonical input into SQL fragments and named parameters.
     public CompiledSql compiledSql() {
         return compiledSql;
     }
 
+// Compiles canonical input into SQL fragments and named parameters.
     public void compiledSql(CompiledSql compiledSql) {
         this.compiledSql = compiledSql;
     }
 
+// Helper method used by the main runtime flow in this component.
     public SemanticExecutionResult executionResult() {
         return executionResult;
     }
 
+// Helper method used by the main runtime flow in this component.
     public void executionResult(SemanticExecutionResult executionResult) {
         this.executionResult = executionResult;
     }
 
+// Builds user-facing summary text/table from execution payload.
     public String summary() {
         return summary;
     }
 
+// Builds user-facing summary text/table from execution payload.
     public void summary(String summary) {
         this.summary = summary;
     }
@@ -2339,19 +2389,23 @@ public class SemanticQueryContext {
 </div>
 
 <CodeBlockToggle title="SemanticQueryStage.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/core/SemanticQueryStage.java" defaultOpen={false}>
-{`// Stage SPI for semantic runtime pipeline.
-// Each stage implements stageCode() + execute(context).
+{`// SemanticQueryStage.java
+// Purpose: Runtime stage SPI contract.
+// Flow 1: Each stage exposes stageCode and execute(context).
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.context.SemanticQueryContext;
 
+// Primary type declaration for this component.
 public interface SemanticQueryStage {
 
+// Exposes deterministic stage identifier used in audit and pipeline order.
     default String stageCode() {
         return getClass().getSimpleName();
     }
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(SemanticQueryContext context) {
         return true;
     }
@@ -2376,8 +2430,9 @@ public interface SemanticQueryStage {
 </div>
 
 <CodeBlockToggle title="SemanticRetrievalStage.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/provider/SemanticRetrievalStage.java" defaultOpen={false}>
-{`// Selects candidate entities/tables from question tokens and vectors.
-// Emits RETRIEVAL_DONE with confidence and score metadata.
+{`// SemanticRetrievalStage.java
+// Purpose: Retrieves candidate entities/tables for question.
+// Flow 1: Invokes retriever and emits confidence/score audit metadata.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.provider;
 
@@ -2407,6 +2462,7 @@ import java.util.Objects;
 @Component
 @StartStep
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class SemanticRetrievalStage implements SemanticQueryStage {
 
     private final ObjectProvider<List<SemanticEntityTableRetriever>> retrieversProvider;
@@ -2415,11 +2471,13 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
     private final VerboseMessagePublisher verbosePublisher;
 
     @Override
+// Exposes deterministic stage identifier used in audit and pipeline order.
     public String stageCode() {
         return "retrieval";
     }
 
     @Override
+// Executes core stage/operation logic and mutates shared context/state.
     public void execute(SemanticQueryContext context) {
         SemanticEntityTableRetriever retriever = resolveRetriever(context);
         RetrievalResult retrieval = retriever.retrieve(context.question(), context.session());
@@ -2427,6 +2485,7 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
         publishRetrieved(context.session(), retrieval);
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private SemanticEntityTableRetriever resolveRetriever(SemanticQueryContext context) {
         List<SemanticEntityTableRetriever> retrievers = retrieversProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(retrievers);
@@ -2438,6 +2497,7 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
         throw new IllegalStateException("No SemanticEntityTableRetriever available.");
     }
 
+// Retrieves ranked semantic candidates from deterministic/vector sources.
     private void publishRetrieved(EngineSession session, RetrievalResult retrieval) {
         UUID conversationId = session == null ? null : session.getConversationId();
         if (conversationId == null) {
@@ -2474,6 +2534,7 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
         }
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private String resolveToolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (cfg == null || cfg.getToolCode() == null || cfg.getToolCode().isBlank()) {
@@ -2482,11 +2543,13 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
         return cfg.getToolCode().trim();
     }
 
+// Helper method used by the main runtime flow in this component.
     private boolean isVectorEnabled() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         return cfg != null && cfg.getVector() != null && cfg.getVector().isEnabled();
     }
 
+// Helper method used by the main runtime flow in this component.
     private boolean hasVectorEvidence(RetrievalResult retrieval) {
         if (retrieval == null) {
             return false;
@@ -2500,6 +2563,7 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
         return entityVector || tableVector;
     }
 
+// Helper method used by the main runtime flow in this component.
     private boolean isPureLexical(RetrievalResult retrieval) {
         if (retrieval == null) {
             return true;
@@ -2509,6 +2573,7 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
         return hasAnyCandidates && !hasVectorEvidence(retrieval);
     }
 
+// Helper method used by the main runtime flow in this component.
     private List<Map<String, Object>> buildEntityScores(RetrievalResult retrieval) {
         if (retrieval == null || retrieval.candidateEntities() == null) {
             return List.of();
@@ -2519,6 +2584,7 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
                 .toList();
     }
 
+// Helper method used by the main runtime flow in this component.
     private List<Map<String, Object>> buildTableScores(RetrievalResult retrieval) {
         if (retrieval == null || retrieval.candidateTables() == null) {
             return List.of();
@@ -2529,6 +2595,7 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
                 .toList();
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> toEntityScore(CandidateEntity candidate) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("name", candidate.name());
@@ -2541,6 +2608,7 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
         return row;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> toTableScore(CandidateTable candidate) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("name", candidate.name());
@@ -2554,6 +2622,7 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
         return row;
     }
 
+// Helper method used by the main runtime flow in this component.
     private boolean hasReason(List<String> reasons, String reason) {
         return reasons != null && reasons.stream().anyMatch(r -> reason.equalsIgnoreCase(r));
     }
@@ -2576,8 +2645,9 @@ public class SemanticRetrievalStage implements SemanticQueryStage {
 </div>
 
 <CodeBlockToggle title="SemanticJoinPathStage.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/provider/SemanticJoinPathStage.java" defaultOpen={false}>
-{`// Resolves base table and join edges from retrieval candidates.
-// Produces JoinPathPlan consumed by compiler/planner.
+{`// SemanticJoinPathStage.java
+// Purpose: Resolves relational join-path plan.
+// Flow 1: Computes base table and edge traversal for required tables.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.provider;
 
@@ -2605,6 +2675,7 @@ import java.util.UUID;
 @Component
 @MustRunAfter(SemanticRetrievalStage.class)
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class SemanticJoinPathStage implements SemanticQueryStage {
 
     private final ObjectProvider<List<AstPlanner>> plannersProvider;
@@ -2614,11 +2685,13 @@ public class SemanticJoinPathStage implements SemanticQueryStage {
     private final VerboseMessagePublisher verbosePublisher;
 
     @Override
+// Exposes deterministic stage identifier used in audit and pipeline order.
     public String stageCode() {
         return "join-path";
     }
 
     @Override
+// Executes core stage/operation logic and mutates shared context/state.
     public void execute(SemanticQueryContext context) {
         if (context.retrieval() == null) {
             throw new IllegalStateException("retrieval must be completed before join-path stage");
@@ -2651,6 +2724,7 @@ public class SemanticJoinPathStage implements SemanticQueryStage {
         publish(context.session(), ConvEngineAuditStage.JOIN_PATH_RESOLVED.name(), plan, false);
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private AstPlanner resolvePlanner(SemanticQueryContext context) {
         List<AstPlanner> planners = plannersProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(planners);
@@ -2662,6 +2736,7 @@ public class SemanticJoinPathStage implements SemanticQueryStage {
         throw new IllegalStateException("No AstPlanner available.");
     }
 
+// Helper method used by the main runtime flow in this component.
     private void publish(EngineSession session, String determinant, JoinPathPlan plan, boolean error) {
         UUID conversationId = session == null ? null : session.getConversationId();
         if (conversationId == null) {
@@ -2690,6 +2765,7 @@ public class SemanticJoinPathStage implements SemanticQueryStage {
         }
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private String resolveToolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (cfg == null || cfg.getToolCode() == null || cfg.getToolCode().isBlank()) {
@@ -2704,8 +2780,9 @@ public class SemanticJoinPathStage implements SemanticQueryStage {
 **What this file does:**
 - Runtime role: Stage that resolves join traversal plan from retrieval output.
 - Detailed control flow:
-  - 1) Computes base table + edges + required tables and emits JOIN_PATH_RESOLVED audit details.
-  - 2) Integrates with stage audit trail and deterministic runtime transitions.
+  - 1) Computes base table + edges + initial required tables and emits JOIN_PATH_RESOLVED audit details.
+  - 2) Final required-table expansion from AST field references is done during SQL compile before query assembly.
+  - 3) Integrates with stage audit trail and deterministic runtime transitions.
 
 #### `SemanticAstGenerationStage.java`
 
@@ -2716,8 +2793,9 @@ public class SemanticJoinPathStage implements SemanticQueryStage {
 </div>
 
 <CodeBlockToggle title="SemanticAstGenerationStage.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/provider/SemanticAstGenerationStage.java" defaultOpen={false}>
-{`// Generates semantic AST via LLM and canonicalizes it for validation.
-// Emits AST_GENERATED + interpretation audit metadata.
+{`// SemanticAstGenerationStage.java
+// Purpose: Generates AST and canonical AST from LLM output.
+// Flow 1: Calls generator, canonicalizer, and publishes AST interpretation audit.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.provider;
 
@@ -2752,6 +2830,7 @@ import java.util.UUID;
 @Component
 @MustRunAfter(SemanticJoinPathStage.class)
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class SemanticAstGenerationStage implements SemanticQueryStage {
 
     private final ObjectProvider<List<SemanticAstGenerator>> generatorsProvider;
@@ -2762,11 +2841,13 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
     private final VerboseMessagePublisher verbosePublisher;
 
     @Override
+// Exposes deterministic stage identifier used in audit and pipeline order.
     public String stageCode() {
         return "ast-generation";
     }
 
     @Override
+// Executes core stage/operation logic and mutates shared context/state.
     public void execute(SemanticQueryContext context) {
         if (context.retrieval() == null || context.joinPath() == null) {
             throw new IllegalStateException("retrieval and join-path must complete before ast-generation stage");
@@ -2781,6 +2862,7 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
         publishResolutionStage(context.session(), context, generated);
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private SemanticAstGenerator resolveGenerator(SemanticQueryContext context) {
         List<SemanticAstGenerator> generators = generatorsProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(generators);
@@ -2792,6 +2874,7 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
         throw new IllegalStateException("No SemanticAstGenerator available.");
     }
 
+// Helper method used by the main runtime flow in this component.
     private void publishAstGenerated(EngineSession session, AstGenerationResult generated) {
         UUID conversationId = session == null ? null : session.getConversationId();
         if (conversationId == null) {
@@ -2822,6 +2905,7 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private void publishResolutionStage(EngineSession session, SemanticQueryContext context, AstGenerationResult generated) {
         UUID conversationId = session == null ? null : session.getConversationId();
         if (conversationId == null) {
@@ -2870,6 +2954,7 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private Set<String> extractAstMetrics(AstGenerationResult generated, Set<String> availableMetrics) {
         if (generated == null || generated.ast() == null || availableMetrics == null || availableMetrics.isEmpty()) {
             return Set.of();
@@ -2885,6 +2970,7 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private void collectMetricRefs(AstFilterGroup group, Set<String> availableMetrics, Set<String> out) {
         if (group == null) {
             return;
@@ -2903,6 +2989,7 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private Set<String> inferQuestionMetrics(String question, SemanticModel model) {
         if (question == null || question.isBlank() || model == null || model.metrics() == null || model.metrics().isEmpty()) {
             return Set.of();
@@ -2930,6 +3017,7 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Set<String> tokenize(String text) {
         if (text == null || text.isBlank()) {
             return Set.of();
@@ -2944,6 +3032,7 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
         return out;
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private String resolveToolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (cfg == null || cfg.getToolCode() == null || cfg.getToolCode().isBlank()) {
@@ -2970,8 +3059,9 @@ public class SemanticAstGenerationStage implements SemanticQueryStage {
 </div>
 
 <CodeBlockToggle title="SemanticAstValidationStage.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/provider/SemanticAstValidationStage.java" defaultOpen={false}>
-{`// Validates canonical AST against entity/field/operator/metric rules.
-// Fails fast on invalid AST before SQL compile starts.
+{`// SemanticAstValidationStage.java
+// Purpose: Validates canonical AST before SQL compile.
+// Flow 1: Runs validator chain and fails fast on invalid AST.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.provider;
 
@@ -3000,6 +3090,7 @@ import java.util.UUID;
 @Component
 @MustRunAfter(SemanticAstGenerationStage.class)
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class SemanticAstValidationStage implements SemanticQueryStage {
 
     private final SemanticModelRegistry modelRegistry;
@@ -3009,11 +3100,13 @@ public class SemanticAstValidationStage implements SemanticQueryStage {
     private final VerboseMessagePublisher verbosePublisher;
 
     @Override
+// Exposes deterministic stage identifier used in audit and pipeline order.
     public String stageCode() {
         return "ast-validation";
     }
 
     @Override
+// Executes core stage/operation logic and mutates shared context/state.
     public void execute(SemanticQueryContext context) {
         if (context.astGeneration() == null || context.astGeneration().ast() == null || context.canonicalAst() == null) {
             throw new IllegalStateException("ast-generation must complete before ast-validation stage");
@@ -3028,6 +3121,7 @@ public class SemanticAstValidationStage implements SemanticQueryStage {
         }
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private AstValidator resolveValidator(SemanticQueryContext context) {
         List<AstValidator> validators = validatorsProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(validators);
@@ -3039,6 +3133,7 @@ public class SemanticAstValidationStage implements SemanticQueryStage {
         throw new IllegalStateException("No AstValidator available.");
     }
 
+// Validates contract/safety rules before downstream execution.
     private void publishValidated(EngineSession session, SemanticQueryContext context, AstValidationResult result) {
         UUID conversationId = session == null ? null : session.getConversationId();
         if (conversationId == null) {
@@ -3070,6 +3165,7 @@ public class SemanticAstValidationStage implements SemanticQueryStage {
         }
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private String resolveToolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (cfg == null || cfg.getToolCode() == null || cfg.getToolCode().isBlank()) {
@@ -3096,8 +3192,9 @@ public class SemanticAstValidationStage implements SemanticQueryStage {
 </div>
 
 <CodeBlockToggle title="SemanticSqlCompileStage.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/provider/SemanticSqlCompileStage.java" defaultOpen={false}>
-{`// Compiles canonical AST to parameterized SQL + named params.
-// Runs SQL policy validation before execute stage.
+{`// SemanticSqlCompileStage.java
+// Purpose: Compiles canonical AST to parameterized SQL.
+// Flow 1: Invokes SQL compiler + policy validator and stores CompiledSql in context.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.provider;
 
@@ -3127,6 +3224,7 @@ import java.time.temporal.TemporalAccessor;
 @Component
 @MustRunAfter(SemanticAstValidationStage.class)
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class SemanticSqlCompileStage implements SemanticQueryStage {
 
     private final ObjectProvider<List<SemanticSqlCompiler>> compilersProvider;
@@ -3137,11 +3235,13 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
     private final VerboseMessagePublisher verbosePublisher;
 
     @Override
+// Exposes deterministic stage identifier used in audit and pipeline order.
     public String stageCode() {
         return "sql-compile";
     }
 
     @Override
+// Executes core stage/operation logic and mutates shared context/state.
     public void execute(SemanticQueryContext context) {
         if (context.astValidation() == null || !context.astValidation().valid() || context.canonicalAst() == null) {
             throw new IllegalStateException("ast-validation must pass before sql-compile stage");
@@ -3175,6 +3275,7 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
         publishCompiled(context.session(), compiled);
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private SemanticSqlCompiler resolveCompiler(SemanticQueryContext context) {
         List<SemanticSqlCompiler> compilers = compilersProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(compilers);
@@ -3186,6 +3287,7 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
         throw new IllegalStateException("No SemanticSqlCompiler available.");
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private SemanticSqlPolicyValidator resolveValidator(SemanticQueryContext context) {
         List<SemanticSqlPolicyValidator> validators = validatorsProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(validators);
@@ -3197,6 +3299,7 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
         throw new IllegalStateException("No SemanticSqlPolicyValidator available.");
     }
 
+// Compiles canonical input into SQL fragments and named parameters.
     private void publishCompiled(EngineSession session, CompiledSql compiled) {
         UUID conversationId = session == null ? null : session.getConversationId();
         if (conversationId == null) {
@@ -3223,6 +3326,7 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> dbPayload(CompiledSql compiled, Integer rowCount) {
         Map<String, Object> db = new LinkedHashMap<>();
         db.put("toolCode", resolveToolCode());
@@ -3234,6 +3338,7 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
         return db;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> sanitizeMap(Map<String, Object> source) {
         Map<String, Object> out = new LinkedHashMap<>();
         if (source == null) {
@@ -3245,6 +3350,7 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Object sanitizeValue(Object value) {
         if (value == null) {
             return null;
@@ -3255,6 +3361,7 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
         return value;
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private String resolveToolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (cfg == null || cfg.getToolCode() == null || cfg.getToolCode().isBlank()) {
@@ -3263,6 +3370,7 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
         return cfg.getToolCode().trim();
     }
 
+// Helper method used by the main runtime flow in this component.
     private String abbreviate(String text, int max) {
         if (text == null || text.isBlank()) {
             return text;
@@ -3291,8 +3399,9 @@ public class SemanticSqlCompileStage implements SemanticQueryStage {
 </div>
 
 <CodeBlockToggle title="SemanticSqlExecuteStage.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/provider/SemanticSqlExecuteStage.java" defaultOpen={false}>
-{`// Executes compiled SQL using named params against datasource.
-// Stores row results in context and emits SQL_EXECUTED or SQL_EXECUTE_ERROR.
+{`// SemanticSqlExecuteStage.java
+// Purpose: Executes compiled SQL and captures rows.
+// Flow 1: Runs named-parameter SQL and writes execution payload to context.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.provider;
 
@@ -3320,6 +3429,7 @@ import java.time.temporal.TemporalAccessor;
 @Component
 @MustRunAfter(SemanticSqlCompileStage.class)
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class SemanticSqlExecuteStage implements SemanticQueryStage {
 
     private final ObjectProvider<List<SemanticSqlExecutor>> executorsProvider;
@@ -3328,11 +3438,13 @@ public class SemanticSqlExecuteStage implements SemanticQueryStage {
     private final VerboseMessagePublisher verbosePublisher;
 
     @Override
+// Exposes deterministic stage identifier used in audit and pipeline order.
     public String stageCode() {
         return "sql-execute";
     }
 
     @Override
+// Executes core stage/operation logic and mutates shared context/state.
     public void execute(SemanticQueryContext context) {
         if (context.compiledSql() == null) {
             throw new IllegalStateException("sql-compile must complete before sql-execute stage");
@@ -3343,6 +3455,7 @@ public class SemanticSqlExecuteStage implements SemanticQueryStage {
         publishExecuted(context, result);
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private SemanticSqlExecutor resolveExecutor(SemanticQueryContext context) {
         List<SemanticSqlExecutor> executors = executorsProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(executors);
@@ -3354,6 +3467,7 @@ public class SemanticSqlExecuteStage implements SemanticQueryStage {
         throw new IllegalStateException("No SemanticSqlExecutor available.");
     }
 
+// Executes core stage/operation logic and mutates shared context/state.
     private void publishExecuted(SemanticQueryContext context, SemanticExecutionResult result) {
         EngineSession session = context == null ? null : context.session();
         UUID conversationId = session == null ? null : session.getConversationId();
@@ -3380,6 +3494,7 @@ public class SemanticSqlExecuteStage implements SemanticQueryStage {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> dbPayload(SemanticQueryContext context, SemanticExecutionResult result) {
         EngineSession session = context == null ? null : context.session();
         Map<String, Object> db = new LinkedHashMap<>();
@@ -3395,6 +3510,7 @@ public class SemanticSqlExecuteStage implements SemanticQueryStage {
         return db;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> sanitizeMap(Map<String, Object> source) {
         Map<String, Object> out = new LinkedHashMap<>();
         if (source == null) {
@@ -3406,6 +3522,7 @@ public class SemanticSqlExecuteStage implements SemanticQueryStage {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Object sanitizeValue(Object value) {
         if (value == null) {
             return null;
@@ -3416,6 +3533,7 @@ public class SemanticSqlExecuteStage implements SemanticQueryStage {
         return value;
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private String resolveToolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (cfg == null || cfg.getToolCode() == null || cfg.getToolCode().isBlank()) {
@@ -3442,8 +3560,9 @@ public class SemanticSqlExecuteStage implements SemanticQueryStage {
 </div>
 
 <CodeBlockToggle title="SemanticResultSummaryStage.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/provider/SemanticResultSummaryStage.java" defaultOpen={false}>
-{`// Converts execution rows to final semantic summary text.
-// Emits RESULT_SUMMARIZED used by planner answer composition.
+{`// SemanticResultSummaryStage.java
+// Purpose: Builds end-user semantic summary.
+// Flow 1: Converts rows to markdown/table style summary text.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.provider;
 
@@ -3471,6 +3590,7 @@ import java.util.UUID;
 @TerminalStep
 @MustRunAfter(SemanticSqlExecuteStage.class)
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class SemanticResultSummaryStage implements SemanticQueryStage {
 
     private final ObjectProvider<List<SemanticResultSummarizer>> summarizersProvider;
@@ -3479,11 +3599,13 @@ public class SemanticResultSummaryStage implements SemanticQueryStage {
     private final VerboseMessagePublisher verbosePublisher;
 
     @Override
+// Exposes deterministic stage identifier used in audit and pipeline order.
     public String stageCode() {
         return "summary";
     }
 
     @Override
+// Executes core stage/operation logic and mutates shared context/state.
     public void execute(SemanticQueryContext context) {
         if (context.executionResult() == null) {
             throw new IllegalStateException("sql-execute must complete before summary stage");
@@ -3494,6 +3616,7 @@ public class SemanticResultSummaryStage implements SemanticQueryStage {
         publishSummary(context.session(), summary);
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private SemanticResultSummarizer resolveSummarizer(SemanticQueryContext context) {
         List<SemanticResultSummarizer> summarizers = summarizersProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(summarizers);
@@ -3505,6 +3628,7 @@ public class SemanticResultSummaryStage implements SemanticQueryStage {
         throw new IllegalStateException("No SemanticResultSummarizer available.");
     }
 
+// Builds user-facing summary text/table from execution payload.
     private void publishSummary(EngineSession session, String summary) {
         UUID conversationId = session == null ? null : session.getConversationId();
         if (conversationId == null) {
@@ -3529,6 +3653,7 @@ public class SemanticResultSummaryStage implements SemanticQueryStage {
         }
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private String resolveToolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (cfg == null || cfg.getToolCode() == null || cfg.getToolCode().isBlank()) {
@@ -3537,6 +3662,7 @@ public class SemanticResultSummaryStage implements SemanticQueryStage {
         return cfg.getToolCode().trim();
     }
 
+// Helper method used by the main runtime flow in this component.
     private String abbreviate(String text, int max) {
         if (text == null || text.isBlank()) {
             return text;
@@ -3586,12 +3712,15 @@ Retrieval runs before join-path and determines which entity/table context is han
 </div>
 
 <CodeBlockToggle title="CandidateEntity.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/core/CandidateEntity.java" defaultOpen={false}>
-{`// CandidateEntity.java: retrieval package source used in semantic query runtime.
+{`// CandidateEntity.java
+// Purpose: Entity-level retrieval score row model.
+// Flow 1: Carries final, deterministic, and vector score components.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core;
 
 import java.util.List;
 
+// Primary type declaration for this component.
 public record CandidateEntity(
         String name,
         double score,
@@ -3618,12 +3747,15 @@ public record CandidateEntity(
 </div>
 
 <CodeBlockToggle title="CandidateTable.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/core/CandidateTable.java" defaultOpen={false}>
-{`// CandidateTable.java: retrieval package source used in semantic query runtime.
+{`// CandidateTable.java
+// Purpose: Table-level retrieval score row model.
+// Flow 1: Carries table score with entity association and reasons.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core;
 
 import java.util.List;
 
+// Primary type declaration for this component.
 public record CandidateTable(
         String name,
         String entity,
@@ -3651,12 +3783,15 @@ public record CandidateTable(
 </div>
 
 <CodeBlockToggle title="RetrievalResult.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/core/RetrievalResult.java" defaultOpen={false}>
-{`// RetrievalResult.java: retrieval package source used in semantic query runtime.
+{`// RetrievalResult.java
+// Purpose: Retrieval output envelope.
+// Flow 1: Passed to join-path stage as input for graph resolution.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core;
 
 import java.util.List;
 
+// Primary type declaration for this component.
 public record RetrievalResult(
         String question,
         List<CandidateEntity> candidateEntities,
@@ -3682,14 +3817,18 @@ public record RetrievalResult(
 </div>
 
 <CodeBlockToggle title="SemanticEntityTableRetriever.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/core/SemanticEntityTableRetriever.java" defaultOpen={false}>
-{`// SemanticEntityTableRetriever.java: retrieval package source used in semantic query runtime.
+{`// SemanticEntityTableRetriever.java
+// Purpose: Retriever contract for entity/table ranking.
+// Flow 1: Implemented by deterministic/vector blend retriever providers.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core;
 
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
+// Primary type declaration for this component.
 public interface SemanticEntityTableRetriever {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(EngineSession session) {
         return true;
     }
@@ -3714,25 +3853,32 @@ public interface SemanticEntityTableRetriever {
 </div>
 
 <CodeBlockToggle title="SemanticRetrievalInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/core/SemanticRetrievalInterceptor.java" defaultOpen={false}>
-{`// SemanticRetrievalInterceptor.java: retrieval package source used in semantic query runtime.
+{`// SemanticRetrievalInterceptor.java
+// Purpose: Retrieval lifecycle hook interface.
+// Flow 1: Allows before/after/onError behavior injection around retrieval.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core;
 
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
+// Primary type declaration for this component.
 public interface SemanticRetrievalInterceptor {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(EngineSession session) {
         return true;
     }
 
+// Retrieves ranked semantic candidates from deterministic/vector sources.
     default void beforeRetrieve(String question, EngineSession session) {
     }
 
+// Retrieves ranked semantic candidates from deterministic/vector sources.
     default RetrievalResult afterRetrieve(RetrievalResult result, EngineSession session) {
         return result;
     }
 
+// Helper method used by the main runtime flow in this component.
     default void onError(String question, EngineSession session, Exception ex) {
     }
 }
@@ -3754,7 +3900,9 @@ public interface SemanticRetrievalInterceptor {
 </div>
 
 <CodeBlockToggle title="SemanticVectorSearchAdapter.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/core/SemanticVectorSearchAdapter.java" defaultOpen={false}>
-{`// SemanticVectorSearchAdapter.java: retrieval package source used in semantic query runtime.
+{`// SemanticVectorSearchAdapter.java
+// Purpose: Vector similarity adapter SPI.
+// Flow 1: Returns entity/table vector score maps for blending.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core;
 
@@ -3766,20 +3914,25 @@ import java.util.Map;
  * Adapter SPI for vector similarity lookup.
  * Default implementation returns empty scores.
  */
+// Primary type declaration for this component.
 public interface SemanticVectorSearchAdapter {
 
+// Helper method used by the main runtime flow in this component.
     default String adapterName() {
         return "default";
     }
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(EngineSession session) {
         return true;
     }
 
+// Helper method used by the main runtime flow in this component.
     default Map<String, Double> entityScores(EngineSession session, float[] queryVector) {
         return Map.of();
     }
 
+// Helper method used by the main runtime flow in this component.
     default Map<String, Double> tableScores(EngineSession session, float[] queryVector) {
         return Map.of();
     }
@@ -3802,7 +3955,9 @@ public interface SemanticVectorSearchAdapter {
 </div>
 
 <CodeBlockToggle title="DefaultSemanticRetrievalInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/provider/DefaultSemanticRetrievalInterceptor.java" defaultOpen={false}>
-{`// DefaultSemanticRetrievalInterceptor.java: retrieval package source used in semantic query runtime.
+{`// DefaultSemanticRetrievalInterceptor.java
+// Purpose: Default no-op retrieval interceptor.
+// Flow 1: Preserves extension chain ordering without behavior changes.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.provider;
 
@@ -3814,6 +3969,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultSemanticRetrievalInterceptor implements SemanticRetrievalInterceptor {
 }
 `}
@@ -3834,7 +3990,9 @@ public class DefaultSemanticRetrievalInterceptor implements SemanticRetrievalInt
 </div>
 
 <CodeBlockToggle title="NoopSemanticVectorSearchAdapter.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/provider/NoopSemanticVectorSearchAdapter.java" defaultOpen={false}>
-{`// NoopSemanticVectorSearchAdapter.java: retrieval package source used in semantic query runtime.
+{`// NoopSemanticVectorSearchAdapter.java
+// Purpose: Safe fallback vector adapter.
+// Flow 1: Returns empty vector scores when vector path is disabled.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.provider;
 
@@ -3846,6 +4004,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class NoopSemanticVectorSearchAdapter implements SemanticVectorSearchAdapter {
 }
 `}
@@ -3866,7 +4025,9 @@ public class NoopSemanticVectorSearchAdapter implements SemanticVectorSearchAdap
 </div>
 
 <CodeBlockToggle title="PostgresPgVectorSearchAdapter.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/provider/PostgresPgVectorSearchAdapter.java" defaultOpen={false}>
-{`// PostgresPgVectorSearchAdapter.java: retrieval package source used in semantic query runtime.
+{`// PostgresPgVectorSearchAdapter.java
+// Purpose: pgvector-backed vector score provider.
+// Flow 1: Queries embedding table and converts similarity into score maps.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.provider;
 
@@ -3890,32 +4051,38 @@ import java.util.Map;
 @Component
 @Order(100)
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class PostgresPgVectorSearchAdapter implements SemanticVectorSearchAdapter {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final ConvEngineMcpConfig mcpConfig;
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String adapterName() {
         return "pgvector";
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(EngineSession session) {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? null : mcpConfig.getDb().getSemantic();
         return cfg != null && cfg.getVector() != null && cfg.getVector().isEnabled();
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public Map<String, Double> entityScores(EngineSession session, float[] queryVector) {
         return queryByType(queryVector, "ENTITY");
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public Map<String, Double> tableScores(EngineSession session, float[] queryVector) {
         return queryByType(queryVector, "TABLE");
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Double> queryByType(float[] queryVector, String targetType) {
         if (queryVector == null || queryVector.length == 0) {
             return Map.of();
@@ -3957,6 +4124,7 @@ public class PostgresPgVectorSearchAdapter implements SemanticVectorSearchAdapte
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private double toDouble(Object value) {
         if (value instanceof Number n) {
             return n.doubleValue();
@@ -3968,6 +4136,7 @@ public class PostgresPgVectorSearchAdapter implements SemanticVectorSearchAdapte
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private String toVectorLiteral(float[] vector) {
         StringBuilder out = new StringBuilder("[");
         for (int i = 0; i < vector.length; i++) {
@@ -3998,7 +4167,11 @@ public class PostgresPgVectorSearchAdapter implements SemanticVectorSearchAdapte
 </div>
 
 <CodeBlockToggle title="DefaultSemanticEntityTableRetriever.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/retrieval/provider/DefaultSemanticEntityTableRetriever.java" defaultOpen={false}>
-{`// DefaultSemanticEntityTableRetriever.java: retrieval package source used in semantic query runtime.
+{`// DefaultSemanticEntityTableRetriever.java
+// Purpose: Main retrieval engine implementation.
+// Flow 1: Computes lexical/field/id-pattern scores.
+// Flow 2: Optionally blends pgvector + feedback boosts.
+// Flow 3: Sorts and thresholds candidates into RetrievalResult.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.provider;
 
@@ -4037,6 +4210,7 @@ import java.util.regex.Pattern;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableRetriever {
 
     private static final Pattern TOKEN_SPLIT = Pattern.compile("[^a-z0-9_]+");
@@ -4057,6 +4231,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
     private final ObjectProvider<List<SemanticRetrievalInterceptor>> interceptorsProvider;
 
     @Override
+// Retrieves ranked semantic candidates from deterministic/vector sources.
     public RetrievalResult retrieve(String question, EngineSession session) {
         List<SemanticRetrievalInterceptor> interceptors = interceptorsProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(interceptors);
@@ -4085,6 +4260,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         }
     }
 
+// Retrieves ranked semantic candidates from deterministic/vector sources.
     private RetrievalResult doRetrieve(String question, EngineSession session) {
         SemanticModel model = modelRegistry.getModel();
         if (model.entities().isEmpty()) {
@@ -4213,6 +4389,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return new RetrievalResult(question, List.copyOf(entities), List.copyOf(tables), confidence);
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private SemanticVectorSearchAdapter resolveVectorAdapter(EngineSession session) {
         List<SemanticVectorSearchAdapter> adapters = vectorAdaptersProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(adapters);
@@ -4224,6 +4401,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return null;
     }
 
+// Helper method used by the main runtime flow in this component.
     private double fieldScore(Set<String> queryTokens, Map<String, SemanticField> fields) {
         if (fields == null || fields.isEmpty()) {
             return 0.0d;
@@ -4240,6 +4418,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return overlapScore(queryTokens, flat);
     }
 
+// Helper method used by the main runtime flow in this component.
     private double tableDeterministicScore(Set<String> queryTokens, String tableName, SemanticEntity entity) {
         Set<String> doc = new LinkedHashSet<>(tokenize(tableName));
         if (entity.fields() != null) {
@@ -4253,6 +4432,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return overlapScore(queryTokens, doc);
     }
 
+// Helper method used by the main runtime flow in this component.
     private double idPatternScore(String entityName, boolean requestId, boolean donId, boolean disconnectId) {
         String lower = entityName == null ? "" : entityName.toLowerCase(Locale.ROOT);
         double score = 0.0d;
@@ -4268,6 +4448,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return Math.min(1.0d, score / 2.0d);
     }
 
+// Helper method used by the main runtime flow in this component.
     private double overlapScore(Set<String> queryTokens, Set<String> docTokens) {
         if (queryTokens == null || queryTokens.isEmpty() || docTokens == null || docTokens.isEmpty()) {
             return 0.0d;
@@ -4290,6 +4471,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return (0.50d * recall) + (0.30d * f1) + (0.20d * jaccard);
     }
 
+// Helper method used by the main runtime flow in this component.
     private Set<String> tokenize(String text) {
         if (text == null || text.isBlank()) {
             return Set.of();
@@ -4304,6 +4486,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private double strongFieldOwnershipScore(Set<String> queryTokens, Map<String, SemanticField> fields) {
         if (queryTokens == null || queryTokens.isEmpty() || fields == null || fields.isEmpty()) {
             return 0.0d;
@@ -4339,6 +4522,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return Math.min(1.0d, (double) hits / 2.0d);
     }
 
+// Helper method used by the main runtime flow in this component.
     private List<String> reasons(double synonym, double fields, double idPattern, double lexical, double fieldOwnership, double vector, double feedbackBoost) {
         List<String> out = new ArrayList<>();
         if (synonym > 0.0d) out.add("synonym");
@@ -4351,6 +4535,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private FeedbackBoostResult loadFeedbackBoost(float[] queryVector, ConvEngineMcpConfig.Db.Semantic cfg) {
         try {
             if (cfg == null || cfg.getVector() == null || !cfg.getVector().isEnabled()) {
@@ -4441,6 +4626,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private JsonNode toJsonNode(Object value) {
         if (value == null) {
             return null;
@@ -4455,6 +4641,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private String textAt(JsonNode node, String field) {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return null;
@@ -4462,6 +4649,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return trimToNull(node.path(field).asText(null));
     }
 
+// Helper method used by the main runtime flow in this component.
     private String firstNonBlank(String... values) {
         if (values == null) {
             return null;
@@ -4475,6 +4663,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return null;
     }
 
+// Helper method used by the main runtime flow in this component.
     private String trimToNull(String value) {
         if (value == null) {
             return null;
@@ -4483,6 +4672,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+// Helper method used by the main runtime flow in this component.
     private void mergeBoost(Map<String, Double> target, String name, double similarity) {
         if (target == null || name == null) {
             return;
@@ -4490,6 +4680,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         target.merge(name, clamp01(similarity), Math::max);
     }
 
+// Helper method used by the main runtime flow in this component.
     private double toDouble(Object value) {
         if (value instanceof Number n) {
             return n.doubleValue();
@@ -4501,6 +4692,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private String toVectorLiteral(float[] vector) {
         if (vector == null || vector.length == 0) {
             return "[]";
@@ -4520,11 +4712,13 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
             Map<String, Double> entityBoostByName,
             Map<String, Double> tableBoostByName
     ) {
+// Helper method used by the main runtime flow in this component.
         static FeedbackBoostResult empty() {
             return new FeedbackBoostResult(Map.of(), Map.of());
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private String normalizeToken(String raw) {
         if (raw == null) {
             return "";
@@ -4532,6 +4726,7 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
         return raw.replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
     }
 
+// Helper method used by the main runtime flow in this component.
     private String camelToSnake(String input) {
         if (input == null || input.isBlank()) {
             return "";
@@ -4541,10 +4736,12 @@ public class DefaultSemanticEntityTableRetriever implements SemanticEntityTableR
                 .toLowerCase(Locale.ROOT);
     }
 
+// Helper method used by the main runtime flow in this component.
     private double clamp01(double value) {
         return Math.max(0.0d, Math.min(1.0d, value));
     }
 
+// Helper method used by the main runtime flow in this component.
     private double round(double value) {
         return Math.round(value * 1000.0d) / 1000.0d;
     }
@@ -4586,8 +4783,9 @@ Join-path logic decides table traversal; SQL compiler then renders joins from th
 </div>
 
 <CodeBlockToggle title="SchemaGraphEngine.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/core/SchemaGraphEngine.java" defaultOpen={false}>
-{`// Graph engine contract for schema traversal and shortest path lookup.
-// Used by join-path resolver implementations.
+{`// SchemaGraphEngine.java
+// Purpose: Schema graph traversal engine contract.
+// Flow 1: Provides shortest-path traversal support to resolvers.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.core;
 
@@ -4597,12 +4795,15 @@ import java.util.Set;
 /**
  * Adapter SPI for schema graph operations.
  */
+// Primary type declaration for this component.
 public interface SchemaGraphEngine {
 
+// Helper method used by the main runtime flow in this component.
     default String adapterName() {
         return "default";
     }
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(String adapterKey) {
         return true;
     }
@@ -4631,27 +4832,33 @@ public interface SchemaGraphEngine {
 </div>
 
 <CodeBlockToggle title="SchemaGraphInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/core/SchemaGraphInterceptor.java" defaultOpen={false}>
-{`// Graph build/resolve interceptor hook contract.
-// Adds extension points around graph operations.
+{`// SchemaGraphInterceptor.java
+// Purpose: Schema graph lifecycle hook contract.
+// Flow 1: Enables pre/post/error graph handling extensions.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core.RetrievalResult;
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
+// Primary type declaration for this component.
 public interface SchemaGraphInterceptor {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(EngineSession session) {
         return true;
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     default void beforeResolve(RetrievalResult retrieval, EngineSession session) {
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     default JoinPathPlan afterResolve(JoinPathPlan plan, EngineSession session) {
         return plan;
     }
 
+// Helper method used by the main runtime flow in this component.
     default void onError(RetrievalResult retrieval, EngineSession session, Exception ex) {
     }
 }
@@ -4673,11 +4880,13 @@ public interface SchemaGraphInterceptor {
 </div>
 
 <CodeBlockToggle title="SchemaEdge.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/core/SchemaEdge.java" defaultOpen={false}>
-{`// Graph edge model representing join relationship between tables.
-// Includes key fields required for deterministic join rendering.
+{`// SchemaEdge.java
+// Purpose: Schema graph edge model.
+// Flow 1: Represents table-to-table relationship used in join rendering.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.core;
 
+// Primary type declaration for this component.
 public record SchemaEdge(
         String leftTable,
         String leftColumn,
@@ -4705,16 +4914,20 @@ public record SchemaEdge(
 </div>
 
 <CodeBlockToggle title="JoinPathResolver.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/core/JoinPathResolver.java" defaultOpen={false}>
-{`// Resolver contract to compute join traversal from retrieval candidates.
-// Converts semantic intent to concrete relational path.
+{`// JoinPathResolver.java
+// Purpose: Join-path resolver contract.
+// Flow 1: Resolves initial required table traversal from retrieval candidates.
+// Flow 2: SQL compile stage can further expand required tables using AST field references.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core.RetrievalResult;
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
+// Primary type declaration for this component.
 public interface JoinPathResolver {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(EngineSession session) {
         return true;
     }
@@ -4739,13 +4952,15 @@ public interface JoinPathResolver {
 </div>
 
 <CodeBlockToggle title="JoinPathPlan.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/core/JoinPathPlan.java" defaultOpen={false}>
-{`// Join-path result envelope with base table and resolved edges.
-// Passed from join-path stage into validation/compile stages.
+{`// JoinPathPlan.java
+// Purpose: Join-path output model.
+// Flow 1: Carries base table, edges, unresolved tables, confidence.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.core;
 
 import java.util.List;
 
+// Primary type declaration for this component.
 public record JoinPathPlan(
         String baseTable,
         List<SchemaEdge> edges,
@@ -4772,16 +4987,19 @@ public record JoinPathPlan(
 </div>
 
 <CodeBlockToggle title="AstPlanner.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/core/AstPlanner.java" defaultOpen={false}>
-{`// Planner contract that aligns AST intent with resolved join path.
-// Produces planning context consumed by SQL compilation.
+{`// AstPlanner.java
+// Purpose: AST planning contract over join-path context.
+// Flow 1: Builds planning output consumed by compile stage.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core.RetrievalResult;
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
+// Primary type declaration for this component.
 public interface AstPlanner {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(EngineSession session) {
         return true;
     }
@@ -4806,27 +5024,33 @@ public interface AstPlanner {
 </div>
 
 <CodeBlockToggle title="AstPlanningInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/core/AstPlanningInterceptor.java" defaultOpen={false}>
-{`// Planning hook contract for before/after/error extension.
-// Allows custom planning metadata without replacing planner.
+{`// AstPlanningInterceptor.java
+// Purpose: Planner lifecycle hook contract.
+// Flow 1: Supports before/after/onError planning extensions.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.retrieval.core.RetrievalResult;
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
+// Primary type declaration for this component.
 public interface AstPlanningInterceptor {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(EngineSession session) {
         return true;
     }
 
+// Helper method used by the main runtime flow in this component.
     default void beforePlan(RetrievalResult retrievalResult, EngineSession session) {
     }
 
+// Helper method used by the main runtime flow in this component.
     default JoinPathPlan afterPlan(JoinPathPlan plan, EngineSession session) {
         return plan;
     }
 
+// Helper method used by the main runtime flow in this component.
     default void onError(RetrievalResult retrievalResult, EngineSession session, Exception ex) {
     }
 }
@@ -4848,8 +5072,9 @@ public interface AstPlanningInterceptor {
 </div>
 
 <CodeBlockToggle title="DefaultSchemaGraphInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/provider/DefaultSchemaGraphInterceptor.java" defaultOpen={false}>
-{`// Default no-op graph interceptor.
-// Preserves deterministic graph behavior while enabling extension.
+{`// DefaultSchemaGraphInterceptor.java
+// Purpose: Default no-op schema-graph interceptor.
+// Flow 1: Keeps graph hook chain deterministic.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.provider;
 
@@ -4861,6 +5086,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultSchemaGraphInterceptor implements SchemaGraphInterceptor {
 }
 `}
@@ -4881,8 +5107,9 @@ public class DefaultSchemaGraphInterceptor implements SchemaGraphInterceptor {
 </div>
 
 <CodeBlockToggle title="JGraphTSchemaGraphEngine.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/provider/JGraphTSchemaGraphEngine.java" defaultOpen={false}>
-{`// JGraphT-based schema graph implementation.
-// Computes shortest traversal path for required table set.
+{`// JGraphTSchemaGraphEngine.java
+// Purpose: JGraphT schema graph engine implementation.
+// Flow 1: Builds graph nodes/edges and computes traversal path.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.provider;
 
@@ -4913,6 +5140,7 @@ import java.util.Set;
 @ConditionalOnClass(name = "org.jgrapht.Graph")
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class JGraphTSchemaGraphEngine implements SchemaGraphEngine {
 
     private final DbSchemaInspectorService dbSchemaInspectorService;
@@ -4922,21 +5150,25 @@ public class JGraphTSchemaGraphEngine implements SchemaGraphEngine {
     private volatile Map<String, SchemaEdge> edgeByKey = new LinkedHashMap<>();
 
     @PostConstruct
+// Helper method used by the main runtime flow in this component.
     public void init() {
         refreshGraph();
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String adapterName() {
         return "jgrapht";
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(String adapterKey) {
         return adapterKey == null || adapterKey.isBlank() || "jgrapht".equalsIgnoreCase(adapterKey.trim());
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public synchronized void refreshGraph() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         Map<String, Object> inspected = dbSchemaInspectorService.inspect(null, "");
@@ -4975,6 +5207,7 @@ public class JGraphTSchemaGraphEngine implements SchemaGraphEngine {
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public List<SchemaEdge> shortestPath(String fromTable, String toTable, int maxHops) {
         if (fromTable == null || toTable == null || fromTable.isBlank() || toTable.isBlank()) {
             return List.of();
@@ -5014,6 +5247,7 @@ public class JGraphTSchemaGraphEngine implements SchemaGraphEngine {
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public Set<String> neighbors(String table) {
         if (table == null || table.isBlank() || !graph.containsVertex(table)) {
             return Set.of();
@@ -5025,6 +5259,7 @@ public class JGraphTSchemaGraphEngine implements SchemaGraphEngine {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private List<SchemaEdge> toEdges(List<String> path) {
         if (path.size() < 2) {
             return List.of();
@@ -5040,6 +5275,7 @@ public class JGraphTSchemaGraphEngine implements SchemaGraphEngine {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private String text(Object value) {
         return value == null ? "" : String.valueOf(value);
     }
@@ -5062,8 +5298,9 @@ public class JGraphTSchemaGraphEngine implements SchemaGraphEngine {
 </div>
 
 <CodeBlockToggle title="DefaultJoinPathResolver.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/provider/DefaultJoinPathResolver.java" defaultOpen={false}>
-{`// Default join-path resolver implementation.
-// Uses graph engine + semantic model hints to resolve required joins.
+{`// DefaultJoinPathResolver.java
+// Purpose: Default join-path resolver implementation.
+// Flow 1: Uses graph engine + semantic model hints to resolve join plan.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.provider;
 
@@ -5088,6 +5325,7 @@ import java.util.Set;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultJoinPathResolver implements JoinPathResolver {
 
     private final ConvEngineMcpConfig mcpConfig;
@@ -5095,6 +5333,7 @@ public class DefaultJoinPathResolver implements JoinPathResolver {
     private final ObjectProvider<List<SchemaGraphInterceptor>> interceptorsProvider;
 
     @Override
+// Resolves runtime strategy/handler/value using current semantic context.
     public JoinPathPlan resolve(RetrievalResult retrieval, EngineSession session) {
         List<SchemaGraphInterceptor> interceptors = interceptorsProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(interceptors);
@@ -5122,6 +5361,7 @@ public class DefaultJoinPathResolver implements JoinPathResolver {
         }
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private JoinPathPlan doResolve(RetrievalResult retrieval, EngineSession session) {
         List<CandidateTable> candidates = retrieval == null ? List.of() : retrieval.candidateTables();
         if (candidates.isEmpty()) {
@@ -5165,6 +5405,7 @@ public class DefaultJoinPathResolver implements JoinPathResolver {
         return new JoinPathPlan(base, List.copyOf(merged), List.copyOf(requiredTables), List.copyOf(unresolved), confidence);
     }
 
+// Helper method used by the main runtime flow in this component.
     private boolean containsEdge(List<SchemaEdge> edges, SchemaEdge candidate) {
         for (SchemaEdge edge : edges) {
             if (edge.leftTable().equalsIgnoreCase(candidate.leftTable())
@@ -5177,6 +5418,7 @@ public class DefaultJoinPathResolver implements JoinPathResolver {
         return false;
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private SchemaGraphEngine resolveGraphEngine() {
         List<SchemaGraphEngine> engines = graphEnginesProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(engines);
@@ -5209,8 +5451,9 @@ public class DefaultJoinPathResolver implements JoinPathResolver {
 </div>
 
 <CodeBlockToggle title="DefaultAstPlanningInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/provider/DefaultAstPlanningInterceptor.java" defaultOpen={false}>
-{`// Default no-op planning interceptor.
-// Serves as baseline for ordered custom planner hooks.
+{`// DefaultAstPlanningInterceptor.java
+// Purpose: Default no-op planning interceptor.
+// Flow 1: Provides extension hook baseline.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.provider;
 
@@ -5222,6 +5465,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultAstPlanningInterceptor implements AstPlanningInterceptor {
 }
 `}
@@ -5242,8 +5486,9 @@ public class DefaultAstPlanningInterceptor implements AstPlanningInterceptor {
 </div>
 
 <CodeBlockToggle title="DefaultAstPlanner.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/graph/provider/DefaultAstPlanner.java" defaultOpen={false}>
-{`// Default planner implementation used after join-path resolution.
-// Applies resolved graph context to AST planning output.
+{`// DefaultAstPlanner.java
+// Purpose: Default AST planner implementation.
+// Flow 1: Combines canonical AST + join-path into planner output.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.provider;
 
@@ -5263,11 +5508,13 @@ import java.util.List;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultAstPlanner implements AstPlanner {
 
     private final ObjectProvider<List<JoinPathResolver>> joinResolversProvider;
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public JoinPathPlan plan(RetrievalResult retrievalResult, EngineSession session) {
         List<JoinPathResolver> resolvers = joinResolversProvider.getIfAvailable(List::of);
         AnnotationAwareOrderComparator.sort(resolvers);
@@ -5321,12 +5568,18 @@ The sequence below follows actual compile call flow from compiler contract to sp
 </div>
 
 <CodeBlockToggle title="SemanticSqlCompiler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/core/SemanticSqlCompiler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
+{`// SemanticSqlCompiler.java
+// Purpose: Top-level SQL compiler contract.
+// Flow 1: Compiler stage resolves this interface and compiles canonical AST.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.context.SemanticQueryContext;
 
+// Primary type declaration for this component.
 public interface SemanticSqlCompiler {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(SemanticQueryContext context) {
         return true;
     }
@@ -5351,7 +5604,13 @@ public interface SemanticSqlCompiler {
 </div>
 
 <CodeBlockToggle title="DefaultSemanticSqlCompiler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/compiler/DefaultSemanticSqlCompiler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.compiler;
+{`// DefaultSemanticSqlCompiler.java
+// Purpose: Primary SQL compiler orchestrator.
+// Flow 1: Creates CompileWorkPlan.
+// Flow 2: Runs clause/operator/window handlers via registries.
+// Flow 3: Produces CompiledSql output.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.compiler;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.*;
 
@@ -5391,6 +5650,7 @@ import java.util.List;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultSemanticSqlCompiler implements AstSqlCompiler {
 
     private final SemanticModelRegistry modelRegistry;
@@ -5406,6 +5666,7 @@ public class DefaultSemanticSqlCompiler implements AstSqlCompiler {
         this.modelRegistry = modelRegistry;
     }
 
+// Helper method used by the main runtime flow in this component.
     private static AstClauseHandlerRegistry buildClauseRegistry(ConvEngineMcpConfig mcpConfig) {
         var operatorRegistry = new AstOperatorHandlerRegistry(List.of(
                 new DefaultNullCheckAstOperatorHandler(),
@@ -5438,6 +5699,7 @@ public class DefaultSemanticSqlCompiler implements AstSqlCompiler {
     }
 
     @Override
+// Compiles canonical input into SQL fragments and named parameters.
     public CompiledSql compile(SemanticQueryContext context) {
         if (context == null || context.canonicalAst() == null) {
             throw new IllegalStateException(SemanticSqlConstants.ERROR_AST_MISSING);
@@ -5477,8 +5739,13 @@ public class DefaultSemanticSqlCompiler implements AstSqlCompiler {
 </div>
 
 <CodeBlockToggle title="AstSqlCompiler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/core/AstSqlCompiler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
+{`// AstSqlCompiler.java
+// Purpose: AST-to-SQL compiler contract.
+// Flow 1: Provides canonical compile API for AST + context.
 
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
+
+// Primary type declaration for this component.
 public interface AstSqlCompiler extends SemanticSqlCompiler {
 }
 `}
@@ -5499,7 +5766,11 @@ public interface AstSqlCompiler extends SemanticSqlCompiler {
 </div>
 
 <CodeBlockToggle title="CompileWorkPlan.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/core/CompileWorkPlan.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
+{`// CompileWorkPlan.java
+// Purpose: Mutable compile assembly state.
+// Flow 1: Accumulates select/from/join/where/group/having/order/limit fragments.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalAst;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.core.JoinPathPlan;
@@ -5518,6 +5789,7 @@ import java.util.Map;
 
 @Getter
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class CompileWorkPlan {
     private final SemanticQueryContext context;
     private final CanonicalAst ast;
@@ -5564,10 +5836,15 @@ public class CompileWorkPlan {
 </div>
 
 <CodeBlockToggle title="CompiledSql.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/core/CompiledSql.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
+{`// CompiledSql.java
+// Purpose: Compiled SQL output envelope.
+// Flow 1: Contains SQL string, params, and compile metadata.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
 
 import java.util.Map;
 
+// Primary type declaration for this component.
 public record CompiledSql(
         String sql,
         Map<String, Object> params
@@ -5591,7 +5868,11 @@ public record CompiledSql(
 </div>
 
 <CodeBlockToggle title="SemanticSqlConstants.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/core/SemanticSqlConstants.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
+{`// SemanticSqlConstants.java
+// Purpose: Shared SQL compile constants.
+// Flow 1: Centralizes parameter prefixes and compile tokens.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
 
 public final class SemanticSqlConstants {
     private SemanticSqlConstants() {
@@ -5623,26 +5904,35 @@ public final class SemanticSqlConstants {
 </div>
 
 <CodeBlockToggle title="AstCompilationInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/interceptor/AstCompilationInterceptor.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.interceptor;
+{`// AstCompilationInterceptor.java
+// Purpose: Compile lifecycle hook contract.
+// Flow 1: Supports before/after/onError around SQL compilation.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.interceptor;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.*;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalAst;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.context.SemanticQueryContext;
 
+// Primary type declaration for this component.
 public interface AstCompilationInterceptor {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(SemanticQueryContext context) {
         return true;
     }
 
+// Compiles canonical input into SQL fragments and named parameters.
     default void beforeCompile(CanonicalAst ast, SemanticQueryContext context) {
     }
 
+// Compiles canonical input into SQL fragments and named parameters.
     default CompiledSql afterCompile(CompiledSql sql, SemanticQueryContext context) {
         return sql;
     }
 
+// Helper method used by the main runtime flow in this component.
     default void onError(CanonicalAst ast, SemanticQueryContext context, Exception ex) {
     }
 }
@@ -5664,7 +5954,11 @@ public interface AstCompilationInterceptor {
 </div>
 
 <CodeBlockToggle title="DefaultAstCompilationInterceptor.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/interceptor/DefaultAstCompilationInterceptor.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.interceptor;
+{`// DefaultAstCompilationInterceptor.java
+// Purpose: Default no-op compile interceptor.
+// Flow 1: Preserves extension chain baseline behavior.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.interceptor;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.*;
 
@@ -5674,6 +5968,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultAstCompilationInterceptor implements AstCompilationInterceptor {
 }
 `}
@@ -5694,10 +5989,15 @@ public class DefaultAstCompilationInterceptor implements AstCompilationIntercept
 </div>
 
 <CodeBlockToggle title="AstClauseHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/core/AstClauseHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
+{`// AstClauseHandler.java
+// Purpose: Base clause handler contract.
+// Flow 1: Each handler contributes supported clause fragments to work plan.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
 
+// Primary type declaration for this component.
 public interface AstClauseHandler {
     boolean supports(CompileWorkPlan plan);
 
@@ -5722,7 +6022,11 @@ public interface AstClauseHandler {
 </div>
 
 <CodeBlockToggle title="AstClauseHandlerRegistry.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/registry/AstClauseHandlerRegistry.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
+{`// AstClauseHandlerRegistry.java
+// Purpose: Registry for base clause handlers.
+// Flow 1: Supplies ordered handler chain to compiler.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core.AstClauseHandler;
@@ -5733,6 +6037,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+// Primary type declaration for this component.
 public class AstClauseHandlerRegistry {
     private final List<AstClauseHandler> handlers;
 
@@ -5742,6 +6047,7 @@ public class AstClauseHandlerRegistry {
         this.handlers = List.copyOf(sorted);
     }
 
+// Helper method used by the main runtime flow in this component.
     public void applyAll(CompileWorkPlan plan) {
         for (AstClauseHandler handler : handlers) {
             if (handler.supports(plan)) {
@@ -5768,9 +6074,15 @@ public class AstClauseHandlerRegistry {
 </div>
 
 <CodeBlockToggle title="DefaultAstQueryAssemblyClauseHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/orchestrator/DefaultAstQueryAssemblyClauseHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.orchestrator;
+{`// DefaultAstQueryAssemblyClauseHandler.java
+// Purpose: Clause assembly orchestrator handler.
+// Flow 1: Coordinates compile order across specialized clause handlers.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.orchestrator;
 
 import com.github.salilvnair.convengine.config.ConvEngineMcpConfig;
+import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalFilter;
+import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalFilterGroup;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalProjection;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.graph.core.SchemaEdge;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.model.SemanticEntity;
@@ -5820,6 +6132,7 @@ import java.util.regex.Pattern;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
     private static final Pattern TABLE_TOKEN_PATTERN = Pattern.compile("\\b([a-zA-Z_][a-zA-Z0-9_]*)\\.");
     private static final Pattern NUMERIC_PARAM_PATTERN = Pattern.compile(":(\\d+)\\b");
@@ -5833,11 +6146,13 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
     private final AstMetricHandlerRegistry metricHandlerRegistry;
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(CompileWorkPlan plan) {
         return plan != null && plan.getContext() != null && plan.getAst() != null;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public void apply(CompileWorkPlan plan) {
         var ast = plan.getAst();
         var model = plan.getModel();
@@ -5926,6 +6241,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         plan.setCompiledSql(new CompiledSql(sql, Map.copyOf(alignedParams)));
     }
 
+// Helper method used by the main runtime flow in this component.
     private String normalizePaginationSql(String sql, boolean hasOffset) {
         if (sql == null || sql.isBlank()) {
             return sql;
@@ -5944,6 +6260,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> alignSqlParams(String sql, Map<String, Object> params) {
         Map<String, Object> out = new LinkedHashMap<>(params == null ? Map.of() : params);
         if (sql == null || sql.isBlank()) {
@@ -5968,6 +6285,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return out;
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private Object resolvePositionalValue(Map<String, Object> params, int position) {
         if (position <= 0 || params == null || params.isEmpty()) {
             return null;
@@ -5991,6 +6309,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return null;
     }
 
+// Helper method used by the main runtime flow in this component.
     private <T> void applyHandlers(List<T> handlers, CompileWorkPlan plan) {
         if (handlers == null || handlers.isEmpty()) {
             return;
@@ -6037,6 +6356,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return selectExpr;
     }
 
+// Helper method used by the main runtime flow in this component.
     private List<CanonicalProjection> defaultProjections(SemanticEntity entity) {
         if (entity == null || entity.fields() == null || entity.fields().isEmpty()) {
             return List.of();
@@ -6051,14 +6371,17 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Set<String> requiredTablesFromAst(CompileWorkPlan plan, SemanticEntity entity, SemanticModel model) {
         Set<String> tables = new LinkedHashSet<>();
         for (CanonicalProjection projection : plan.getAst().projections()) {
             addFieldTable(tables, entity.fields().get(projection.field()));
         }
+        collectFieldTablesFromGroup(tables, plan.getAst().where(), entity);
         for (String group : plan.getAst().groupBy()) {
             addFieldTable(tables, entity.fields().get(group));
         }
+        collectFieldTablesFromGroup(tables, plan.getAst().having(), entity);
         for (var sort : plan.getAst().sort()) {
             if (sort == null) continue;
             addFieldTable(tables, entity.fields().get(sort.field()));
@@ -6081,6 +6404,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
                 SemanticEntity e = model.entities().get(existsBlock.entity());
                 if (e != null && e.tables() != null && e.tables().primary() != null) {
                     tables.add(e.tables().primary());
+                    collectFieldTablesFromGroup(tables, existsBlock.where(), e);
                 }
             }
         }
@@ -6095,12 +6419,35 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
                     for (String gb : subqueryFilter.subquery().groupBy()) {
                         addFieldTable(tables, sqe.fields().get(gb));
                     }
+                    collectFieldTablesFromGroup(tables, subqueryFilter.subquery().where(), sqe);
+                    collectFieldTablesFromGroup(tables, subqueryFilter.subquery().having(), sqe);
                 }
             }
         }
         return tables;
     }
 
+// Helper method used by the main runtime flow in this component.
+    private void collectFieldTablesFromGroup(Set<String> tables, CanonicalFilterGroup group, SemanticEntity entity) {
+        if (tables == null || group == null || entity == null || entity.fields() == null || entity.fields().isEmpty()) {
+            return;
+        }
+        if (group.conditions() != null) {
+            for (CanonicalFilter condition : group.conditions()) {
+                if (condition == null || condition.field() == null || condition.field().isBlank()) {
+                    continue;
+                }
+                addFieldTable(tables, entity.fields().get(condition.field()));
+            }
+        }
+        if (group.groups() != null) {
+            for (CanonicalFilterGroup child : group.groups()) {
+                collectFieldTablesFromGroup(tables, child, entity);
+            }
+        }
+    }
+
+// Helper method used by the main runtime flow in this component.
     private void addMetricTablesByName(Set<String> tables, String metricName, SemanticModel model) {
         if (tables == null || metricName == null || model == null || model.metrics() == null) {
             return;
@@ -6118,6 +6465,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private void addFieldTable(Set<String> tables, SemanticField field) {
         if (field == null || field.column() == null || field.column().isBlank()) {
             return;
@@ -6158,6 +6506,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Set<String> connectedTables(String base, List<SchemaEdge> edges) {
         Set<String> connected = new LinkedHashSet<>();
         if (base != null) connected.add(base);
@@ -6175,6 +6524,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return connected;
     }
 
+// Helper method used by the main runtime flow in this component.
     private boolean containsEdge(List<SchemaEdge> edges, SchemaEdge candidate) {
         for (SchemaEdge e : edges) {
             if (e == null || candidate == null) continue;
@@ -6188,6 +6538,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return false;
     }
 
+// Helper method used by the main runtime flow in this component.
     private List<SchemaEdge> shortestPath(SemanticModel model, Set<String> starts, String target) {
         List<SchemaEdge> graphEdges = semanticGraphEdges(model);
         if (graphEdges.isEmpty()) {
@@ -6253,6 +6604,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return path;
     }
 
+// Helper method used by the main runtime flow in this component.
     private List<SchemaEdge> semanticGraphEdges(SemanticModel model) {
         if (model == null) {
             return List.of();
@@ -6300,6 +6652,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return edges;
     }
 
+// Helper method used by the main runtime flow in this component.
     private void addGraphEdge(List<SchemaEdge> edges, SchemaEdge candidate) {
         if (edges == null || candidate == null) {
             return;
@@ -6316,6 +6669,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         edges.add(candidate);
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, String> buildAliases(String baseTable, List<SchemaEdge> edges) {
         Map<String, String> alias = new LinkedHashMap<>();
         alias.put(baseTable, "t0");
@@ -6331,6 +6685,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return alias;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Table<?> tableRef(String tableName, String alias) {
         if (alias == null || alias.isBlank()) {
             return DSL.table(DSL.name(tableName));
@@ -6347,6 +6702,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         return DSL.field(DSL.name(alias, parts[1]));
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private JoinType resolveJoinType(String joinType) {
         if (joinType == null || joinType.isBlank()) {
             return JoinType.LEFT_OUTER_JOIN;
@@ -6359,6 +6715,7 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
         };
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private SQLDialect resolveDialect() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (cfg.getSqlDialect() == null || cfg.getSqlDialect().isBlank()) {
@@ -6378,7 +6735,8 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
 - Runtime role: Clause assembly orchestrator handler.
 - Detailed control flow:
   - 1) Coordinates core query assembly flow and delegates specialized clause handlers.
-  - 2) Participates in deterministic SQL compile pipeline before execute stage uses CompiledSql.
+  - 2) Expands required tables from all AST references (`where/having/exists/subquery/sort/group/projections/time-range/metrics`) before join assembly.
+  - 3) Participates in deterministic SQL compile pipeline before execute stage uses CompiledSql.
 
 #### `AstPredicateHandler.java`
 
@@ -6389,10 +6747,15 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
 </div>
 
 <CodeBlockToggle title="AstPredicateHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/core/AstPredicateHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
+{`// AstPredicateHandler.java
+// Purpose: Predicate clause handler contract.
+// Flow 1: Compiles where/having predicate trees.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
 
+// Primary type declaration for this component.
 public interface AstPredicateHandler {
     boolean supports(CompileWorkPlan plan);
 
@@ -6416,7 +6779,11 @@ public interface AstPredicateHandler {
 </div>
 
 <CodeBlockToggle title="AstPredicateHandlerRegistry.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/registry/AstPredicateHandlerRegistry.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
+{`// AstPredicateHandlerRegistry.java
+// Purpose: Registry for predicate handlers.
+// Flow 1: Resolves ordered predicate handler list.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core.AstPredicateHandler;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -6426,6 +6793,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+// Primary type declaration for this component.
 public class AstPredicateHandlerRegistry {
     private final List<AstPredicateHandler> handlers;
 
@@ -6435,6 +6803,7 @@ public class AstPredicateHandlerRegistry {
         this.handlers = List.copyOf(sorted);
     }
 
+// Helper method used by the main runtime flow in this component.
     public List<AstPredicateHandler> handlers() {
         return handlers;
     }
@@ -6457,7 +6826,11 @@ public class AstPredicateHandlerRegistry {
 </div>
 
 <CodeBlockToggle title="DefaultPredicateClauseHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/provider/DefaultPredicateClauseHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
+{`// DefaultPredicateClauseHandler.java
+// Purpose: Default predicate clause renderer.
+// Flow 1: Builds filter expressions and parameter bindings.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.core.AstLogicalOperator;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.core.AstOperator;
@@ -6495,9 +6868,11 @@ import java.util.Objects;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultPredicateClauseHandler implements AstPredicateHandler {
 
     @FunctionalInterface
+// Primary type declaration for this component.
     public interface CorrelatedFieldResolver {
         Field<Object> resolve(String fieldRef);
     }
@@ -6505,11 +6880,13 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
     private final AstOperatorHandlerRegistry operatorHandlerRegistry;
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(CompileWorkPlan plan) {
         return plan != null && plan.getQuery() != null && plan.getAst() != null;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public void apply(CompileWorkPlan plan) {
         var ast = plan.getAst();
         var entity = plan.getEntity();
@@ -6619,6 +6996,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
         return sql == null ? "" : sql;
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     public String resolveMetricSql(String metricField, SemanticModel model) {
         if (metricField == null || model == null || model.metrics() == null) {
             return null;
@@ -6630,6 +7008,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
         return metric.sql();
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     public Field<Object> resolveEntityField(SemanticEntity entity, String fieldName, Map<String, String> aliasByTable) {
         if (entity == null || entity.fields() == null || fieldName == null || fieldName.isBlank()) {
             return null;
@@ -6641,6 +7020,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
         return columnField(field.column(), aliasByTable);
     }
 
+// Helper method used by the main runtime flow in this component.
     private String operatorSqlToken(AstOperator operator) {
         return switch (operator) {
             case EQ -> "=";
@@ -6744,6 +7124,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
         return operatorHandler.buildCondition(target, filter.value(), op, operatorContext);
     }
 
+// Helper method used by the main runtime flow in this component.
     private void appendTimeRangeWhere(CompileWorkPlan plan, List<Condition> where) {
         var ast = plan.getAst();
         var entity = plan.getEntity();
@@ -6773,6 +7154,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private Field<Object> columnField(String tableDotColumn, Map<String, String> aliasByTable) {
         String[] parts = tableDotColumn.split("\\.");
         if (parts.length != 2) {
@@ -6782,6 +7164,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
         return DSL.field(DSL.name(alias, parts[1]));
     }
 
+// Helper method used by the main runtime flow in this component.
     private Object normalizeMacroValue(Object value) {
         if (!(value instanceof String text)) {
             return value;
@@ -6820,6 +7203,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
         return value;
     }
 
+// Helper method used by the main runtime flow in this component.
     private OffsetDateTime parseIsoDateTime(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -6839,6 +7223,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
         return null;
     }
 
+// Helper method used by the main runtime flow in this component.
     private int parseInt(String raw, int fallback) {
         try {
             return Integer.parseInt(raw);
@@ -6865,10 +7250,15 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
 </div>
 
 <CodeBlockToggle title="AstMetricHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/core/AstMetricHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
+{`// AstMetricHandler.java
+// Purpose: Metric clause handler contract.
+// Flow 1: Resolves metric keys into SQL expressions.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
 
+// Primary type declaration for this component.
 public interface AstMetricHandler {
     boolean supports(CompileWorkPlan plan);
 
@@ -6892,7 +7282,11 @@ public interface AstMetricHandler {
 </div>
 
 <CodeBlockToggle title="AstMetricHandlerRegistry.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/registry/AstMetricHandlerRegistry.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
+{`// AstMetricHandlerRegistry.java
+// Purpose: Registry for metric handlers.
+// Flow 1: Resolves ordered metric handler list.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core.AstMetricHandler;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -6902,6 +7296,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+// Primary type declaration for this component.
 public class AstMetricHandlerRegistry {
     private final List<AstMetricHandler> handlers;
 
@@ -6911,6 +7306,7 @@ public class AstMetricHandlerRegistry {
         this.handlers = List.copyOf(sorted);
     }
 
+// Helper method used by the main runtime flow in this component.
     public List<AstMetricHandler> handlers() {
         return handlers;
     }
@@ -6933,7 +7329,11 @@ public class AstMetricHandlerRegistry {
 </div>
 
 <CodeBlockToggle title="DefaultMetricClauseHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/provider/DefaultMetricClauseHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
+{`// DefaultMetricClauseHandler.java
+// Purpose: Default metric clause renderer.
+// Flow 1: Injects metric expressions and aggregation fragments.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalSort;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
@@ -6953,16 +7353,19 @@ import java.util.List;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultMetricClauseHandler implements AstMetricHandler {
 
     private final DefaultPredicateClauseHandler predicateClauseHandler;
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(CompileWorkPlan plan) {
         return plan != null && plan.getQuery() != null && plan.getAst() != null;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public void apply(CompileWorkPlan plan) {
         var ast = plan.getAst();
         var entity = plan.getEntity();
@@ -7019,6 +7422,7 @@ public class DefaultMetricClauseHandler implements AstMetricHandler {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private Field<Object> columnField(String tableDotColumn, java.util.Map<String, String> aliasByTable) {
         String[] parts = tableDotColumn.split("\\.");
         if (parts.length != 2) {
@@ -7047,10 +7451,15 @@ public class DefaultMetricClauseHandler implements AstMetricHandler {
 </div>
 
 <CodeBlockToggle title="AstWindowHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/core/AstWindowHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
+{`// AstWindowHandler.java
+// Purpose: Window clause handler contract.
+// Flow 1: Builds window projection fragments.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
 
+// Primary type declaration for this component.
 public interface AstWindowHandler {
     boolean supports(CompileWorkPlan plan);
 
@@ -7074,7 +7483,11 @@ public interface AstWindowHandler {
 </div>
 
 <CodeBlockToggle title="AstWindowHandlerRegistry.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/registry/AstWindowHandlerRegistry.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
+{`// AstWindowHandlerRegistry.java
+// Purpose: Registry for window clause handlers.
+// Flow 1: Resolves ordered window clause handlers.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core.AstWindowHandler;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -7084,6 +7497,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+// Primary type declaration for this component.
 public class AstWindowHandlerRegistry {
     private final List<AstWindowHandler> handlers;
 
@@ -7093,6 +7507,7 @@ public class AstWindowHandlerRegistry {
         this.handlers = List.copyOf(sorted);
     }
 
+// Helper method used by the main runtime flow in this component.
     public List<AstWindowHandler> handlers() {
         return handlers;
     }
@@ -7115,7 +7530,11 @@ public class AstWindowHandlerRegistry {
 </div>
 
 <CodeBlockToggle title="DefaultWindowClauseHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/provider/DefaultWindowClauseHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
+{`// DefaultWindowClauseHandler.java
+// Purpose: Default window clause renderer.
+// Flow 1: Renders AST windows via window-function handlers.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalSort;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalWindowSpec;
@@ -7139,17 +7558,20 @@ import java.util.Set;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultWindowClauseHandler implements AstWindowHandler {
 
     private final DefaultPredicateClauseHandler predicateClauseHandler;
     private final AstWindowFunctionHandlerRegistry windowFunctionHandlerRegistry;
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(CompileWorkPlan plan) {
         return plan != null && plan.getQuery() != null && plan.getAst() != null;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public void apply(CompileWorkPlan plan) {
         var ast = plan.getAst();
         if (ast.windows() == null || ast.windows().isEmpty()) {
@@ -7171,6 +7593,7 @@ public class DefaultWindowClauseHandler implements AstWindowHandler {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private String buildWindowOverClause(CanonicalWindowSpec window, CompileWorkPlan plan) {
         List<String> segments = new ArrayList<>();
         Set<String> groupedFields = groupedFields(plan);
@@ -7207,6 +7630,7 @@ public class DefaultWindowClauseHandler implements AstWindowHandler {
         return String.join(" ", segments);
     }
 
+// Helper method used by the main runtime flow in this component.
     private Set<String> groupedFields(CompileWorkPlan plan) {
         Set<String> grouped = new LinkedHashSet<>();
         if (plan == null || plan.getAst() == null || plan.getAst().groupBy() == null) {
@@ -7220,6 +7644,7 @@ public class DefaultWindowClauseHandler implements AstWindowHandler {
         return grouped;
     }
 
+// Helper method used by the main runtime flow in this component.
     private String groupSafeFieldSql(Field<Object> field, String semanticFieldName, Set<String> groupedFields) {
         if (field == null) {
             return "";
@@ -7252,10 +7677,15 @@ public class DefaultWindowClauseHandler implements AstWindowHandler {
 </div>
 
 <CodeBlockToggle title="AstExistsHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/core/AstExistsHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
+{`// AstExistsHandler.java
+// Purpose: EXISTS clause handler contract.
+// Flow 1: Compiles exists/anti-exists blocks.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
 
+// Primary type declaration for this component.
 public interface AstExistsHandler {
     boolean supports(CompileWorkPlan plan);
 
@@ -7279,7 +7709,11 @@ public interface AstExistsHandler {
 </div>
 
 <CodeBlockToggle title="AstExistsHandlerRegistry.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/registry/AstExistsHandlerRegistry.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
+{`// AstExistsHandlerRegistry.java
+// Purpose: Registry for EXISTS handlers.
+// Flow 1: Resolves ordered exists handler list.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core.AstExistsHandler;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -7289,6 +7723,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+// Primary type declaration for this component.
 public class AstExistsHandlerRegistry {
     private final List<AstExistsHandler> handlers;
 
@@ -7298,6 +7733,7 @@ public class AstExistsHandlerRegistry {
         this.handlers = List.copyOf(sorted);
     }
 
+// Helper method used by the main runtime flow in this component.
     public List<AstExistsHandler> handlers() {
         return handlers;
     }
@@ -7320,7 +7756,11 @@ public class AstExistsHandlerRegistry {
 </div>
 
 <CodeBlockToggle title="DefaultExistsClauseHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/provider/DefaultExistsClauseHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
+{`// DefaultExistsClauseHandler.java
+// Purpose: Default EXISTS clause renderer.
+// Flow 1: Compiles correlated EXISTS predicates into SQL.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalExistsBlock;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalFilter;
@@ -7350,16 +7790,19 @@ import java.util.Set;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultExistsClauseHandler implements AstExistsHandler {
 
     private final DefaultPredicateClauseHandler predicateClauseHandler;
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(CompileWorkPlan plan) {
         return plan != null && plan.getQuery() != null && plan.getAst() != null;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public void apply(CompileWorkPlan plan) {
         if (plan.getAst().existsBlocks() == null || plan.getAst().existsBlocks().isEmpty()) {
             return;
@@ -7376,6 +7819,7 @@ public class DefaultExistsClauseHandler implements AstExistsHandler {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private Condition toExistsCondition(CanonicalExistsBlock existsBlock, CompileWorkPlan plan) {
         if (existsBlock == null || existsBlock.entity() == null || existsBlock.entity().isBlank()) {
             return null;
@@ -7450,12 +7894,14 @@ public class DefaultExistsClauseHandler implements AstExistsHandler {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private Set<String> collectRequiredTables(CanonicalFilterGroup where, SemanticEntity entity) {
         Set<String> tables = new LinkedHashSet<>();
         collectRequiredTables(where, entity, tables);
         return tables;
     }
 
+// Helper method used by the main runtime flow in this component.
     private void collectRequiredTables(CanonicalFilterGroup where, SemanticEntity entity, Set<String> tables) {
         if (where == null || entity == null || entity.fields() == null) {
             return;
@@ -7482,6 +7928,7 @@ public class DefaultExistsClauseHandler implements AstExistsHandler {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private List<RelationshipEdge> findRelationshipPath(String fromTable, String toTable, SemanticModel model) {
         if (fromTable == null || toTable == null || model == null || model.relationships() == null) {
             return List.of();
@@ -7569,10 +8016,15 @@ public class DefaultExistsClauseHandler implements AstExistsHandler {
 </div>
 
 <CodeBlockToggle title="AstSubqueryHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/core/AstSubqueryHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
+{`// AstSubqueryHandler.java
+// Purpose: Subquery clause handler contract.
+// Flow 1: Builds scalar subquery comparison fragments.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
 
+// Primary type declaration for this component.
 public interface AstSubqueryHandler {
     boolean supports(CompileWorkPlan plan);
 
@@ -7596,7 +8048,11 @@ public interface AstSubqueryHandler {
 </div>
 
 <CodeBlockToggle title="AstSubqueryHandlerRegistry.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/registry/AstSubqueryHandlerRegistry.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
+{`// AstSubqueryHandlerRegistry.java
+// Purpose: Registry for subquery handlers.
+// Flow 1: Resolves ordered subquery handler list.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core.AstSubqueryHandler;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -7606,6 +8062,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+// Primary type declaration for this component.
 public class AstSubqueryHandlerRegistry {
     private final List<AstSubqueryHandler> handlers;
 
@@ -7615,6 +8072,7 @@ public class AstSubqueryHandlerRegistry {
         this.handlers = List.copyOf(sorted);
     }
 
+// Helper method used by the main runtime flow in this component.
     public List<AstSubqueryHandler> handlers() {
         return handlers;
     }
@@ -7637,7 +8095,11 @@ public class AstSubqueryHandlerRegistry {
 </div>
 
 <CodeBlockToggle title="DefaultSubqueryClauseHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/provider/DefaultSubqueryClauseHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
+{`// DefaultSubqueryClauseHandler.java
+// Purpose: Default subquery clause renderer.
+// Flow 1: Compiles nested subqueries and binds nested params.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.core.AstOperator;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalSubqueryFilter;
@@ -7662,16 +8124,19 @@ import java.util.Objects;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultSubqueryClauseHandler implements AstSubqueryHandler {
 
     private final DefaultPredicateClauseHandler predicateClauseHandler;
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(CompileWorkPlan plan) {
         return plan != null && plan.getQuery() != null && plan.getAst() != null;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public void apply(CompileWorkPlan plan) {
         if (plan.getAst().subqueryFilters() == null || plan.getAst().subqueryFilters().isEmpty()) {
             return;
@@ -7688,6 +8153,7 @@ public class DefaultSubqueryClauseHandler implements AstSubqueryHandler {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private Condition toSubqueryFilterCondition(CanonicalSubqueryFilter filter, CompileWorkPlan plan) {
         if (filter == null || filter.field() == null || filter.field().isBlank() || filter.subquery() == null) {
             return null;
@@ -7713,6 +8179,7 @@ public class DefaultSubqueryClauseHandler implements AstSubqueryHandler {
         return DSL.condition("{0} " + token + " (" + subquerySql + ")", outerField);
     }
 
+// Helper method used by the main runtime flow in this component.
     private String buildScalarSubquerySql(CanonicalSubquerySpec spec, CompileWorkPlan plan) {
         if (spec == null || spec.entity() == null || spec.selectField() == null) {
             return "";
@@ -7765,6 +8232,7 @@ public class DefaultSubqueryClauseHandler implements AstSubqueryHandler {
         return sql.toString();
     }
 
+// Helper method used by the main runtime flow in this component.
     private Field<Object> columnField(String tableDotColumn, Map<String, String> aliasByTable) {
         String[] parts = tableDotColumn.split("\\.");
         if (parts.length != 2) {
@@ -7793,10 +8261,15 @@ public class DefaultSubqueryClauseHandler implements AstSubqueryHandler {
 </div>
 
 <CodeBlockToggle title="AstFunctionHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/core/AstFunctionHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
+{`// AstFunctionHandler.java
+// Purpose: Function clause handler contract.
+// Flow 1: Renders supported function expressions.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
 
+// Primary type declaration for this component.
 public interface AstFunctionHandler {
     boolean supports(CompileWorkPlan plan);
 
@@ -7820,7 +8293,11 @@ public interface AstFunctionHandler {
 </div>
 
 <CodeBlockToggle title="AstFunctionHandlerRegistry.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/registry/AstFunctionHandlerRegistry.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
+{`// AstFunctionHandlerRegistry.java
+// Purpose: Registry for function handlers.
+// Flow 1: Resolves ordered function handler list.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.registry;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core.AstFunctionHandler;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -7830,6 +8307,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+// Primary type declaration for this component.
 public class AstFunctionHandlerRegistry {
     private final List<AstFunctionHandler> handlers;
 
@@ -7839,6 +8317,7 @@ public class AstFunctionHandlerRegistry {
         this.handlers = List.copyOf(sorted);
     }
 
+// Helper method used by the main runtime flow in this component.
     public List<AstFunctionHandler> handlers() {
         return handlers;
     }
@@ -7861,7 +8340,11 @@ public class AstFunctionHandlerRegistry {
 </div>
 
 <CodeBlockToggle title="DefaultFunctionClauseHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/clause/provider/DefaultFunctionClauseHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
+{`// DefaultFunctionClauseHandler.java
+// Purpose: Default function clause renderer.
+// Flow 1: Renders supported functions and fallback placeholders.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.CompileWorkPlan;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.clause.core.AstFunctionHandler;
@@ -7871,13 +8354,16 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultFunctionClauseHandler implements AstFunctionHandler {
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(CompileWorkPlan plan) {
         return plan != null && plan.getAst() != null;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public void apply(CompileWorkPlan plan) {
         // Reserved for scalar-expression handlers (DATE_TRUNC, LOWER, COALESCE, etc.).
         // Current v1 runtime does not yet carry expression nodes for these functions.
@@ -7902,12 +8388,17 @@ public class DefaultFunctionClauseHandler implements AstFunctionHandler {
 </div>
 
 <CodeBlockToggle title="AstOperatorHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/operator/core/AstOperatorHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core;
+{`// AstOperatorHandler.java
+// Purpose: Operator renderer contract.
+// Flow 1: Converts canonical operators into SQL predicate fragments.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.core.AstOperator;
 import org.jooq.Condition;
 import org.jooq.Field;
 
+// Primary type declaration for this component.
 public interface AstOperatorHandler {
     boolean supports(AstOperator operator);
 
@@ -7915,6 +8406,7 @@ public interface AstOperatorHandler {
 
     String buildSql(Field<Object> field, Object value, AstOperator operator, OperatorHandlerContext context);
 
+// Helper method used by the main runtime flow in this component.
     default String sqlToken(AstOperator operator) {
         return null;
     }
@@ -7938,7 +8430,11 @@ public interface AstOperatorHandler {
 </div>
 
 <CodeBlockToggle title="AstOperatorHandlerRegistry.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/operator/core/AstOperatorHandlerRegistry.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core;
+{`// AstOperatorHandlerRegistry.java
+// Purpose: Operator renderer registry.
+// Flow 1: Selects appropriate operator handler per operator/value shape.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.core.AstOperator;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -7948,6 +8444,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+// Primary type declaration for this component.
 public class AstOperatorHandlerRegistry {
     private final List<AstOperatorHandler> handlers;
 
@@ -7957,6 +8454,7 @@ public class AstOperatorHandlerRegistry {
         this.handlers = List.copyOf(sorted);
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     public AstOperatorHandler resolve(AstOperator operator) {
         if (operator == null) {
             return null;
@@ -7969,6 +8467,7 @@ public class AstOperatorHandlerRegistry {
         return null;
     }
 
+// Helper method used by the main runtime flow in this component.
     public String sqlToken(AstOperator operator) {
         AstOperatorHandler handler = resolve(operator);
         return handler == null ? null : handler.sqlToken(operator);
@@ -7993,7 +8492,11 @@ public class AstOperatorHandlerRegistry {
 </div>
 
 <CodeBlockToggle title="OperatorHandlerContext.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/operator/core/OperatorHandlerContext.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core;
+{`// OperatorHandlerContext.java
+// Purpose: Operator rendering context model.
+// Flow 1: Carries field metadata, params map, and plan state.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core;
 
 import lombok.RequiredArgsConstructor;
 import org.jooq.Param;
@@ -8003,22 +8506,26 @@ import java.util.Map;
 import java.util.function.Function;
 
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class OperatorHandlerContext {
     private final Map<String, Object> params;
     private final int[] paramIdx;
     private final Function<Object, Object> normalizer;
 
+// Helper method used by the main runtime flow in this component.
     public String nextParamKey(Object rawValue) {
         String key = "p" + paramIdx[0]++;
         params.put(key, normalize(rawValue));
         return key;
     }
 
+// Helper method used by the main runtime flow in this component.
     public Param<Object> nextParam(Object rawValue) {
         String key = nextParamKey(rawValue);
         return DSL.param(key, params.get(key));
     }
 
+// Helper method used by the main runtime flow in this component.
     public Object normalize(Object rawValue) {
         return normalizer == null ? rawValue : normalizer.apply(rawValue);
     }
@@ -8042,7 +8549,11 @@ public class OperatorHandlerContext {
 </div>
 
 <CodeBlockToggle title="DefaultComparisonAstOperatorHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/operator/provider/DefaultComparisonAstOperatorHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.provider;
+{`// DefaultComparisonAstOperatorHandler.java
+// Purpose: Comparison/LIKE/ILIKE operator renderer.
+// Flow 1: Renders EQ/NE/GT/GTE/LT/LTE/LIKE/ILIKE operators.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.core.AstOperator;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core.AstOperatorHandler;
@@ -8059,6 +8570,7 @@ import java.util.Set;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultComparisonAstOperatorHandler implements AstOperatorHandler {
     private static final Set<AstOperator> SUPPORTED = EnumSet.of(
             AstOperator.EQ, AstOperator.NE, AstOperator.GT, AstOperator.GTE,
@@ -8066,17 +8578,20 @@ public class DefaultComparisonAstOperatorHandler implements AstOperatorHandler {
     );
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(AstOperator operator) {
         return operator != null && SUPPORTED.contains(operator);
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public Condition buildCondition(Field<Object> field, Object value, AstOperator operator, OperatorHandlerContext context) {
         Object effectiveValue = normalizePatternValue(value, operator);
         return DSL.condition("{0} " + sqlToken(operator) + " {1}", field, context.nextParam(effectiveValue));
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String buildSql(Field<Object> field, Object value, AstOperator operator, OperatorHandlerContext context) {
         Object effectiveValue = normalizePatternValue(value, operator);
         String key = context.nextParamKey(effectiveValue);
@@ -8084,6 +8599,7 @@ public class DefaultComparisonAstOperatorHandler implements AstOperatorHandler {
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String sqlToken(AstOperator operator) {
         return switch (operator) {
             case EQ -> "=";
@@ -8098,6 +8614,7 @@ public class DefaultComparisonAstOperatorHandler implements AstOperatorHandler {
         };
     }
 
+// Helper method used by the main runtime flow in this component.
     private Object normalizePatternValue(Object value, AstOperator operator) {
         if ((operator == AstOperator.LIKE || operator == AstOperator.ILIKE) && value instanceof String s) {
             if (!s.contains("%") && !s.contains("_")) {
@@ -8125,7 +8642,11 @@ public class DefaultComparisonAstOperatorHandler implements AstOperatorHandler {
 </div>
 
 <CodeBlockToggle title="DefaultBetweenAstOperatorHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/operator/provider/DefaultBetweenAstOperatorHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.provider;
+{`// DefaultBetweenAstOperatorHandler.java
+// Purpose: BETWEEN operator renderer.
+// Flow 1: Renders lower/upper bound predicate and params.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.core.AstOperator;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core.AstOperatorHandler;
@@ -8141,13 +8662,16 @@ import java.util.List;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultBetweenAstOperatorHandler implements AstOperatorHandler {
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(AstOperator operator) {
         return operator == AstOperator.BETWEEN;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public Condition buildCondition(Field<Object> field, Object value, AstOperator operator, OperatorHandlerContext context) {
         if (!(value instanceof List<?> list) || list.size() < 2) {
             return DSL.trueCondition();
@@ -8156,6 +8680,7 @@ public class DefaultBetweenAstOperatorHandler implements AstOperatorHandler {
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String buildSql(Field<Object> field, Object value, AstOperator operator, OperatorHandlerContext context) {
         if (!(value instanceof List<?> list) || list.size() < 2) {
             return "";
@@ -8166,6 +8691,7 @@ public class DefaultBetweenAstOperatorHandler implements AstOperatorHandler {
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String sqlToken(AstOperator operator) {
         return "BETWEEN";
     }
@@ -8188,7 +8714,11 @@ public class DefaultBetweenAstOperatorHandler implements AstOperatorHandler {
 </div>
 
 <CodeBlockToggle title="DefaultInAstOperatorHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/operator/provider/DefaultInAstOperatorHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.provider;
+{`// DefaultInAstOperatorHandler.java
+// Purpose: IN/NOT_IN operator renderer.
+// Flow 1: Expands list values into deterministic named parameters.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.core.AstOperator;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core.AstOperatorHandler;
@@ -8206,13 +8736,16 @@ import java.util.List;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultInAstOperatorHandler implements AstOperatorHandler {
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(AstOperator operator) {
         return operator == AstOperator.IN || operator == AstOperator.NOT_IN;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public Condition buildCondition(Field<Object> field, Object value, AstOperator operator, OperatorHandlerContext context) {
         if (!(value instanceof List<?> list) || list.isEmpty()) {
             return DSL.trueCondition();
@@ -8226,6 +8759,7 @@ public class DefaultInAstOperatorHandler implements AstOperatorHandler {
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String buildSql(Field<Object> field, Object value, AstOperator operator, OperatorHandlerContext context) {
         if (!(value instanceof List<?> list) || list.isEmpty()) {
             return "";
@@ -8239,6 +8773,7 @@ public class DefaultInAstOperatorHandler implements AstOperatorHandler {
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String sqlToken(AstOperator operator) {
         return operator == AstOperator.NOT_IN ? "NOT IN" : "IN";
     }
@@ -8261,7 +8796,11 @@ public class DefaultInAstOperatorHandler implements AstOperatorHandler {
 </div>
 
 <CodeBlockToggle title="DefaultNullCheckAstOperatorHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/operator/provider/DefaultNullCheckAstOperatorHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.provider;
+{`// DefaultNullCheckAstOperatorHandler.java
+// Purpose: IS_NULL/IS_NOT_NULL operator renderer.
+// Flow 1: Renders null checks without value binding.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.core.AstOperator;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.operator.core.AstOperatorHandler;
@@ -8274,23 +8813,28 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultNullCheckAstOperatorHandler implements AstOperatorHandler {
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(AstOperator operator) {
         return operator == AstOperator.IS_NULL || operator == AstOperator.IS_NOT_NULL;
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public Condition buildCondition(Field<Object> field, Object value, AstOperator operator, OperatorHandlerContext context) {
         return operator == AstOperator.IS_NULL ? field.isNull() : field.isNotNull();
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String buildSql(Field<Object> field, Object value, AstOperator operator, OperatorHandlerContext context) {
         return field + " " + sqlToken(operator);
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String sqlToken(AstOperator operator) {
         return operator == AstOperator.IS_NULL ? "IS NULL" : "IS NOT NULL";
     }
@@ -8313,10 +8857,15 @@ public class DefaultNullCheckAstOperatorHandler implements AstOperatorHandler {
 </div>
 
 <CodeBlockToggle title="AstWindowFunctionHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/window/core/AstWindowFunctionHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.window.core;
+{`// AstWindowFunctionHandler.java
+// Purpose: Window function renderer contract.
+// Flow 1: Renders supported window function expressions.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.window.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalWindowSpec;
 
+// Primary type declaration for this component.
 public interface AstWindowFunctionHandler {
     boolean supports(String functionName);
 
@@ -8341,7 +8890,11 @@ public interface AstWindowFunctionHandler {
 </div>
 
 <CodeBlockToggle title="AstWindowFunctionHandlerRegistry.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/window/core/AstWindowFunctionHandlerRegistry.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.window.core;
+{`// AstWindowFunctionHandlerRegistry.java
+// Purpose: Window function renderer registry.
+// Flow 1: Selects handler by AST window.function key.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.window.core;
 
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.stereotype.Component;
@@ -8350,6 +8903,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+// Primary type declaration for this component.
 public class AstWindowFunctionHandlerRegistry {
     private final List<AstWindowFunctionHandler> handlers;
 
@@ -8359,6 +8913,7 @@ public class AstWindowFunctionHandlerRegistry {
         this.handlers = List.copyOf(sorted);
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     public AstWindowFunctionHandler resolve(String functionName) {
         if (functionName == null || functionName.isBlank()) {
             return null;
@@ -8390,7 +8945,11 @@ public class AstWindowFunctionHandlerRegistry {
 </div>
 
 <CodeBlockToggle title="DefaultRowNumberWindowFunctionHandler.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/handler/window/provider/DefaultRowNumberWindowFunctionHandler.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.window.provider;
+{`// DefaultRowNumberWindowFunctionHandler.java
+// Purpose: ROW_NUMBER window renderer.
+// Flow 1: Builds ROW_NUMBER() OVER(...) projection fragment.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.handler.window.provider;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalWindowSpec;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.SemanticSqlConstants;
@@ -8401,13 +8960,16 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultRowNumberWindowFunctionHandler implements AstWindowFunctionHandler {
     @Override
+// Helper method used by the main runtime flow in this component.
     public boolean supports(String functionName) {
         return functionName != null && SemanticSqlConstants.WINDOW_FN_ROW_NUMBER.equalsIgnoreCase(functionName);
     }
 
     @Override
+// Helper method used by the main runtime flow in this component.
     public String renderExpression(String overClause, CanonicalWindowSpec windowSpec) {
         if (overClause == null || overClause.isBlank()) {
             return "ROW_NUMBER() OVER ()";
@@ -8433,11 +8995,17 @@ public class DefaultRowNumberWindowFunctionHandler implements AstWindowFunctionH
 </div>
 
 <CodeBlockToggle title="SqlGuardrail.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/core/SqlGuardrail.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
+{`// SqlGuardrail.java
+// Purpose: SQL safety guardrail contract.
+// Flow 1: Validates allowed SQL shape prior to execution.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.context.SemanticQueryContext;
 
+// Primary type declaration for this component.
 public interface SqlGuardrail {
+// Helper method used by the main runtime flow in this component.
     default boolean supports(SemanticQueryContext context) {
         return true;
     }
@@ -8462,14 +9030,20 @@ public interface SqlGuardrail {
 </div>
 
 <CodeBlockToggle title="SemanticSqlPolicyValidator.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/policy/SemanticSqlPolicyValidator.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.policy;
+{`// SemanticSqlPolicyValidator.java
+// Purpose: SQL policy validator contract.
+// Flow 1: Validates compiled SQL against runtime safety policy.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.policy;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.*;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.context.SemanticQueryContext;
 
+// Primary type declaration for this component.
 public interface SemanticSqlPolicyValidator extends SqlGuardrail {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(SemanticQueryContext context) {
         return true;
     }
@@ -8494,7 +9068,11 @@ public interface SemanticSqlPolicyValidator extends SqlGuardrail {
 </div>
 
 <CodeBlockToggle title="DefaultSemanticSqlPolicyValidator.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/sql/policy/DefaultSemanticSqlPolicyValidator.java" defaultOpen={false}>
-{`package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.policy;
+{`// DefaultSemanticSqlPolicyValidator.java
+// Purpose: Default SQL policy validator.
+// Flow 1: Enforces SELECT-only and policy constraints pre-execution.
+
+package com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.policy;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.*;
 
@@ -8507,11 +9085,13 @@ import org.springframework.stereotype.Component;
 @Component
 @Order()
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class DefaultSemanticSqlPolicyValidator implements SemanticSqlPolicyValidator {
 
     private final McpSqlGuardrail sqlGuardrail;
 
     @Override
+// Validates contract/safety rules before downstream execution.
     public void validate(CompiledSql compiledSql, SemanticQueryContext context) {
         if (compiledSql == null || compiledSql.sql() == null || compiledSql.sql().isBlank()) {
             throw new IllegalStateException("Compiled SQL is empty for semantic query.");
@@ -8556,16 +9136,19 @@ Sequence below follows summary generation first and runtime wrapper orchestratio
 </div>
 
 <CodeBlockToggle title="SemanticResultSummarizer.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/summary/SemanticResultSummarizer.java" defaultOpen={false}>
-{`// Summary contract used by result-summary stage.
-// Implementations convert execution rows to user-facing summary text.
+{`// SemanticResultSummarizer.java
+// Purpose: Summary renderer contract.
+// Flow 1: Defines summary API used by result-summary stage.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.summary;
 
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.execute.SemanticExecutionResult;
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.context.SemanticQueryContext;
 
+// Primary type declaration for this component.
 public interface SemanticResultSummarizer {
 
+// Helper method used by the main runtime flow in this component.
     default boolean supports(SemanticQueryContext context) {
         return true;
     }
@@ -8590,8 +9173,9 @@ public interface SemanticResultSummarizer {
 </div>
 
 <CodeBlockToggle title="DefaultSemanticResultSummarizer.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/summary/DefaultSemanticResultSummarizer.java" defaultOpen={false}>
-{`// Default summary implementation with markdown/table output path.
-// Produces concise result summary and fallback no-record messages.
+{`// DefaultSemanticResultSummarizer.java
+// Purpose: Default semantic summary renderer.
+// Flow 1: Formats execution rows into concise summary/table output.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.summary;
 
@@ -8607,9 +9191,11 @@ import java.util.Objects;
 
 @Component
 @Order()
+// Primary type declaration for this component.
 public class DefaultSemanticResultSummarizer implements SemanticResultSummarizer {
 
     @Override
+// Builds user-facing summary text/table from execution payload.
     public String summarize(SemanticExecutionResult result, SemanticQueryContext context) {
         if (result == null) {
             return "No result generated.";
@@ -8620,6 +9206,7 @@ public class DefaultSemanticResultSummarizer implements SemanticResultSummarizer
         return buildMarkdownTable(result);
     }
 
+// Helper method used by the main runtime flow in this component.
     private String buildMarkdownTable(SemanticExecutionResult result) {
         List<Map<String, Object>> rows = result.rows() == null ? List.of() : result.rows();
         if (rows.isEmpty()) {
@@ -8662,6 +9249,7 @@ public class DefaultSemanticResultSummarizer implements SemanticResultSummarizer
         return out.toString().trim();
     }
 
+// Helper method used by the main runtime flow in this component.
     private String stringify(Object value) {
         if (value == null) {
             return "";
@@ -8669,6 +9257,7 @@ public class DefaultSemanticResultSummarizer implements SemanticResultSummarizer
         return String.valueOf(value);
     }
 
+// Helper method used by the main runtime flow in this component.
     private String escapeCell(String text) {
         if (text == null || text.isBlank()) {
             return "";
@@ -8697,8 +9286,11 @@ public class DefaultSemanticResultSummarizer implements SemanticResultSummarizer
 </div>
 
 <CodeBlockToggle title="SemanticQueryRuntimeService.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/core/SemanticQueryRuntimeService.java" defaultOpen={false}>
-{`// Runtime orchestrator: executes semantic stage pipeline in fixed order.
-// Handles top-level stage failures and emits final runtime envelope.
+{`// SemanticQueryRuntimeService.java
+// Purpose: Orchestrates end-to-end semantic stage execution.
+// Flow 1: Builds SemanticQueryContext and stage pipeline runtime state.
+// Flow 2: Runs stage lifecycle with deterministic order and interceptors.
+// Flow 3: Captures runtime errors and emits final status metadata.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.core;
 
@@ -8725,6 +9317,7 @@ import java.time.temporal.TemporalAccessor;
 
 @Component
 @RequiredArgsConstructor
+// Primary type declaration for this component.
 public class SemanticQueryRuntimeService {
 
     private final ConvEngineMcpConfig mcpConfig;
@@ -8734,6 +9327,7 @@ public class SemanticQueryRuntimeService {
     private final AuditService auditService;
     private final VerboseMessagePublisher verbosePublisher;
 
+// Helper method used by the main runtime flow in this component.
     public Map<String, Object> plan(String question, EngineSession session) {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (!cfg.isEnabled()) {
@@ -8797,6 +9391,7 @@ public class SemanticQueryRuntimeService {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private void publishBefore(List<SemanticQueryStageInterceptor> interceptors, String stage, EngineSession session, Object payload) {
         for (SemanticQueryStageInterceptor interceptor : interceptors) {
             if (interceptor != null && interceptor.supports(session)) {
@@ -8805,6 +9400,7 @@ public class SemanticQueryRuntimeService {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private void publishAfter(List<SemanticQueryStageInterceptor> interceptors, String stage, EngineSession session, Object payload) {
         for (SemanticQueryStageInterceptor interceptor : interceptors) {
             if (interceptor != null && interceptor.supports(session)) {
@@ -8813,6 +9409,7 @@ public class SemanticQueryRuntimeService {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private void publishRuntimeError(EngineSession session, Exception error) {
         UUID conversationId = session == null ? null : session.getConversationId();
         if (conversationId == null) {
@@ -8861,6 +9458,7 @@ public class SemanticQueryRuntimeService {
         }
     }
 
+// Helper method used by the main runtime flow in this component.
     private String stageErrorDeterminant(SemanticQueryStage stage) {
         if (stage == null) {
             return "UNKNOWN_ERROR";
@@ -8931,6 +9529,7 @@ public class SemanticQueryRuntimeService {
         return payload;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> buildMeta(SemanticQueryContext context, String stageCode, String lifecycle) {
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("component", "semantic-query");
@@ -8948,6 +9547,7 @@ public class SemanticQueryRuntimeService {
         return meta;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> buildDbMeta(SemanticQueryContext context) {
         Map<String, Object> db = new LinkedHashMap<>();
         db.put("toolCode", resolveToolCode());
@@ -8961,6 +9561,7 @@ public class SemanticQueryRuntimeService {
         return db;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Map<String, Object> sanitizeMap(Map<String, Object> source) {
         Map<String, Object> out = new LinkedHashMap<>();
         if (source == null) {
@@ -8972,6 +9573,7 @@ public class SemanticQueryRuntimeService {
         return out;
     }
 
+// Helper method used by the main runtime flow in this component.
     private Object sanitizeValue(Object value) {
         if (value == null) {
             return null;
@@ -8996,6 +9598,7 @@ public class SemanticQueryRuntimeService {
         return value;
     }
 
+// Helper method used by the main runtime flow in this component.
     private int countFilters(com.github.salilvnair.convengine.engine.mcp.query.semantic.ast.canonical.CanonicalFilterGroup group) {
         if (group == null) {
             return 0;
@@ -9009,6 +9612,7 @@ public class SemanticQueryRuntimeService {
         return count;
     }
 
+// Resolves runtime strategy/handler/value using current semantic context.
     private String resolveToolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         if (cfg == null || cfg.getToolCode() == null || cfg.getToolCode().isBlank()) {
@@ -9017,6 +9621,7 @@ public class SemanticQueryRuntimeService {
         return cfg.getToolCode().trim();
     }
 
+// Helper method used by the main runtime flow in this component.
     private String abbreviate(String text, int max) {
         if (text == null || text.isBlank()) {
             return text;
@@ -9200,16 +9805,22 @@ targetEntity = applyForcedEntityIfConfigured(rule, targetEntity, model);
 
 // normalize fields using alias map
 normalizedSelect = normalizeFields(ast.select(), entity.fields());
+normalizedSelect = pruneUnknownSelect(normalizedSelect, entity.fields().keySet());
+normalizedProjections = pruneUnknownProjections(normalizedProjections, entity.fields().keySet());
 normalizedWhere = normalizeFilterGroup(ast.where(), aliasMap, entity.fields());
 
 // demote mixed aggregate/detail when needed
-if (shouldDemoteAggregateToDetail(...)) { ... }`}
+if (shouldDemoteAggregateToDetail(...)) { ... }
+
+// fail fast when normalization drops all intent-critical predicates/selects
+assertNormalizationDidNotDropCriticalIntent(ast, normalized, targetEntity);`}
 </CodeBlockToggle>
 
 What it means:
 - Maps field aliases to canonical semantic field keys.
-- Drops unknown fields that do not belong to chosen entity.
+- Drops unknown fields that do not belong to chosen entity (including `select` and `projections`).
 - Applies deterministic business overrides through `intent_rules`.
+- Fails fast when normalization drops all predicates or selected fields, instead of compiling broad fallback SQL.
 
 #### 4) behavior change now implemented (important)
 
@@ -10628,13 +11239,15 @@ public class DefaultAstNormalizer implements AstNormalizer {
         AstFilterGroup having = pruneUnknownFilters(ast.having(), fields.keySet());
         List<String> metrics = ast.metrics() == null ? List.of() : ast.metrics();
 
-        List<String> select = ast.select();
-        List<AstProjection> projections = ast.projections();
+        List<String> select = pruneUnknownSelect(ast.select(), fields.keySet());
+        List<AstProjection> projections = pruneUnknownProjections(ast.projections(), fields.keySet());
 
         boolean metricRequestedByAst = metrics != null && !metrics.isEmpty();
+        boolean allowForceWithMetrics = rule != null && Boolean.TRUE.equals(rule.forceModeEvenWithMetrics());
+        boolean allowDetailForce = !metricRequestedByAst || allowForceWithMetrics;
 
         // Guard clause / branch to enforce deterministic behavior.
-        if (!metricRequestedByAst && rule != null && rule.forceSelect() != null && !rule.forceSelect().isEmpty()) {
+        if (allowDetailForce && rule != null && rule.forceSelect() != null && !rule.forceSelect().isEmpty()) {
             List<String> forcedSelect = rule.forceSelect().stream()
                     .filter(Objects::nonNull)
                     .filter(fields::containsKey)
@@ -10646,7 +11259,7 @@ public class DefaultAstNormalizer implements AstNormalizer {
             }
         }
 
-        boolean forceDetail = !metricRequestedByAst && rule != null && "detail".equalsIgnoreCase(rule.forceMode());
+        boolean forceDetail = allowDetailForce && rule != null && "detail".equalsIgnoreCase(rule.forceMode());
         // Guard clause / branch to enforce deterministic behavior.
         if (forceDetail) {
             metrics = List.of();
@@ -10771,6 +11384,32 @@ public class DefaultAstNormalizer implements AstNormalizer {
                 .toList();
     }
 
+    private List<String> pruneUnknownSelect(List<String> select, Set<String> knownFields) {
+        // Guard clause / branch to enforce deterministic behavior.
+        if (select == null || select.isEmpty()) {
+            // Returns normalized/validated value for next AST stage.
+            return List.of();
+        }
+        // Returns normalized/validated value for next AST stage.
+        return select.stream()
+                .filter(Objects::nonNull)
+                .filter(knownFields::contains)
+                .toList();
+    }
+
+    private List<AstProjection> pruneUnknownProjections(List<AstProjection> projections, Set<String> knownFields) {
+        // Guard clause / branch to enforce deterministic behavior.
+        if (projections == null || projections.isEmpty()) {
+            // Returns normalized/validated value for next AST stage.
+            return List.of();
+        }
+        // Returns normalized/validated value for next AST stage.
+        return projections.stream()
+                .filter(Objects::nonNull)
+                .filter(p -> p.field() != null && knownFields.contains(p.field()))
+                .toList();
+    }
+
     private AstFilterGroup pruneUnknownFilters(AstFilterGroup group, Set<String> knownFields) {
         // Guard clause / branch to enforce deterministic behavior.
         if (group == null) {
@@ -10866,8 +11505,9 @@ public class DefaultAstNormalizer implements AstNormalizer {
 - Detailed control flow:
   - 1) Takes raw V1 AST and semantic model context from runtime stage.
   - 2) Normalizes field aliases and applies deterministic intent-rule rewrites.
-  - 3) Keeps metrics-safe behavior by default, but allows per-rule override via `force_mode_even_with_metrics`.
-  - 4) Emits normalized AST for canonical mapping and validation.
+  - 3) Prunes unknown fields across `select`, `projections`, `filters`, `sort`, `group_by`, `where`, and `having` for selected entity safety.
+  - 4) Keeps metrics-safe behavior by default, but allows per-rule override via `force_mode_even_with_metrics`.
+  - 5) Emits normalized AST for canonical mapping and validation.
 
 
 #### `AstPayload.java`
