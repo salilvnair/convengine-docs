@@ -6290,15 +6290,21 @@ public class DefaultAstQueryAssemblyClauseHandler implements AstClauseHandler {
             plan.setParamIdx(new int[]{1});
         }
 
-        List<SelectFieldOrAsterisk> selectExpr = resolveBaseSelectExpressions(entity, aliasByTable, ast.projections());
-        if (selectExpr.isEmpty()) {
+        boolean metricOnlyQuery = ast.metrics() != null && !ast.metrics().isEmpty()
+                && (ast.projections() == null || ast.projections().isEmpty());
+        List<SelectFieldOrAsterisk> selectExpr = metricOnlyQuery
+                ? List.of()
+                : resolveBaseSelectExpressions(entity, aliasByTable, ast.projections());
+        if (selectExpr.isEmpty() && !metricOnlyQuery) {
             throw new IllegalStateException("No valid select expressions could be generated from AST.");
         }
 
         if (ast.distinct()) {
             query.setDistinct(true);
         }
-        query.addSelect(selectExpr);
+        if (!selectExpr.isEmpty()) {
+            query.addSelect(selectExpr);
+        }
         query.addFrom(tableRef(baseTable, aliasByTable.get(baseTable)));
 
         for (SchemaEdge edge : effectiveEdges) {
@@ -7069,7 +7075,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
         if (filter == null || filter.field() == null || filter.field().isBlank()) {
             return "";
         }
-        String metricSql = resolveMetricSql(filter.field(), model);
+        String metricSql = resolveMetricSql(filter.field(), model, aliases);
         Field<Object> field = metricSql != null ? DSL.field(DSL.sql(metricSql)) : resolveEntityField(entity, filter.field(), aliases);
         if (field == null) {
             return "";
@@ -7103,6 +7109,15 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
             return null;
         }
         return metric.sql();
+    }
+
+// Resolves runtime strategy/handler/value using current semantic context.
+    public String resolveMetricSql(String metricField, SemanticModel model, Map<String, String> aliasByTable) {
+        String raw = resolveMetricSql(metricField, model);
+        if (raw == null) {
+            return null;
+        }
+        return qualifyMetricSql(raw, aliasByTable);
     }
 
 // Resolves runtime strategy/handler/value using current semantic context.
@@ -7203,7 +7218,7 @@ public class DefaultPredicateClauseHandler implements AstPredicateHandler {
             return null;
         }
         Field<Object> target;
-        String metricSql = resolveMetricSql(filter.field(), model);
+        String metricSql = resolveMetricSql(filter.field(), model, aliasByTable);
         if (metricSql != null) {
             target = DSL.field(DSL.sql(metricSql));
         } else {
@@ -7484,11 +7499,11 @@ public class DefaultMetricClauseHandler implements AstMetricHandler {
 
         if (!ast.metrics().isEmpty() && model.metrics() != null) {
             for (String metricName : ast.metrics()) {
-                var metric = model.metrics().get(metricName);
-                if (metric == null || metric.sql() == null || metric.sql().isBlank()) {
+                String metricSql = predicateClauseHandler.resolveMetricSql(metricName, model, aliasByTable);
+                if (metricSql == null || metricSql.isBlank()) {
                     continue;
                 }
-                plan.getQuery().addSelect(DSL.field(DSL.sql(metric.sql())).as(metricName));
+                plan.getQuery().addSelect(DSL.field(DSL.sql(metricSql)).as(metricName));
             }
         }
 
@@ -7498,7 +7513,7 @@ public class DefaultMetricClauseHandler implements AstMetricHandler {
                 if (sort == null || sort.field() == null) {
                     continue;
                 }
-                String metricSql = predicateClauseHandler.resolveMetricSql(sort.field(), model);
+                String metricSql = predicateClauseHandler.resolveMetricSql(sort.field(), model, aliasByTable);
                 Field<Object> sortField = metricSql != null
                         ? DSL.field(DSL.sql(metricSql))
                         : predicateClauseHandler.resolveEntityField(entity, sort.field(), aliasByTable);
@@ -9949,6 +9964,7 @@ What it means:
 - Per-rule override: when `force_mode_even_with_metrics: true`, `force_select` and `force_mode=detail` are still allowed.
 - For explicit metric-name asks (for example `show billbank_gap_count`), normalizer now preserves metric intent by clearing accidental detail projections.
 - Projection-drop guard allows metric-only ASTs (non-empty `metrics` with empty `select/projections`) so aggregate queries are not falsely rejected.
+- SQL compiler also treats metric-only AST as metric-only SELECT and qualifies metric SQL table names to query aliases (`zp_*` -> `t*`) to avoid PostgreSQL FROM-clause errors.
 - This keeps aggregation safe globally while enabling explicit business-intent exceptions.
 
 #### 5) `ast/version`: V1 to canonical mapping (`V1CanonicalAstMapper`)
