@@ -333,6 +333,12 @@ Compiler receives resolved edges and unresolved table list; validator blocks unr
 - `IS_NULL`
 - `IS_NOT_NULL`
 
+Normalization behavior in `AstFilter`/`AstSubqueryFilter` also accepts aggregate-style tokens and maps to base operators:
+- `COUNT_GT` -> `GT`
+- `SUM_GTE` -> `GTE`
+- `COUNT_NOT_IN` -> `NOT_IN`
+- `*_NOTNULL` -> `IS_NOT_NULL`
+
 ### New AST nodes
 
 - Boolean tree: `AstFilterGroup.java`
@@ -1162,6 +1168,7 @@ Semantic mode relies on a declarative semantic model file that maps business lan
     ["relationships", "join-path stage", "table traversal edges and cardinality hints"],
     ["join_hints", "planner/compiler", "frequent join relationships"],
     ["metrics", "validator + compiler", "allowed metric keys and SQL expressions"],
+    ["value_patterns", "normalizer", "global value-prefix-driven field remap before validation/compile"],
     ["synonyms", "retrieval", "domain query vocabulary expansion"],
     ["rules", "policy/guardrail", "allowed tables, denied operations, max limit"]
   ]}
@@ -1268,6 +1275,10 @@ entities:
         key: true
         searchable: true
         filterable: true
+        aliases:
+          - id
+          - request id
+          - req id
         description: unique request id (example pattern ZPR*)
         example: ZPR1003
       accountId:
@@ -1280,6 +1291,9 @@ entities:
         column: zp_request.request_status
         type: string
         filterable: true
+        aliases:
+          - status
+          - request state
         description: request-level status from orchestration layer
         allowed_values:
           - SUBMITTED
@@ -1289,6 +1303,10 @@ entities:
       requestedAt:
         column: zp_request.requested_at
         type: timestamp
+        aliases:
+          - created
+          - created at
+          - request time
         description: request timestamp used for time-window diagnostics
       disconnectOrderId:
         column: zp_disconnect_order.don
@@ -1317,6 +1335,12 @@ entities:
         column: zp_ui_data.zp_asr_team_notes
         type: string
         description: latest operations team note useful for RCA context
+      failureReason:
+        column: zp_ui_data.zp_asr_team_notes
+        type: string
+        filterable: true
+        searchable: true
+        description: normalized failure-reason view for request-level RCA prompts
 
   DownstreamCheck:
     description: >
@@ -1668,6 +1692,44 @@ metrics:
       COUNT(CASE WHEN zp_disconnect_order.zp_disconnect_id IS NOT NULL
                  AND zp_billbank_record.zp_disconnect_id IS NULL THEN 1 END)
 
+value_patterns:
+  - from_field: requestId
+    to_field: disconnectOrderId
+    value_starts_with: [DON]
+  - from_field: disconnectOrderId
+    to_field: requestId
+    value_starts_with: [ZPR]
+
+intent_rules:
+  don_failure_reason_details:
+    description: stabilize DON-level failure asks to disconnect-order diagnostics output
+    match_any: [why did, fail, failed, failure reason]
+    must_contain: [don]
+    force_entity: DisconnectRequest
+    force_mode: detail
+    force_select: [disconnectOrderId, downstreamStatus, failureReason, requestId]
+
+  request_failure_reason_details:
+    description: stabilize request-level failure-reason asks to request diagnostics output
+    match_any: [failure reason, reason for request, why request failed, failed reason]
+    must_contain: [request]
+    force_entity: DisconnectRequest
+    force_mode: detail
+    force_select: [requestId, failureReason]
+
+  billbank_gap_details:
+    description: force billbank gap details flow
+    match_any: [billbank gap, billbank gaps, billing gap, billing gaps]
+    must_contain: [request, order, detail]
+    force_entity: DisconnectRequest
+    force_mode: detail
+    force_mode_even_with_metrics: true
+    force_select: [requestId, accountId, requestStatus, requestedAt, disconnectOrderId, downstreamStatus, disconnectId, teamNotes]
+    enforce_where:
+      - field: disconnectId
+        op: IS_NULL
+        value: null
+
 rules:
   allowed_tables:
     - zp_account
@@ -1704,6 +1766,7 @@ That means unknown/unmapped YAML tags are ignored safely at load time.
     ["tables", "Yes", "Schema graph and model validation for physical table references.", "model/SemanticModelValidator, graph/*"],
     ["relationships", "Yes", "Join-path planning and correlation predicates.", "graph/provider/DefaultJoinPathResolver, sql/handler/clause/*"],
     ["metrics", "Yes", "Allowed metric keys and SQL expressions in aggregate queries.", "llm/DefaultSemanticAstGenerator, ast/validate/DefaultAstValidator, sql/handler/clause/*"],
+    ["value_patterns", "Yes", "Global value-prefix remap rules applied before validation/compile (example DON* from requestId to disconnectOrderId).", "ast/normalize/DefaultAstNormalizer"],
     ["intent_rules", "Yes", "Deterministic query-intent overrides (entity/mode/select/filters) applied during AST normalization.", "ast/normalize/DefaultAstNormalizer"],
     ["synonyms", "Yes (top-level map)", "Currently loaded; retrieval mainly uses entity-level synonyms.", "model/SemanticModel, retrieval/provider/DefaultSemanticEntityTableRetriever"],
     ["settings", "No (ignored currently)", "No direct runtime effect from YAML tag itself; limits/timezone come from application config.", "config/ConvEngineMcpConfig"],
@@ -1743,6 +1806,9 @@ What this does:
         filterable: true
       teamNotes:
         column: zp_ui_data.zp_asr_team_notes
+        type: string
+      failureReason:
+        column: zp_ui_data.zp_asr_team_notes
         type: string`}
 </CodeBlockToggle>
 
@@ -1760,6 +1826,7 @@ How each child tag is used:
     ["fields.<fieldName>.column", "compiler", "Maps semantic field key to physical table.column in SQL select/where/order/group."],
     ["fields.<fieldName>.type", "validator", "Operator/type validation (e.g., ILIKE requires string-like field)."],
     ["fields.<fieldName>.description", "retrieval", "Extra lexical signal for entity/field matching."],
+    ["fields.<fieldName>.aliases", "normalizer + LLM prompt context", "Maps user/LLM variants (for example id/status/created) to canonical semantic field keys."],
     ["fields.<fieldName>.filterable/searchable/key", "currently metadata", "Carried in model; not strict query gating in current validator/compiler."]
   ]}
 />
@@ -1843,10 +1910,34 @@ Current behavior:
 - Loaded into model and available for future expansion.
 - Main retrieval scoring today relies primarily on entity-level synonyms + fields + descriptions.
 
-### 7) `intent_rules` (deterministic bridge for ambiguous asks)
+### 7) `value_patterns` + `intent_rules` (deterministic bridge for ambiguous asks)
 
 <CodeBlockToggle title="Snippet: intent rule for billbank gap details" language="yaml" defaultOpen={false}>
-{`intent_rules:
+{`value_patterns:
+  - from_field: requestId
+    to_field: disconnectOrderId
+    value_starts_with: [DON]
+  - from_field: disconnectOrderId
+    to_field: requestId
+    value_starts_with: [ZPR]
+
+intent_rules:
+  don_failure_reason_details:
+    description: stabilize DON-level failure asks to disconnect-order diagnostics output
+    match_any: [why did, fail, failed, failure reason]
+    must_contain: [don]
+    force_entity: DisconnectRequest
+    force_mode: detail
+    force_select: [disconnectOrderId, downstreamStatus, failureReason, requestId]
+
+  request_failure_reason_details:
+    description: stabilize request-level failure-reason asks to request diagnostics output
+    match_any: [failure reason, reason for request, why request failed, failed reason]
+    must_contain: [request]
+    force_entity: DisconnectRequest
+    force_mode: detail
+    force_select: [requestId, failureReason]
+
   billbank_gap_details:
     description: force billbank gap details flow
     match_any: [billbank gap, billbank gaps, billing gap, billing gaps]
@@ -1868,6 +1959,12 @@ What this does at runtime:
 - `force_mode_even_with_metrics: true` allows this rule to force detail/select even if AST contains `metrics`.
 - `force_select` sets deterministic projection for that business intent.
 - `enforce_where` injects deterministic filters.
+- Global `value_patterns` applies deterministic filter-field remap based on value prefix (example `requestId + DON* -> disconnectOrderId`) without hardcoding in framework.
+- Rule-level `field_remaps` is still supported for rule-specific overrides when needed.
+
+<Highlight type="info" title="Latest Contract Changes">
+`SemanticField` supports optional `aliases` in YAML. `SemanticModel` supports top-level `value_patterns` (global remaps), and `SemanticIntentRule` supports optional `field_remaps` (rule-specific remaps), all mapped via `SemanticIntentFieldRemap`.
+</Highlight>
 
 ### 8) `settings`, `join_hints`, `rules`, and other descriptive tags
 
@@ -9787,6 +9884,7 @@ What it means:
 
 <CodeBlockToggle title="AstFilter.operatorEnum() alias normalization" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/ast/core/AstFilter.java" defaultOpen={false}>
 {`String normalized = op.trim().toUpperCase().replace("-", "_").replace(' ', '_');
+normalized = normalizeAggregateOperator(normalized);
 if ("CONTAINS".equals(normalized)) return AstOperator.ILIKE;
 if ("IS_NOT".equals(normalized)) return AstOperator.IS_NOT_NULL;
 if ("IS".equals(normalized) || "NULL".equals(normalized)) return AstOperator.IS_NULL;`}
@@ -9794,6 +9892,7 @@ if ("IS".equals(normalized) || "NULL".equals(normalized)) return AstOperator.IS_
 
 What it means:
 - LLM/operator variants (`contains`, `IS NOT`, `NOT IN`) are normalized before validation.
+- Aggregate-style tokens (`COUNT_GT`, `SUM_GTE`, etc.) are normalized to base operators.
 - Prevents enum failures from natural-language operator tokens.
 
 #### 3) `ast/normalize`: deterministic cleanup + intent rule application
@@ -9808,6 +9907,7 @@ normalizedSelect = normalizeFields(ast.select(), entity.fields());
 normalizedSelect = pruneUnknownSelect(normalizedSelect, entity.fields().keySet());
 normalizedProjections = pruneUnknownProjections(normalizedProjections, entity.fields().keySet());
 normalizedWhere = normalizeFilterGroup(ast.where(), aliasMap, entity.fields());
+normalizedWhere = applyFieldRemaps(normalizedWhere, entity.fields(), rule);
 
 // demote mixed aggregate/detail when needed
 if (shouldDemoteAggregateToDetail(...)) { ... }
@@ -9829,6 +9929,12 @@ What it means:
 boolean allowForceWithMetrics = rule != null && Boolean.TRUE.equals(rule.forceModeEvenWithMetrics());
 boolean allowDetailForce = !metricRequestedByAst || allowForceWithMetrics;
 
+if (!ast.metrics().isEmpty() && normalizedGroupBy.isEmpty() && questionMentionsAnyMetric(question, ast.metrics())) {
+  // preserve aggregate intent for direct metric asks like "show billbank_gap_count"
+  normalizedSelect = List.of();
+  normalizedProjections = List.of();
+}
+
 if (allowDetailForce && rule != null && rule.forceSelect() != null) {
   // apply force_select for detail AST, or when rule explicitly allows metric override
 }
@@ -9841,6 +9947,8 @@ boolean forceDetail = allowDetailForce
 What it means:
 - If AST carries `metrics`, detail-force is skipped by default.
 - Per-rule override: when `force_mode_even_with_metrics: true`, `force_select` and `force_mode=detail` are still allowed.
+- For explicit metric-name asks (for example `show billbank_gap_count`), normalizer now preserves metric intent by clearing accidental detail projections.
+- Projection-drop guard allows metric-only ASTs (non-empty `metrics` with empty `select/projections`) so aggregate queries are not falsely rejected.
 - This keeps aggregation safe globally while enabling explicit business-intent exceptions.
 
 #### 5) `ast/version`: V1 to canonical mapping (`V1CanonicalAstMapper`)
@@ -10170,6 +10278,7 @@ public record AstFilter(
             return AstOperator.EQ;
         }
         String normalized = normalizeOperator(op);
+        normalized = normalizeAggregateOperator(normalized);
         // Guard clause / branch to enforce deterministic behavior.
         // Returns normalized/validated value for next AST stage.
         if ("CONTAINS".equals(normalized)) return AstOperator.ILIKE;
@@ -10203,6 +10312,30 @@ public record AstFilter(
         if ("<=".equals(normalized)) return AstOperator.LTE;
         // Returns normalized/validated value for next AST stage.
         return AstOperator.valueOf(normalized);
+    }
+
+    private String normalizeAggregateOperator(String normalized) {
+        if (normalized == null || normalized.isBlank()) {
+            return normalized;
+        }
+        String[] candidates = {
+                "IS_NOT_NULL", "IS_NULL", "NOT_IN",
+                "BETWEEN", "ILIKE", "LIKE",
+                "GTE", "LTE", "GT", "LT",
+                "EQ", "NE", "IN"
+        };
+        for (String candidate : candidates) {
+            if (normalized.equals(candidate) || normalized.endsWith("_" + candidate)) {
+                return candidate;
+            }
+        }
+        if (normalized.endsWith("_NOTNULL")) {
+            return "IS_NOT_NULL";
+        }
+        if (normalized.endsWith("_NULL")) {
+            return "IS_NULL";
+        }
+        return normalized;
     }
 
     private String normalizeOperator(String raw) {
@@ -10461,6 +10594,7 @@ public record AstSubqueryFilter(
             return AstOperator.EQ;
         }
         String normalized = normalizeOperator(op);
+        normalized = normalizeAggregateOperator(normalized);
         // Guard clause / branch to enforce deterministic behavior.
         // Returns normalized/validated value for next AST stage.
         if ("CONTAINS".equals(normalized)) return AstOperator.ILIKE;
@@ -10494,6 +10628,30 @@ public record AstSubqueryFilter(
         if ("<=".equals(normalized)) return AstOperator.LTE;
         // Returns normalized/validated value for next AST stage.
         return AstOperator.valueOf(normalized);
+    }
+
+    private String normalizeAggregateOperator(String normalized) {
+        if (normalized == null || normalized.isBlank()) {
+            return normalized;
+        }
+        String[] candidates = {
+                "IS_NOT_NULL", "IS_NULL", "NOT_IN",
+                "BETWEEN", "ILIKE", "LIKE",
+                "GTE", "LTE", "GT", "LT",
+                "EQ", "NE", "IN"
+        };
+        for (String candidate : candidates) {
+            if (normalized.equals(candidate) || normalized.endsWith("_" + candidate)) {
+                return candidate;
+            }
+        }
+        if (normalized.endsWith("_NOTNULL")) {
+            return "IS_NOT_NULL";
+        }
+        if (normalized.endsWith("_NULL")) {
+            return "IS_NULL";
+        }
+        return normalized;
     }
 
     private String normalizeOperator(String raw) {
@@ -11057,19 +11215,13 @@ public class DefaultAstNormalizer implements AstNormalizer {
                     putAlias(aliasToField, normalizeToken(colName.substring(3)), fieldName);
                 }
             }
-        }
-        // Guard clause / branch to enforce deterministic behavior.
-        if (fields.containsKey("requestId")) {
-            putAlias(aliasToField, "id", "requestId");
-        }
-        // Guard clause / branch to enforce deterministic behavior.
-        if (fields.containsKey("requestStatus")) {
-            putAlias(aliasToField, "status", "requestStatus");
-        }
-        // Guard clause / branch to enforce deterministic behavior.
-        if (fields.containsKey("requestedAt")) {
-            putAlias(aliasToField, "createdat", "requestedAt");
-            putAlias(aliasToField, "created", "requestedAt");
+            // Field aliases now come from semantic-layer.yaml (fields.<name>.aliases).
+            // This keeps remap behavior model-driven and avoids hardcoded framework aliases.
+            if (field != null && field.aliases() != null) {
+                for (String alias : field.aliases()) {
+                    putAlias(aliasToField, normalizeToken(alias), fieldName);
+                }
+            }
         }
         // Returns normalized/validated value for next AST stage.
         return aliasToField;
