@@ -29,6 +29,73 @@ function autoIndentBraceCode(snippet) {
     .join("\n");
 }
 
+function splitSqlColumns(selectList) {
+  const cols = [];
+  let current = "";
+  let depth = 0;
+  for (let i = 0; i < selectList.length; i += 1) {
+    const ch = selectList[i];
+    if (ch === "(") depth += 1;
+    if (ch === ")") depth = Math.max(0, depth - 1);
+    if (ch === "," && depth === 0) {
+      cols.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) cols.push(current.trim());
+  return cols;
+}
+
+function formatSqlSnippet(snippet) {
+  if (typeof snippet !== "string") {
+    return snippet;
+  }
+  const compact = snippet
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!compact) {
+    return snippet;
+  }
+
+  let sql = compact;
+  const selectMatch = compact.match(/^select\s+([\s\S]+?)\s+from\s+([\s\S]*)$/i);
+  if (selectMatch) {
+    const cols = splitSqlColumns(selectMatch[1]);
+    const lines = ["select"];
+    for (let i = 0; i < cols.length; i += 2) {
+      const c1 = cols[i];
+      const c2 = cols[i + 1];
+      const isLastPair = i + 2 >= cols.length;
+      if (c2) {
+        lines.push(`  ${c1}, ${c2}${isLastPair ? "" : ","}`);
+      } else {
+        lines.push(`  ${c1}`);
+      }
+    }
+    sql = `${lines.join("\n")}\nfrom ${selectMatch[2].trim()}`;
+  }
+
+  sql = sql
+    .replace(/\s+(left\s+outer\s+join|left\s+join|right\s+outer\s+join|right\s+join|inner\s+join|full\s+outer\s+join|full\s+join|join)\s+/gi, "\n$1 ")
+    .replace(/\s+on\s+/gi, "\n  on ")
+    .replace(/\s+where\s+/gi, "\nwhere ")
+    .replace(/\s+group\s+by\s+/gi, "\ngroup by ")
+    .replace(/\s+having\s+/gi, "\nhaving ")
+    .replace(/\s+order\s+by\s+/gi, "\norder by ")
+    .replace(/\s+limit\s+/gi, "\nlimit ")
+    .replace(/\s+offset\s+/gi, "\noffset ");
+
+  return sql.trim();
+}
+
 function normalizeJson(snippet) {
   try {
     return JSON.stringify(JSON.parse(snippet), null, 2);
@@ -42,13 +109,6 @@ function normalizeYaml(snippet) {
     .split("\n")
     .map((line) => line.replace(/\t/g, "  ").replace(/\s+$/g, ""));
 
-  // Repair occasional MDX/list-context flattening where child keys lose one indent level.
-  // Example:
-  // settings:
-  // default_limit: 100
-  // should become:
-  // settings:
-  //   default_limit: 100
   const isKeyOnly = (t) => /^[A-Za-z0-9_-]+:\s*$/.test(t);
   const isChildCandidate = (t) => /^[A-Za-z0-9_-]+:\s*.*$/.test(t) || /^-\s+/.test(t);
 
@@ -75,7 +135,6 @@ function normalizeYaml(snippet) {
       continue;
     }
 
-    // Indent this child block by one YAML level until blank line or hard dedent.
     for (let k = j; k < lines.length; k += 1) {
       const current = lines[k];
       const currentTrimmed = current.trim();
@@ -101,7 +160,6 @@ function normalizeCodeSnippet(children, language) {
   const normalizedNewlines = children.replace(/\r\n/g, "\n");
   const trimmed = normalizedNewlines.replace(/^\n+|\n+$/g, "");
   if (normalizedLanguage === "yaml" || normalizedLanguage === "yml") {
-    // Preserve user-authored YAML indentation exactly; only normalize tabs/trailing spaces.
     return normalizeYaml(trimmed);
   }
   const lines = trimmed.split("\n");
@@ -119,12 +177,15 @@ function normalizeCodeSnippet(children, language) {
     .map((line) => line.slice(Math.min(minIndent, line.length)))
     .join("\n");
 
-  const braceLanguages = new Set(["java", "javascript", "js", "typescript", "ts", "tsx", "jsx", "c", "cpp"]);
+  const braceLanguages = new Set(["javascript", "js", "typescript", "ts", "tsx", "jsx"]);
   if (braceLanguages.has(normalizedLanguage)) {
     return autoIndentBraceCode(base);
   }
   if (normalizedLanguage === "json") {
     return normalizeJson(base);
+  }
+  if (normalizedLanguage === "sql") {
+    return formatSqlSnippet(base);
   }
   return base;
 }
