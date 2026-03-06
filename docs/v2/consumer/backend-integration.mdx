@@ -3,7 +3,7 @@ title: Backend Integration
 sidebar_position: 3
 ---
 
-import { CodeBlockToggle, Highlight, FlowStep, FileRef, MethodRef } from "@site/src/components/convengine";
+import { CodeBlockToggle, Highlight, FlowStep, FileRef, MethodRef, DbTable } from "@site/src/components/convengine";
 
 # Backend Integration
 
@@ -27,6 +27,23 @@ Use profile yaml (`sse`, `stomp`, `both`) to switch runtime behavior.
 <FlowStep step="3" title="Connect frontend">
 Frontend posts to message endpoint and listens to SSE/STOMP for audit updates.
 </FlowStep>
+
+## Consumer Semantic Endpoints
+
+Semantic Query model-admin APIs are exposed from `DbSchemaController` under:
+
+`/api/v1/db/semantic-query`
+
+<DbTable
+  title="Semantic model admin APIs"
+  columns={["Method", "Path", "Purpose"]}
+  rows={[
+    ["POST", "/generate-model", "Generate semantic YAML draft from inspected schema + metadata hints."],
+    ["POST", "/validate-model", "Validate semantic YAML and return errors/warnings with diagnostics."],
+    ["POST", "/save-model", "Persist semantic YAML model version/name in config storage."],
+    ["POST", "/reload-model", "Reload active semantic model into runtime (request YAML / saved / model-path)."]
+  ]}
+/>
 
 ## convengine-demo: Core app bootstrap
 

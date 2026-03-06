@@ -111,7 +111,15 @@ export default function GlobalTermLookup() {
   const history = useHistory();
 
   useEffect(() => {
-    const onClick = (event) => {
+    const applyDoubleClickHint = (target) => {
+      if (!(target instanceof Element)) return;
+      const el = target.closest('.ce-file-ref, .ce-method-ref, .ce-table-cell-content, code');
+      if (!el) return;
+      if (el.closest('pre, .theme-code-block')) return;
+      el.setAttribute('title', 'Double click to open references');
+    };
+
+    const onDoubleClick = (event) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
       if (target.closest('a, button, .ce-search-card')) return;
@@ -126,8 +134,16 @@ export default function GlobalTermLookup() {
       setOpen(true);
     };
 
-    document.addEventListener('click', onClick);
-    return () => document.removeEventListener('click', onClick);
+    const onMouseOver = (event) => {
+      applyDoubleClickHint(event.target);
+    };
+
+    document.addEventListener('dblclick', onDoubleClick);
+    document.addEventListener('mouseover', onMouseOver);
+    return () => {
+      document.removeEventListener('dblclick', onDoubleClick);
+      document.removeEventListener('mouseover', onMouseOver);
+    };
   }, []);
 
   useEffect(() => {

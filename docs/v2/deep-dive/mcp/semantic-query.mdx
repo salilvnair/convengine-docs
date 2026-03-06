@@ -66,6 +66,44 @@ It is the Text-to-AST-to-SQL runtime for ConvEngine MCP mode `semantic`.
 Semantic Query generates AST JSON with LLM, compiles SQL deterministically in Java, enforces policy guardrails, executes read-only SQL, and returns auditable result summaries.
 </Highlight>
 
+## Recent Runtime Fixes
+
+- Read-only guardrail now blocks DML/DDL-like user asks at semantic tool entry (`DELETE`, `UPDATE`, `DROP`, `TRUNCATE`, `ALTER`, `INSERT`, `CREATE TABLE`, `GRANT`, `REVOKE`) before AST generation.
+- SQL assembly now computes required join tables using effective projections (AST projections or default projections when AST select/projections are empty).
+- This removed unstable SQL shapes where selected fields referenced tables not present in `FROM/JOIN`, causing `missing FROM-clause entry` errors.
+- Planner output now supports `operation_tag`; when planner marks `POLICY_RESTRICTED_OPERATION`, `McpToolStep` blocks tool execution before runtime and returns a policy-restricted final answer.
+
+## Planner Policy Tag Contract
+
+Consumers can enforce policy blocking via `ce_mcp_planner` prompt contract.
+
+Use this strict output schema in planner prompt:
+
+<CodeBlockToggle title="Planner output contract (recommended)" language="json" defaultOpen={false}>
+{`{
+  "action":"CALL_TOOL" | "ANSWER",
+  "tool_code":"<tool_code_or_null>",
+  "args":{},
+  "answer":"<text_or_null>",
+  "operation_tag":"<POLICY_RESTRICTED_OPERATION_or_null>"
+}`}
+</CodeBlockToggle>
+
+Add this rule in planner system prompt:
+
+<CodeBlockToggle title="Planner policy rule for destructive asks" language="text" defaultOpen={false}>
+{`If user asks destructive SQL/DML/DDL intent (DELETE, DROP, UPDATE, TRUNCATE, ALTER, INSERT, CREATE TABLE, GRANT, REVOKE), return:
+- action = "CALL_TOOL"
+- tool_code = "db.semantic.query"
+- operation_tag = "POLICY_RESTRICTED_OPERATION"
+- args = {}
+- answer = null`}
+</CodeBlockToggle>
+
+Runtime enforcement:
+- `McpToolStep` checks `operation_tag`.
+- If `operation_tag=POLICY_RESTRICTED_OPERATION`, it blocks the tool call before semantic runtime stages and returns policy-restricted final answer.
+
 ## Runtime request flow
 
 <EngineDebugFlow
@@ -592,6 +630,9 @@ return normalizePlan(mapper.readValue(planJson, McpPlan.class));`}
     <CodeBlockToggle title="DbSemanticQueryToolHandler.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/handler/DbSemanticQueryToolHandler.java">
 {`public Object execute(CeMcpTool tool, Map<String, Object> args, EngineSession session) {
   String question = extractQuestion(args, session);
+  if (isNonReadOnlyQuestion(question)) {
+    return blockedResponse(question);
+  }
   return runtimeService.plan(question, session);
 }`}
     </CodeBlockToggle>
@@ -600,8 +641,9 @@ return normalizePlan(mapper.readValue(planJson, McpPlan.class));`}
     <ol>
       <li>Handler is resolved by MCP DB executor by tool code.</li>
       <li>Question extraction order is deterministic: `question` -> `query` -> `user_input` -> `session.userText`.</li>
-      <li>Handler intentionally avoids planner/retrieval/SQL logic; it is an adapter boundary.</li>
-      <li>Delegates to `SemanticQueryRuntimeService.plan` with normalized question.</li>
+      <li>Read-only guardrail runs on raw question text and blocks destructive SQL signatures (`delete from`, `update ... set`, `drop table`, `truncate table`, `alter table`, `insert into`, `create table`, `grant`, `revoke`).</li>
+      <li>If blocked, handler returns a deterministic blocked payload with `_meta.lifecycle=BLOCKED` and skips semantic runtime.</li>
+      <li>If safe, delegates to `SemanticQueryRuntimeService.plan` with normalized question.</li>
       <li>This keeps runtime swappable without changing MCP core contracts.</li>
     </ol>
   </TabItem>
@@ -2095,13 +2137,29 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "convengine.mcp.db.semantic", name = "enabled", havingValue = "true")
 // Primary type declaration for this component.
 public class DbSemanticQueryToolHandler implements DbToolHandler {
+
+    private static final Pattern NON_READ_ONLY_SQL_PATTERN = Pattern.compile(
+            "(?is)\\b(" +
+                    "delete\\s+from" +
+                    "|update\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s+set" +
+                    "|drop\\s+table" +
+                    "|truncate\\s+table" +
+                    "|alter\\s+table" +
+                    "|insert\\s+into" +
+                    "|create\\s+table" +
+                    "|grant\\s+[^\\s]+" +
+                    "|revoke\\s+[^\\s]+" +
+                    ")\\b"
+    );
 
     private final ConvEngineMcpConfig mcpConfig;
     private final SemanticQueryRuntimeService runtimeService;
@@ -2117,7 +2175,36 @@ public class DbSemanticQueryToolHandler implements DbToolHandler {
 // Executes core stage/operation logic and mutates shared context/state.
     public Object execute(CeMcpTool tool, Map<String, Object> args, EngineSession session) {
         String question = extractQuestion(args, session);
+        if (isNonReadOnlyQuestion(question)) {
+            return blockedResponse(question);
+        }
         return runtimeService.plan(question, session);
+    }
+
+// Helper method used by the main runtime flow in this component.
+    private boolean isNonReadOnlyQuestion(String question) {
+        if (question == null || question.isBlank()) {
+            return false;
+        }
+        return NON_READ_ONLY_SQL_PATTERN.matcher(question).find();
+    }
+
+// Helper method used by the main runtime flow in this component.
+    private Map<String, Object> blockedResponse(String question) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("mode", "semantic");
+        out.put("question", question == null ? "" : question);
+        out.put("blocked", true);
+        out.put("reason", "READ_ONLY_GUARDRAIL");
+        out.put("summary", "Blocked by semantic-query read-only guardrail. DML/DDL operations are not allowed.");
+        out.put("next", "failed");
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("component", "semantic-query");
+        meta.put("toolCode", toolCode());
+        meta.put("stageCode", "runtime-entry");
+        meta.put("lifecycle", "BLOCKED");
+        out.put("_meta", meta);
+        return out;
     }
 
 // Helper method used by the main runtime flow in this component.
