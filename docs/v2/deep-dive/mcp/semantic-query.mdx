@@ -568,34 +568,82 @@ This is the complete end-to-end Semantic Query path for one turn. It follows the
 <Tabs groupId="semantic-runtime-step-2">
   <TabItem value="code" label="Code" default>
     <CodeBlockToggle title="McpToolStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/McpToolStep.java" defaultOpen={true}>
-{`for (int i = 0; i < maxLoops; i++) {
+{`// MCP tool execution loop with planner-driven decisions.
+// Each iteration asks the planner for the next action; loop exits on ANSWER,
+// guardrail block, policy-restricted tag, or duplicate tool-call suppression.
+for (int i = 0; i < maxLoops; i++) {
   McpPlan plan = planner.plan(session, tools, observations);
+  // Planner returned ANSWER: write final answer and stop looping.
   if (McpConstants.ACTION_ANSWER.equalsIgnoreCase(plan.action())) {
     writeFinalAnswerToContext(session, plan.answer());
+    finalAnswerDetermined = true;
+    writeMcpExecutionFlagsToContext(session, finalAnswerDetermined, toolExecutionAbrupted, maxLoops);
+    session.putInputParam(ConvEngineInputParamKey.MCP_FINAL_ANSWER,
+        plan.answer() == null ? "" : plan.answer());
     break;
   }
-  CeMcpTool tool = registry.requireTool(plan.tool_code(), session.getIntent(), session.getState());
+  String toolCode = plan.tool_code();
+  Map<String, Object> args = (plan.args() == null) ? Map.of() : plan.args();
+  // Policy-restricted operation tag: planner flagged destructive ask.
+  if (isPolicyRestrictedOperationTag(plan.operation_tag())) {
+    writeFinalAnswerToContext(session, FALLBACK_POLICY_RESTRICTED);
+    finalAnswerDetermined = true;
+    break;
+  }
+  // Duplicate tool-call suppression: prevent planner looping on same tool+args.
+  String toolSignature = buildToolCallSignature(toolCode, args);
+  if (executedToolSignatures.contains(toolSignature)) {
+    String duplicateLoopAnswer = latestObservationSummary(observations);
+    writeFinalAnswerToContext(session, duplicateLoopAnswer);
+    finalAnswerDetermined = true;
+    break;
+  }
+  CeMcpTool tool = registry.requireTool(toolCode, session.getIntent(), session.getState());
+  applyToolDelay(i + 1);
   String rowsJson = resolveExecutor(toolGroup).execute(tool, args, session);
   observations.add(new McpObservation(toolCode, rowsJson));
+  executedToolSignatures.add(toolSignature);
 }`}
     </CodeBlockToggle>
     <CodeBlockToggle title="McpPlanner.plan()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/McpPlanner.java">
-{`PromptTemplateContext ctx = PromptTemplateContext.builder()
+{`// Build planner prompt context with session, time context, DBKG capsule,
+// compacted observations, and filtered tool list.
+List<CeMcpTool> plannerTools = filterToolsByPlannerPrompt(tools, promptSet);
+ObservationPayload obsPayload = buildObservationsPayload(observations);
+String dbkgCapsuleJson = resolveDbkgCapsuleJson(session, obsPayload.dbkgCapsuleJson());
+PlannerTimeContext timeContext = resolvePlannerTimeContext();
+
+PromptTemplateContext ctx = PromptTemplateContext.builder()
   .templateName("McpPlanner")
+  .userInput(session.getUserText())
+  .resolvedUserInput(session.getResolvedUserInput())
+  .standaloneQuery(session.getStandaloneQuery())
+  .conversationHistory(JsonUtil.toJson(session.conversionHistory()))
   .mcpTools(toolsJson)
   .mcpObservations(obsJson)
+  .currentDate(timeContext.currentDate())
+  .currentDateTime(timeContext.currentDateTime())
+  .currentYear(timeContext.currentYear())
+  .currentTimezone(timeContext.currentTimezone())
+  .currentSystemDateTime(timeContext.currentSystemDateTime())
+  .currentSystemTimezone(timeContext.currentSystemTimezone())
+  .extra(extraVars)
+  .session(session)
   .build();
-String planJson = llm.generateJsonStrict(...);
-return normalizePlan(mapper.readValue(planJson, McpPlan.class));`}
+// Session-aware LLM call with operation_tag in JSON schema.
+String out = llm.generateJson(session, systemPrompt + "\n\n" + userPrompt, schema, session.getContextJson());
+return normalizePlan(mapper.readValue(out, McpPlan.class));`}
     </CodeBlockToggle>
   </TabItem>
   <TabItem value="logic" label="Detailed Execution Logic">
     <ol>
       <li>`McpToolStep` runs PRE_AGENT_MCP rules so semantic flow can be state-gated.</li>
-      <li>Enabled MCP tools are fetched for current intent and state.</li>
-      <li>`McpPlanner` receives tool list + observations + context and emits strict JSON action.</li>
-      <li>On `CALL_TOOL`, selected tool executes and observation is appended into MCP context.</li>
-      <li>Loop continues until planner returns `ANSWER`, then `mcp.finalAnswer` is persisted.</li>
+      <li>Enabled MCP tools are fetched for current intent and state; planner filters tools by prompt content.</li>
+      <li>`McpPlanner` receives tool list + compacted observations + DBKG capsule + time context and emits strict JSON action with optional `operation_tag`.</li>
+      <li>If planner output includes `operation_tag=POLICY_RESTRICTED_OPERATION`, tool execution is blocked immediately.</li>
+      <li>Duplicate tool-call signatures `(toolCode + args)` are tracked; repeated calls are suppressed and the latest observation summary is used as final answer.</li>
+      <li>On `CALL_TOOL`, selected tool executes (with optional inter-tool delay) and observation is appended into MCP context.</li>
+      <li>Loop continues until planner returns `ANSWER`, then `mcp.finalAnswer` is persisted with `finalAnswerDetermined` flag.</li>
     </ol>
   </TabItem>
   <TabItem value="tables" label="Tables Involved">
@@ -1128,9 +1176,14 @@ return buildMarkdownTable(result);`}
 <Tabs groupId="semantic-runtime-step-12">
   <TabItem value="code" label="Code" default>
     <CodeBlockToggle title="McpToolStep ANSWER branch" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/McpToolStep.java" defaultOpen={true}>
-{`if (McpConstants.ACTION_ANSWER.equalsIgnoreCase(plan.action())) {
+{`// Planner decided to ANSWER: finalize context and exit tool loop.
+if (McpConstants.ACTION_ANSWER.equalsIgnoreCase(plan.action())) {
   writeFinalAnswerToContext(session, plan.answer());
-  session.putInputParam(ConvEngineInputParamKey.MCP_FINAL_ANSWER, plan.answer());
+  finalAnswerDetermined = true;
+  writeMcpExecutionFlagsToContext(session, finalAnswerDetermined, toolExecutionAbrupted, maxLoops);
+  session.putInputParam(ConvEngineInputParamKey.MCP_FINAL_ANSWER,
+      plan.answer() == null ? "" : plan.answer());
+  session.putInputParam(ConvEngineInputParamKey.MCP_STATUS, McpConstants.STATUS_ANSWER);
   break;
 }`}
     </CodeBlockToggle>
@@ -1223,46 +1276,47 @@ Semantic mode relies on a declarative semantic model file that maps business lan
 ### Complete sample semantic model
 
 <CodeBlockToggle title="semantic-layer.yaml (full sample)" language="yaml" defaultOpen={true}>
-{`version: 1
-database: zapper_ops
-description: >
+{`version: 1 # Loaded into SemanticModel.version; surfaced as semanticModelVersion in output/audit by SemanticQueryRuntimeService; metadata only for LLM.
+database: zapper_ops # Loaded into SemanticModel.database; model identity consumed across runtime; not a SQL selector and not a hard guardrail.
+description: > # Loaded into SemanticModel.description; injected by DefaultSemanticAstGenerator as grounding context for AST generation.
   Semantic model for Zapper disconnect workflow analytics and production diagnostics.
   This model maps user/business language (disconnect, downstream failure, BillBank gap,
   account status) to physical database tables and join paths.
 
-settings:
-  default_limit: 100
-  timezone: UTC
-  sql_dialect: postgres
+settings: # Ignored by SemanticModelLoader for current runtime model binding; documented for authors only (effective values come from application.yml convengine.mcp.db.semantic.*).
+    default_limit: 100 # Not loaded into SemanticModel; runtime effective default limit comes from ConvEngineMcpConfig.
+    timezone: UTC # Not loaded into SemanticModel; runtime timezone comes from ConvEngineMcpConfig.
+    sql_dialect: postgres # Not loaded into SemanticModel; runtime sql dialect comes from ConvEngineMcpConfig.
 
-entities:
+entities: # Loaded into SemanticModel.entities; consumed by DefaultSemanticEntityTableRetriever, DefaultSemanticAstGenerator, DefaultAstValidator, and SQL compiler mapping.
   Account:
-    description: >
+    description: > # Loaded; boosts retrieval and LLM grounding text for entity choice.
       Represents a Zapper customer billing account used as the anchor for request,
       order, and billing diagnostics.
-    synonyms:
+    synonyms: # Loaded; high-weight lexical hints for retrieval ranking (entity-level synonyms are primary in current retrieval).
       - contract
       - subscription
       - service account
       - customer account
       - billing account
-    example_questions:
+    example_questions: # Loaded; prompt-grounding aid for LLM AST generation and retrieval context, not strict validation logic.
       - show account details for UPSA100
       - what is account status for ACMA200
       - list accounts created this week
       - show billing cost for account UPSA100
-    tables:
-      primary: zp_account
-      related:
+    tables: # Loaded; guides join planning and base/related table expansion.
+      primary: zp_account # Loaded; primary table candidate for compiler and join-path resolver.
+      related: # Loaded; retrieval/planner expansion hints for nearby tables.
         - zp_customer
-    fields:
+    fields: # Loaded; canonical semantic field dictionary consumed by validator/compiler.
       accountId:
-        column: zp_account.account_id
-        type: string
-        description: unique account identifier used across request/order/billing tables
-        searchable: true
-        filterable: true
-        example: UPSA100
+        column: zp_account.account_id # Enforced by compiler mapping (semantic key -> physical table.column in select/where/order/group).
+        type: string # Enforced by DefaultAstValidator for operator/type compatibility (e.g., string operators).
+        description: unique account identifier used across request/order/billing tables # Metadata + retrieval/LLM grounding.
+        searchable: true # Metadata currently; not strict runtime gating.
+        filterable: true # Metadata currently; not strict runtime gating.
+        aliases: [account, account id] # Loaded; helps alias normalization to canonical field in normalizer/LLM prompt context.
+        example: UPSA100 # Prompt/documentation aid.
       customerId:
         column: zp_account.customer_id
         type: string
@@ -1274,7 +1328,7 @@ entities:
         type: string
         description: account lifecycle status in Zapper
         filterable: true
-        allowed_values:
+        allowed_values: # Guidance list for LLM filter values; currently metadata (not a strict enum gate in validator).
           - ACTIVE
           - SUSPENDED
           - CLOSED
@@ -1314,7 +1368,7 @@ entities:
       requestId:
         column: zp_request.zp_request_id
         type: string
-        key: true
+        key: true # Marks canonical identifier field for entity semantics and prompt clarity; not a DB PK declaration.
         searchable: true
         filterable: true
         aliases:
@@ -1500,18 +1554,18 @@ entities:
         type: timestamp
         description: record last update timestamp
 
-tables:
+tables: # Loaded into SemanticModel.tables; consumed by SemanticModelValidator + graph and compiler metadata resolution.
   zp_account:
-    description: account master data
+    description: account master data # Metadata for docs/grounding.
     columns:
       account_id:
-        type: varchar
-        primary_key: true
+        type: varchar # Physical type metadata; informational to model validation.
+        primary_key: true # Structural graph hint for key column.
         description: unique account identifier
       customer_id:
         type: varchar
         description: customer owner id
-        foreign_key:
+        foreign_key: # Structural edge hint; used for graph wiring/traversal.
           table: zp_customer
           column: customer_id
       account_status:
@@ -1622,16 +1676,16 @@ tables:
       updated_at:
         type: timestamptz
 
-relationships:
+relationships: # Loaded into SemanticModel.relationships; consumed by DefaultJoinPathResolver and SQL join correlation stages.
   - name: account_to_request
-    description: an account can have many disconnect requests
+    description: an account can have many disconnect requests # Metadata + LLM grounding only.
     from:
       table: zp_account
       column: account_id
     to:
       table: zp_request
       column: account_id
-    type: one_to_many
+    type: one_to_many # Cardinality hint for planning/interpretability; SQL join generation remains deterministic.
 
   - name: request_to_disconnect_order
     description: request to downstream disconnect order
@@ -1683,7 +1737,7 @@ relationships:
       column: zp_disconnect_id
     type: one_to_many
 
-synonyms:
+synonyms: # Loaded into SemanticModel.synonyms; currently secondary vs entity-level synonyms in DefaultSemanticEntityTableRetriever scoring.
   account:
     - contract
     - subscription
@@ -1703,7 +1757,7 @@ synonyms:
     - invoice
     - reconciliation
 
-join_hints:
+join_hints: # Ignored by current SemanticModel binding; author documentation only.
   zp_request:
     commonly_joined_with:
       - zp_disconnect_order
@@ -1717,10 +1771,10 @@ join_hints:
       - zp_order_downstream_check
       - zp_billbank_record
 
-metrics:
+metrics: # Loaded into SemanticModel.metrics; consumed by DefaultAstValidator and compiler aggregate clause handlers.
   failed_disconnect_count:
-    description: count of disconnect requests with non-completed downstream status
-    sql: |
+    description: count of disconnect requests with non-completed downstream status # Prompt/documentation aid.
+    sql: | # Inserted by compiler when metric key appears in AST metrics[]; can be referenced in HAVING.
       COUNT(CASE WHEN zp_disconnect_order.downstream_status NOT IN ('COMPLETED') THEN 1 END)
 
   pending_disconnect_count:
@@ -1734,22 +1788,22 @@ metrics:
       COUNT(CASE WHEN zp_disconnect_order.zp_disconnect_id IS NOT NULL
                  AND zp_billbank_record.zp_disconnect_id IS NULL THEN 1 END)
 
-value_patterns:
-  - from_field: requestId
-    to_field: disconnectOrderId
-    value_starts_with: [DON]
+value_patterns: # Loaded into SemanticModel.valuePatterns; consumed by DefaultAstNormalizer before validation/compile for deterministic field remap by value prefix.
+  - from_field: requestId # Source semantic field when LLM/user places value under a likely-wrong field key.
+    to_field: disconnectOrderId # Target semantic field key after remap.
+    value_starts_with: [DON] # Prefix matcher list; DON* remaps requestId filters to disconnectOrderId.
   - from_field: disconnectOrderId
     to_field: requestId
     value_starts_with: [ZPR]
 
-intent_rules:
+intent_rules: # Loaded into SemanticModel.intentRules; consumed by DefaultAstNormalizer via SemanticIntentRule record.
   don_failure_reason_details:
-    description: stabilize DON-level failure asks to disconnect-order diagnostics output
-    match_any: [why did, fail, failed, failure reason]
-    must_contain: [don]
-    force_entity: DisconnectRequest
-    force_mode: detail
-    force_select: [disconnectOrderId, downstreamStatus, failureReason, requestId]
+    description: stabilize DON-level failure asks to disconnect-order diagnostics output # Prompt/documentation aid.
+    match_any: [why did, fail, failed, failure reason] # Case-insensitive keyword scan; at least one must match.
+    must_contain: [don] # Case-insensitive keyword scan; all tokens must match.
+    force_entity: DisconnectRequest # Deterministically overrides AST entity when rule activates.
+    force_mode: detail # Drops aggregate nodes (metrics/having/group_by) in detail mode.
+    force_select: [disconnectOrderId, downstreamStatus, failureReason, requestId] # Deterministic projection override.
 
   request_failure_reason_details:
     description: stabilize request-level failure-reason asks to request diagnostics output
@@ -1765,14 +1819,18 @@ intent_rules:
     must_contain: [request, order, detail]
     force_entity: DisconnectRequest
     force_mode: detail
-    force_mode_even_with_metrics: true
+    force_mode_even_with_metrics: true # When true, allows detail-forcing behavior even if AST initially includes metrics.
     force_select: [requestId, accountId, requestStatus, requestedAt, disconnectOrderId, downstreamStatus, disconnectId, teamNotes]
-    enforce_where:
+    enforce_where: # Injects deterministic filter predicates into AST during normalization.
       - field: disconnectId
         op: IS_NULL
         value: null
+    field_remaps: # Rule-scoped remap list mapped to SemanticIntentFieldRemap; complements global value_patterns.
+      - from_field: requestId
+        to_field: disconnectOrderId
+        value_starts_with: [DON]
 
-rules:
+rules: # Ignored by current SemanticModel binding; runtime guardrails are enforced by Java SQL policy/validator stages.
   allowed_tables:
     - zp_account
     - zp_customer
@@ -1820,38 +1878,52 @@ That means unknown/unmapped YAML tags are ignored safely at load time.
 ### 1) Model identity tags
 
 <CodeBlockToggle title="Snippet: model identity" language="yaml" defaultOpen={false}>
-{`version: 1
-database: zapper_ops
-description: Semantic model for Zapper disconnect workflow analytics.`}
+{`version: 1 # Loaded into SemanticModel.version; appears as semanticModelVersion in runtime output + audit payloads.
+database: zapper_ops # Loaded into SemanticModel.database; identity metadata for the model.
+description: > # Loaded into SemanticModel.description; passed as grounding context to DefaultSemanticAstGenerator prompt assembly.
+  Semantic model for Zapper disconnect workflow analytics and production diagnostics.`}
 </CodeBlockToggle>
 
 What this does:
 - `version`: surfaces as `semanticModelVersion` in runtime output and stage payloads.
 - `database` + `description`: metadata/context only; not a SQL generator by itself.
 
+At runtime, `version` is emitted in stage output metadata so operators can verify exactly which semantic model revision generated the answer. The `description` text is used as grounding context for the LLM AST generator and improves entity/field disambiguation before normalization and validation.
+
 ### 2) `entities` block
 
 <CodeBlockToggle title="Snippet: one entity contract" language="yaml" defaultOpen={false}>
 {`entities:
   DisconnectRequest:
-    description: Main disconnect workflow entity
-    synonyms: [disconnect, disconnection, service termination]
+    description: Main disconnect workflow entity # Retrieval + LLM grounding narrative.
+    synonyms: [disconnect, disconnection, service termination, cancel service] # Deterministic synonym weight boost in retrieval scoring.
+    example_questions: # Prompt-level grounding examples for DefaultSemanticAstGenerator.
+      - why disconnect failed for request ZPR1003
+      - show failed disconnect requests last 24 hours
     tables:
-      primary: zp_request
-      related: [zp_disconnect_order, zp_order_downstream_check, zp_ui_data]
+      primary: zp_request # Base table anchor used by planner/compiler.
+      related: [zp_disconnect_order, zp_order_downstream_check, zp_ui_data] # Expands join candidates.
     fields:
       requestId:
-        column: zp_request.zp_request_id
-        type: string
-        key: true
-        searchable: true
-        filterable: true
+        column: zp_request.zp_request_id # Canonical semantic field -> physical SQL column map.
+        type: string # Validator uses type compatibility for operators.
+        key: true # Semantic primary identifier field for this entity.
+        searchable: true # Metadata currently (not strict runtime gate).
+        filterable: true # Metadata currently (not strict runtime gate).
+        aliases: [id, request id, req id] # User/LLM variants normalized to canonical requestId.
+        allowed_values: [ZPR1001, ZPR1002] # Optional guidance examples for valid-value patterns.
+        example: ZPR1003 # Prompt/documentation aid.
       teamNotes:
         column: zp_ui_data.zp_asr_team_notes
         type: string
+        searchable: true
       failureReason:
         column: zp_ui_data.zp_asr_team_notes
-        type: string`}
+        type: string
+        filterable: true
+        searchable: true
+        aliases: [reason, fail reason]
+        example: Inventory sync timeout`}
 </CodeBlockToggle>
 
 How each child tag is used:
@@ -1878,6 +1950,15 @@ Example:
 - Retrieval picks `DisconnectRequest` (field ownership + lexical/synonym/vector signals).
 - AST schema specialization restricts allowed field keys for selected entity.
 - Compiler uses `teamNotes -> zp_ui_data.zp_asr_team_notes` and, if filters reference another table-owned field (for example `requestId -> zp_request.zp_request_id`), compile stage auto-expands required tables and adds the join path.
+
+<Highlight type="info" title="Deep dive: entities">
+- Entity-level `synonyms` increase deterministic retrieval weight for candidate ranking.
+- `example_questions` acts as prompt-grounding context for AST generation, especially for ambiguous asks.
+- `aliases` maps user/LLM field variants to canonical semantic field keys before compile.
+- `allowed_values` helps the LLM suggest realistic filter literals, but is currently guidance metadata.
+- `key: true` marks the semantic primary identifier field.
+- `searchable` and `filterable` are currently metadata fields, not strict runtime enforcement switches.
+</Highlight>
 
 ### 3) `tables` + `columns` + `foreign_key`
 
@@ -1956,21 +2037,30 @@ Current behavior:
 
 <CodeBlockToggle title="Snippet: intent rule for billbank gap details" language="yaml" defaultOpen={false}>
 {`value_patterns:
-  - from_field: requestId
-    to_field: disconnectOrderId
-    value_starts_with: [DON]
+  - from_field: requestId # Field currently holding the incoming filter value.
+    to_field: disconnectOrderId # Field to rewrite to when prefix rule matches.
+    value_starts_with: [DON] # If value starts with DON (for example DON9001), remap requestId -> disconnectOrderId.
   - from_field: disconnectOrderId
     to_field: requestId
-    value_starts_with: [ZPR]
+    value_starts_with: [ZPR] # Symmetric remap for request-id-looking values.
 
 intent_rules:
   don_failure_reason_details:
     description: stabilize DON-level failure asks to disconnect-order diagnostics output
-    match_any: [why did, fail, failed, failure reason]
-    must_contain: [don]
-    force_entity: DisconnectRequest
-    force_mode: detail
-    force_select: [disconnectOrderId, downstreamStatus, failureReason, requestId]
+    match_any: [why did, fail, failed, failure reason] # Case-insensitive keyword scan; at least one must match.
+    must_contain: [don] # Case-insensitive keyword scan; all tokens must match.
+    force_entity: DisconnectRequest # Deterministic entity override.
+    force_mode: detail # Detail mode drops metrics/having/group_by.
+    force_mode_even_with_metrics: false # Default-safe behavior for mixed aggregate/detail asks.
+    force_select: [disconnectOrderId, downstreamStatus, failureReason, requestId] # Deterministic projection override.
+    enforce_where:
+      - field: downstreamStatus
+        op: NOT_EQ
+        value: COMPLETED
+    field_remaps:
+      - from_field: requestId
+        to_field: disconnectOrderId
+        value_starts_with: [DON]
 
   request_failure_reason_details:
     description: stabilize request-level failure-reason asks to request diagnostics output
@@ -2004,6 +2094,23 @@ What this does at runtime:
 - Global `value_patterns` applies deterministic filter-field remap based on value prefix (example `requestId + DON* -> disconnectOrderId`) without hardcoding in framework.
 - Rule-level `field_remaps` is still supported for rule-specific overrides when needed.
 
+<Highlight type="info" title="Deep dive: value_patterns">
+- `from_field` is the source field key, `to_field` is the target field key, and `value_starts_with` defines prefix triggers.
+- Remap is applied by normalizer before validation/compile.
+- Example: AST filter `requestId = DON9001` is remapped to `disconnectOrderId = DON9001`.
+- This contract maps to Java record `SemanticIntentFieldRemap`.
+</Highlight>
+
+<Highlight type="info" title="Deep dive: intent_rules">
+- Matching logic is case-insensitive over user question text.
+- Rule activation requires all `must_contain` keywords and at least one `match_any` keyword.
+- `force_mode: detail` removes aggregate AST nodes (`metrics`, `having`, `group_by`).
+- `force_mode_even_with_metrics` decides whether detail-forcing can still apply when metrics exist.
+- `enforce_where` injects deterministic WHERE filters into AST.
+- `field_remaps` is the rule-level counterpart of global `value_patterns`.
+- This contract maps to Java record `SemanticIntentRule`.
+</Highlight>
+
 <Highlight type="info" title="Latest Contract Changes">
 `SemanticField` supports optional `aliases` in YAML. `SemanticModel` supports top-level `value_patterns` (global remaps), and `SemanticIntentRule` supports optional `field_remaps` (rule-specific remaps), all mapped via `SemanticIntentFieldRemap`.
 </Highlight>
@@ -2012,18 +2119,18 @@ What this does at runtime:
 
 <CodeBlockToggle title="Snippet: currently ignored-by-loader tags" language="yaml" defaultOpen={false}>
 {`settings:
-  default_limit: 100
-  timezone: UTC
-  sql_dialect: postgres
+    default_limit: 100 # Documentation only in YAML today; runtime effective value comes from application.yml.
+    timezone: UTC # Documentation only in YAML today; runtime effective value comes from application.yml.
+    sql_dialect: postgres # Documentation only in YAML today; runtime effective value comes from application.yml.
 
 join_hints:
   zp_request:
-    commonly_joined_with: [zp_disconnect_order, zp_ui_data]
+    commonly_joined_with: [zp_disconnect_order, zp_ui_data] # Author hint only; join engine uses relationships/FK metadata.
 
 rules:
-  allowed_tables: [zp_request, zp_disconnect_order]
-  deny_operations: [DELETE, UPDATE, DROP]
-  max_result_limit: 500`}
+  allowed_tables: [zp_request, zp_disconnect_order] # Not loaded today; allow/deny is enforced in Java policy layers.
+  deny_operations: [DELETE, UPDATE, DROP] # Not loaded today; policy guardrails enforce destructive-op blocking.
+  max_result_limit: 500 # Not loaded today; runtime limits come from ConvEngineMcpConfig.`}
 </CodeBlockToggle>
 
 Current status:
@@ -2034,6 +2141,14 @@ Current status:
 
 Other descriptive tags in sample:
 - `example_questions`, `allowed_values`, `example` are currently prompt/documentation aids and are not strict runtime-enforced model fields.
+
+<Highlight type="info" title="Deep dive: settings, join_hints, rules">
+- `settings` is strong author documentation, but runtime effective config comes from `convengine.mcp.db.semantic.*` in `application.yml`.
+- `join_hints` is not loaded in current model binding; join-path resolution relies on relationship/FK graph metadata.
+- `rules.allowed_tables`, `rules.deny_operations`, and `rules.max_result_limit` are currently documentation-only in YAML.
+- Real enforcement happens in Java guardrail and SQL policy validation steps.
+- Other descriptive tags (`example_questions`, `allowed_values`, `example`) are mainly prompt/documentation aids.
+</Highlight>
 
 ## AST + SQL impact walkthrough
 
@@ -2144,7 +2259,7 @@ import java.util.regex.Pattern;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "convengine.mcp.db.semantic", name = "enabled", havingValue = "true")
-// Primary type declaration for this component.
+// Semantic query entry point: activated by @ConditionalOnProperty when convengine.mcp.db.semantic.enabled=true.
 public class DbSemanticQueryToolHandler implements DbToolHandler {
 
     private static final Pattern NON_READ_ONLY_SQL_PATTERN = Pattern.compile(
@@ -2165,14 +2280,14 @@ public class DbSemanticQueryToolHandler implements DbToolHandler {
     private final SemanticQueryRuntimeService runtimeService;
 
     @Override
-// Helper method used by the main runtime flow in this component.
+// Returns the MCP tool code this handler responds to (default: "db.semantic.query").
     public String toolCode() {
         ConvEngineMcpConfig.Db.Semantic cfg = mcpConfig.getDb() == null ? new ConvEngineMcpConfig.Db.Semantic() : mcpConfig.getDb().getSemantic();
         return cfg.getToolCode() == null || cfg.getToolCode().isBlank() ? "db.semantic.query" : cfg.getToolCode();
     }
 
     @Override
-// Executes core stage/operation logic and mutates shared context/state.
+// Main execution: extracts question from tool args, applies read-only guardrail, delegates to semantic runtime.
     public Object execute(CeMcpTool tool, Map<String, Object> args, EngineSession session) {
         String question = extractQuestion(args, session);
         if (isNonReadOnlyQuestion(question)) {
@@ -2181,7 +2296,7 @@ public class DbSemanticQueryToolHandler implements DbToolHandler {
         return runtimeService.plan(question, session);
     }
 
-// Helper method used by the main runtime flow in this component.
+// Regex-based read-only guardrail: returns true if question contains DML/DDL patterns.
     private boolean isNonReadOnlyQuestion(String question) {
         if (question == null || question.isBlank()) {
             return false;
@@ -2189,7 +2304,7 @@ public class DbSemanticQueryToolHandler implements DbToolHandler {
         return NON_READ_ONLY_SQL_PATTERN.matcher(question).find();
     }
 
-// Helper method used by the main runtime flow in this component.
+// Builds a structured blocked-response payload when guardrail rejects a destructive query.
     private Map<String, Object> blockedResponse(String question) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("mode", "semantic");
@@ -2207,7 +2322,7 @@ public class DbSemanticQueryToolHandler implements DbToolHandler {
         return out;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Extracts user question from tool args in priority order: question -> query -> user_input -> session.userText.
     private String extractQuestion(Map<String, Object> args, EngineSession session) {
         if (args != null) {
             Object query = args.get("question");
@@ -2251,23 +2366,23 @@ package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.core;
 
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
-// Primary type declaration for this component.
+// Interceptor contract: consumers can implement custom before/after/error hooks per stage.
 public interface SemanticQueryStageInterceptor {
 
-// Helper method used by the main runtime flow in this component.
+// Returns true if this interceptor should activate for the given session (default: always).
     default boolean supports(EngineSession session) {
         return true;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Invoked before each semantic stage executes; use for pre-stage audit or setup.
     default void beforeStage(String stage, EngineSession session, Object payload) {
     }
 
-// Helper method used by the main runtime flow in this component.
+// Invoked after each semantic stage completes successfully; use for post-stage audit.
     default void afterStage(String stage, EngineSession session, Object payload) {
     }
 
-// Helper method used by the main runtime flow in this component.
+// Invoked when a semantic stage throws an exception; use for error telemetry.
     default void onError(String stage, EngineSession session, Exception ex) {
     }
 }
@@ -2431,8 +2546,9 @@ public class SemanticStagePipeline {
 
 <CodeBlockToggle title="SemanticQueryContext.java source" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/mcp/query/semantic/runtime/stage/context/SemanticQueryContext.java" defaultOpen={false}>
 {`// SemanticQueryContext.java
-// Purpose: Shared mutable context across semantic stages.
-// Flow 1: Stores retrieval/joinPath/AST/SQL/execution/summary artifacts.
+// Purpose: Shared mutable context passed through all 7 semantic stages.
+// Each stage reads upstream state and writes its own output for downstream stages.
+// Flow: Retrieval -> JoinPath -> AstGeneration -> AstValidation -> SqlCompile -> SqlExecute -> Summary.
 
 package com.github.salilvnair.convengine.engine.mcp.query.semantic.runtime.stage.context;
 
@@ -2445,7 +2561,7 @@ import com.github.salilvnair.convengine.engine.mcp.query.semantic.sql.core.Compi
 import com.github.salilvnair.convengine.engine.mcp.query.semantic.execute.SemanticExecutionResult;
 import com.github.salilvnair.convengine.engine.session.EngineSession;
 
-// Primary type declaration for this component.
+// Core context object: fields are populated in stage order as the pipeline executes.
 public class SemanticQueryContext {
 
     private final String question;
@@ -2465,82 +2581,82 @@ public class SemanticQueryContext {
         this.session = session;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Returns the user question (business-language input) that entered the semantic tool.
     public String question() {
         return question;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Returns the EngineSession for accessing conversation state, audit, and config.
     public EngineSession session() {
         return session;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Gets retrieval output: ranked candidate entities + candidate tables from RetrievalStage.
     public RetrievalResult retrieval() {
         return retrieval;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Sets retrieval output after entity/table ranking completes.
     public void retrieval(RetrievalResult retrieval) {
         this.retrieval = retrieval;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Gets resolved join path: base table + FK edges computed by JoinPathStage.
     public JoinPathPlan joinPath() {
         return joinPath;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Sets join path after graph traversal resolves required joins.
     public void joinPath(JoinPathPlan joinPath) {
         this.joinPath = joinPath;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Gets AST generation result: raw LLM JSON + parsed SemanticQueryAstV1 + version tag.
     public AstGenerationResult astGeneration() {
         return astGeneration;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Sets AST generation result after LLM returns strict JSON AST.
     public void astGeneration(AstGenerationResult astGeneration) {
         this.astGeneration = astGeneration;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Gets AST validation result: valid flag + error list from DefaultAstValidator.
     public AstValidationResult astValidation() {
         return astValidation;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Gets canonical AST: version-neutral internal representation from V1CanonicalAstMapper.
     public CanonicalAst canonicalAst() {
         return canonicalAst;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Sets canonical AST after mapping from version-specific format.
     public void canonicalAst(CanonicalAst canonicalAst) {
         this.canonicalAst = canonicalAst;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Sets AST validation result with valid flag and error list.
     public void astValidation(AstValidationResult astValidation) {
         this.astValidation = astValidation;
     }
 
-// Compiles canonical input into SQL fragments and named parameters.
+// Gets compiled SQL: parameterized SELECT string + named bind params from jOOQ DSL.
     public CompiledSql compiledSql() {
         return compiledSql;
     }
 
-// Compiles canonical input into SQL fragments and named parameters.
+// Sets compiled SQL after deterministic AST-to-SQL compile pass.
     public void compiledSql(CompiledSql compiledSql) {
         this.compiledSql = compiledSql;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Gets execution result: row count + result rows from JDBC execution.
     public SemanticExecutionResult executionResult() {
         return executionResult;
     }
 
-// Helper method used by the main runtime flow in this component.
+// Sets execution result after parameterized SQL runs against transactional tables.
     public void executionResult(SemanticExecutionResult executionResult) {
         this.executionResult = executionResult;
     }

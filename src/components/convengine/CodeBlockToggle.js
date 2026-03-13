@@ -105,51 +105,10 @@ function normalizeJson(snippet) {
 }
 
 function normalizeYaml(snippet) {
-  const lines = snippet
+  return snippet
     .split("\n")
-    .map((line) => line.replace(/\t/g, "  ").replace(/\s+$/g, ""));
-
-  const isKeyOnly = (t) => /^[A-Za-z0-9_-]+:\s*$/.test(t);
-  const isChildCandidate = (t) => /^[A-Za-z0-9_-]+:\s*.*$/.test(t) || /^-\s+/.test(t);
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (!trimmed || !isKeyOnly(trimmed)) {
-      continue;
-    }
-    const parentIndent = (line.match(/^\s*/) || [""])[0].length;
-
-    let j = i + 1;
-    while (j < lines.length && !lines[j].trim()) {
-      j += 1;
-    }
-    if (j >= lines.length) {
-      continue;
-    }
-
-    const nextLine = lines[j];
-    const nextTrimmed = nextLine.trim();
-    const nextIndent = (nextLine.match(/^\s*/) || [""])[0].length;
-    if (nextIndent > parentIndent || !isChildCandidate(nextTrimmed)) {
-      continue;
-    }
-
-    for (let k = j; k < lines.length; k += 1) {
-      const current = lines[k];
-      const currentTrimmed = current.trim();
-      if (!currentTrimmed) {
-        break;
-      }
-      const currentIndent = (current.match(/^\s*/) || [""])[0].length;
-      if (currentIndent < parentIndent) {
-        break;
-      }
-      lines[k] = `  ${current}`;
-    }
-  }
-
-  return lines.join("\n");
+    .map((line) => line.replace(/\t/g, "  ").replace(/\s+$/g, ""))
+    .join("\n");
 }
 
 function normalizeCodeSnippet(children, language) {

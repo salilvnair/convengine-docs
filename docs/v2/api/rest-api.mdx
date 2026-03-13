@@ -20,6 +20,7 @@ import { CodeBlockToggle, DbTable, Highlight, FileRef, MethodRef } from "@site/s
   columns={["Method", "Path", "Purpose"]}
   rows={[
     ["POST", "/message", "Process one turn and return payload"],
+    ["POST", "/feedback", "Submit user feedback on a conversation turn"],
     ["GET", "/audit/{conversationId}", "Raw audit rows for conversation"],
     ["GET", "/audit/{conversationId}/trace", "Normalized step+stage timeline"],
     ["GET", "/cache/refresh", "Evicts static configs memory tree (`ce_static_configs`) and triggers a Spring DB pre-loader to dynamically swap framework configuration"]
@@ -52,6 +53,29 @@ import { CodeBlockToggle, DbTable, Highlight, FileRef, MethodRef } from "@site/s
   "context": "{...}"
 }`}
 </CodeBlockToggle>
+
+## DB Schema Administration
+
+Base: <FileRef>/api/v1/db</FileRef>
+
+<DbTable
+  title="DB schema and semantic model administration endpoints"
+  columns={["Method", "Path", "Purpose"]}
+  rows={[
+    ["GET", "/inspect-schema", "Introspect live DB schema (tables, columns, FKs). Optional `prefix` and `schema` query params."],
+    ["POST", "/agent", "Generate seed SQL from DB schema using LLM agent."],
+    ["POST", "/semantic/embeddings/rebuild", "Rebuild pgvector embeddings from semantic model."],
+    ["POST", "/semantic-query/generate-model", "LLM-driven draft generation of `semantic-layer.yaml` from live DB schema."],
+    ["POST", "/semantic-query/validate-model", "Validate semantic model YAML against physical schema."],
+    ["POST", "/semantic-query/save-model", "Persist semantic model YAML to configured path."],
+    ["POST", "/semantic-query/reload-model", "Hot-reload semantic model into runtime registry."],
+    ["GET", "/semantic-query/current-model-yaml", "Return current active semantic model YAML."]
+  ]}
+/>
+
+<Highlight type="info" title="Requires semantic mode">
+Semantic model administration endpoints require `convengine.mcp.db.semantic.enabled=true` in `application.yml`.
+</Highlight>
 
 ## Experimental endpoint (feature-flagged)
 

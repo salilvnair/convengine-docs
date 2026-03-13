@@ -3,6 +3,101 @@ title: Version History
 sidebar_position: 30
 ---
 
+## 2.0.10
+
+2.0.10 is the semantic-query and model-admin release line. Compared to 2.0.9, this adds the full semantic query AST pipeline, semantic model administration endpoints, user feedback and query knowledge entities, LLM client session-awareness, planner policy tagging, and new pipeline step annotations.
+
+- Semantic Query runtime (full pipeline):
+  - new `db.semantic.query` MCP tool mode (`mcp.db.query.mode=semantic`).
+  - 7-stage deterministic pipeline: Retrieval → Join Path → AST Generation (LLM) → AST Validation → SQL Compile → SQL Execute → Result Summary.
+  - `SemanticQueryRuntimeService` orchestrates stage DAG with interceptors (`SemanticQueryStageInterceptor`) and per-stage error determinants.
+  - `SemanticStagePipelineFactory` + `SemanticStagePipeline` DAG-ordered stage wiring using `CoreStepDagOrderer`.
+  - `DbSemanticQueryToolHandler` bridges MCP tool invocation to semantic runtime with read-only SQL guardrail at entry.
+  - AST model: `SemanticQueryAstV1`, `AstFilterGroup`, `AstExistsBlock`, `AstSubqueryFilter`, `AstSubquerySpec`, `AstWindowSpec`.
+  - Canonical AST mapping and normalization via `V1CanonicalAstMapper` and `AstNormalizer` (metric + aggregate operator normalization).
+  - Strict AST validation: `DefaultAstValidator` validates entity/field existence, operator/value compatibility, exists/subquery/window/groupBy constraints.
+  - Deterministic SQL compile via jOOQ DSL: `DefaultSemanticSqlCompiler` + `DefaultAstQueryAssemblyClauseHandler`.
+  - Clause handler registries: predicate, metric, window, exists, subquery, function.
+  - Operator handlers: `DefaultComparisonAstOperatorHandler`, `DefaultBetweenAstOperatorHandler`, `DefaultInAstOperatorHandler`, `DefaultNullCheckAstOperatorHandler`.
+  - Window function handler: `DefaultRowNumberWindowFunctionHandler`.
+  - Policy enforcement: `DefaultSemanticSqlPolicyValidator` applies SELECT-only guardrail.
+  - `DefaultSemanticResultSummarizer` builds markdown-table summaries from result rows.
+  - Retrieval stage: `DefaultSemanticEntityTableRetriever` with deterministic lexical + optional pgvector blending.
+  - Graph traversal: `JGraphTSchemaGraphEngine` + `DefaultJoinPathResolver` for FK-driven join-path resolution.
+  - Semantic model loader: `SemanticModelLoader` + `SemanticModelRegistry` load `semantic-layer.yaml`.
+  - AST compilation interceptor: `AstCompilationInterceptor` + `DefaultAstCompilationInterceptor`.
+  - Correlated field reference: `$fieldName` values in exists/subquery `where` blocks resolve as outer-query field references.
+- Semantic model administration endpoints:
+  - `POST /api/v1/db/semantic-query/generate-model` – LLM-driven draft generation of `semantic-layer.yaml` from live DB schema.
+  - `POST /api/v1/db/semantic-query/validate-model` – validates semantic model YAML against physical schema.
+  - `POST /api/v1/db/semantic-query/save-model` – persists semantic model YAML to configured path.
+  - `POST /api/v1/db/semantic-query/reload-model` – hot-reloads semantic model into runtime registry.
+  - `GET  /api/v1/db/semantic-query/current-model-yaml` – returns current active semantic model YAML.
+  - `POST /api/v1/db/semantic/embeddings/rebuild` – rebuilds pgvector embeddings from semantic model.
+  - `GET  /api/v1/db/inspect-schema` – introspects live DB schema (tables, columns, FKs).
+  - `POST /api/v1/db/agent` – generates seed SQL from DB schema using LLM agent.
+  - all wired via `DbSchemaController`, `SemanticQueryModelAdminService`, `DbSchemaAgentService`, `DbSchemaInspectorService`.
+- User feedback and query knowledge:
+  - new entities: `CeMcpUserFeedback`, `CeMcpUserQueryKnowledge`, `CeUserQueryKnowledge`.
+  - new repositories: `McpUserFeedbackRepository`, `McpUserQueryKnowledgeRepository`, `UserQueryKnowledgeRepository`.
+  - `POST /api/v1/conversation/feedback` endpoint via `ConversationFeedbackService`.
+  - feedback-driven semantic embedding rebuild support.
+- LLM client session-awareness:
+  - `LlmClient` interface methods now accept `EngineSession` as first parameter:
+    - `generateText(EngineSession, String, String)`
+    - `generateJson(EngineSession, String, String, String)`
+    - `generateEmbedding(EngineSession, String)`
+    - `generateJsonStrict(EngineSession, String, String, String)`
+  - all callers updated: MCP planner, intent resolvers, schema extraction, AST generation.
+- Prompt/session variable expansion:
+  - `PromptTemplateContext` new fields:
+    - `question`, `selectedEntity`, `selectedEntityDescription`, `selectedEntityFieldsJson`
+    - `allowedEntitiesJson`, `candidateEntitiesJson`, `candidateTablesJson`, `joinPathJson`
+    - `currentDate`, `currentDateTime`, `currentYear`, `currentTimezone`
+    - `currentSystemDateTime`, `currentSystemTimezone`
+  - `context` prompt var now also maps to `context_json` alias.
+  - `resolved_user_input` adds `effectiveInput`, `effectiveUserInput`, `effective_user_input` aliases.
+- MCP planner enhancements:
+  - `operation_tag` field in planner output JSON schema.
+  - `POLICY_RESTRICTED_OPERATION` tag: when planner marks a destructive ask, `McpToolStep` blocks tool execution before runtime and returns a policy-restricted final answer.
+  - planner time context: `currentDate`, `currentDateTime`, `currentYear`, `currentTimezone`, `currentSystemDateTime`, `currentSystemTimezone` injected into planner prompt vars.
+  - DBKG capsule: planner receives compacted `dbkg_capsule` observation context from `DbkgSupportService`.
+  - observation payload compaction: large observation JSON is compacted before planner prompt injection.
+  - planner tool filtering: `filterToolsByPlannerPrompt` narrows tool list based on planner prompt tool-code extraction.
+  - `conversationHistory` now injected into planner prompt context.
+- MCP tool step hardening:
+  - duplicate tool-call suppression: `executedToolSignatures` tracks `(toolCode + args)` signatures to prevent planner loops.
+  - `MCP_DUPLICATE_TOOL_CALL_SUPPRESSED` verbose/audit event.
+  - `finalAnswerDetermined` and `toolExecutionAbrupted` execution flags written to MCP context.
+  - guardrail block reason now uses `nextToolGuardrailBlockReason()` for richer error reporting.
+  - configurable inter-tool delay via `applyToolDelay()`.
+  - richer error details in tool error payloads via `buildErrorDetails()`.
+- SQL audit helper:
+  - new `McpSqlAuditHelper` utility consolidates SQL execution audit payload generation across `McpDbExecutor`, `DbkgQueryTemplateStepExecutor`, and `PostgresQueryToolHandler`.
+- Schema knowledge enhancements:
+  - `DbSemanticCatalogToolHandler` and `DbSemanticCatalogService` for semantic-catalog mode.
+  - `DbkgCaseResolveToolHandler`, `DbkgInvestigateExecuteToolHandler`, `DbkgInvestigatePlanToolHandler`, `DbkgKnowledgeLookupToolHandler`, `DbkgPlaybookValidateToolHandler` new DBKG tool handlers.
+  - `DbkgQueryTemplateStepExecutor` enhanced SQL execution auditing.
+  - `DefaultPostgresQueryInterceptor` + `PostgresQueryInterceptor` for query interception.
+  - `DefaultSemanticCatalogVectorSearchInterceptor` for catalog vector search.
+  - schema knowledge valid values and vector support in `DbkgSchemaCatalogService`.
+- Pipeline step annotations moved to `engine.core.step.annotation` package:
+  - `@ConversationBootstrapStep`, `@MustRunAfter`, `@MustRunBefore`, `@RequiresConversationPersisted`, `@StartStep`, `@TerminalStep`.
+  - old `engine.pipeline.annotation` package deprecated and removed.
+  - new `CoreStepDagOrderer` for annotation-driven pipeline DAG ordering.
+- Audit stage additions:
+  - new stages in `ConvEngineAuditStage`: `MCP_DUPLICATE_TOOL_CALL_SUPPRESSED`, schema agent stages, semantic model admin stages.
+  - `SchemaTypeConstants` added for schema type constants.
+- DDL and seed expansions:
+  - `ce_mcp_user_feedback`, `ce_mcp_user_query_knowledge`, `ce_user_query_knowledge` tables.
+  - `ce_mcp_semantic_embedding` table for pgvector-based semantic retrieval.
+  - `ce_mcp_schema_knowledge` valid values and vector columns.
+  - new Zapper domain DDL/seeds: `zapper/ddl_postgres.sql`, `zapper/ddl_sqlite.sql`, `zapper/seed.sql`, `zapper/zapper_business_seed.sql`.
+  - semantic query MCP seeds: `zapper/semantic_query_mcp_seed_postgres.sql`, `zapper/semantic_query_mcp_seed_sqlite.sql`.
+  - DBKG dedicated DDL/seeds: `mcp/dbkg/ddl_postgres.sql`, `mcp/dbkg/ddl_sqlite.sql`, `mcp/dbkg/seed.sql`.
+  - schema-aware SQL seed: `dbkg/schema_aware_sql_seed.sql`.
+  - semantic model resource: `mcp/semantic-layer.yaml`.
+
 ## 2.0.9
 
 2.0.9 is the prompt-control and correction-routing release line. Compared to 2.0.8, this adds Thymeleaf-backed prompt rendering, richer runtime routing for confirmations/corrections, new rule capabilities, and a consumer-friendly verbose adapter.
