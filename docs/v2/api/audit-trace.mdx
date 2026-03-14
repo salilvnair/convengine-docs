@@ -3,26 +3,32 @@ title: Audit Trace API
 sidebar_position: 3
 ---
 
-import { CodeBlockToggle, Highlight } from "@site/src/components/convengine";
+import { CodeBlockToggle, DbTable, Highlight } from "@site/src/components/convengine";
 
 # Audit Trace API
 
-## Endpoint
+## Endpoints
 
-`GET /api/v1/conversation/audit/{conversationId}/trace`
+- `GET /api/v1/conversation/audit/{conversationId}`
+- `GET /api/v1/conversation/audit/{conversationId}/trace`
 
-## Response shape
+## `/audit/{conversationId}/trace` response shape
+
+`AuditTraceService` derives this from ordered `ce_audit` rows.
 
 <CodeBlockToggle title="Trace response" language="json" defaultOpen={true}>
-{`{
+
+```json
+{
   "conversationId": "9bf7540a-b129-4685-a120-730e8a0cb94b",
   "steps": [
     {
       "step": "IntentResolutionStep",
       "stepClass": "com.github.salilvnair.convengine.engine.steps.IntentResolutionStep",
+      "sourceFile": "IntentResolutionStep.java",
       "status": "OK",
-      "startedAt": "2026-02-14T10:22:01.102Z",
-      "endedAt": "2026-02-14T10:22:01.147Z",
+      "startedAt": "2026-03-13T00:22:01.102Z",
+      "endedAt": "2026-03-13T00:22:01.147Z",
       "durationMs": 45,
       "error": null,
       "stages": []
@@ -32,22 +38,50 @@ import { CodeBlockToggle, Highlight } from "@site/src/components/convengine";
     {
       "auditId": 12031,
       "stage": "STEP_ENTER",
-      "createdAt": "2026-02-14T10:22:01.102Z",
+      "createdAt": "2026-03-13T00:22:01.102Z",
       "payload": {
         "step": "IntentResolutionStep"
       }
     }
   ]
-}`}
+}
+```
+
 </CodeBlockToggle>
 
-## Why this endpoint exists
+## How step status is computed
 
-- separates timeline from raw audit payload parsing
-- easier UI rendering for runbooks and debug tools
-- complements `ce_conversation_history`, which stores normalized user/AI turns even when audit persistence runs deferred
-- preserves both domain and technical stages
+<DbTable
+  title="Trace builder rules"
+  columns={["Audit stage", "Effect in trace"]}
+  rows={[
+    ["STEP_ENTER", "Opens a step frame with status RUNNING"],
+    ["STEP_EXIT", "Closes step frame with status OK"],
+    ["STEP_ERROR", "Closes step frame with status ERROR and maps error message"]
+  ]}
+/>
 
-<Highlight type="tip" title="Best practice">
-Use both endpoints together: `/audit/{id}` for raw forensic payload, `/audit/{id}/trace` for step-flow visualization.
+## Current important audit stages (active runtime)
+
+<DbTable
+  title="High-signal stages"
+  columns={["Family", "Stages"]}
+  rows={[
+    ["Pipeline lifecycle", "STEP_ENTER, STEP_EXIT, STEP_ERROR, ASSISTANT_OUTPUT, ENGINE_KNOWN_FAILURE, ENGINE_UNKNOWN_FAILURE"],
+    ["Intent + schema", "INTENT_RESOLVE_START, INTENT_CLASSIFICATION_MATCHED, INTENT_COLLISION_RESOLVED, SCHEMA_EXTRACTION_START, SCHEMA_STATUS"],
+    ["Rules", "RULE_MATCH, RULE_APPLIED, RULE_NO_MATCH"],
+    ["Response", "RESOLVE_RESPONSE, RESOLVE_RESPONSE_SELECTED, RESPONSE_EXACT, EXACT_RESPONSE_RENDERING"],
+    ["MCP planner/tool", "MCP_PLAN_LLM_INPUT, MCP_PLAN_LLM_OUTPUT, MCP_TOOL_CALL, MCP_TOOL_RESULT, MCP_TOOL_ERROR, MCP_FINAL_ANSWER, MCP_DB_SQL_EXECUTION"],
+    ["Semantic interpret/query", "SEMANTIC_INTERPRET_INPUT, SEMANTIC_INTERPRET_LLM_INPUT, SEMANTIC_INTERPRET_LLM_OUTPUT, SEMANTIC_INTERPRET_OUTPUT, SEMANTIC_QUERY_LLM_INPUT, SEMANTIC_QUERY_LLM_OUTPUT, SEMANTIC_QUERY_LLM_RETRY_INPUT, SEMANTIC_QUERY_LLM_RETRY_OUTPUT"],
+    ["Dynamic SQL", "DYNAMIC_SQL_EXECUTION, DYNAMIC_SQL_EXECUTION_ERROR"]
+  ]}
+/>
+
+<Highlight type="info" title="Complete stage enum source">
+Stage enum lives in `ConvEngineAuditStage` and includes compatibility/legacy constants in addition to active runtime stages.
 </Highlight>
+
+## Why use both audit endpoints
+
+- `/audit/{conversationId}`: raw forensic payload for root-cause debugging
+- `/audit/{conversationId}/trace`: normalized step/stage timeline for UI and runbooks

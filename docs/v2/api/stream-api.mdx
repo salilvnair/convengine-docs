@@ -27,7 +27,9 @@ Socket/SSE channels stream audit stages for that same <MethodRef>conversationId<
 ## SSE subscription
 
 <CodeBlockToggle title="SSE client (browser)" language="javascript">
-{`const conversationId = "9bf7540a-b129-4685-a120-730e8a0cb94b";
+
+```javascript
+const conversationId = "9bf7540a-b129-4685-a120-730e8a0cb94b";
 const source = new EventSource(
   "/api/v1/conversation/stream/" + conversationId
 );
@@ -47,13 +49,17 @@ source.addEventListener("ASSISTANT_OUTPUT", (event) => {
 
 source.addEventListener("VERBOSE", (event) => {
   console.log("VERBOSE:", JSON.parse(event.data));
-});`}
+});
+```
+
 </CodeBlockToggle>
 
 ## STOMP subscription
 
 <CodeBlockToggle title="STOMP client (JS)" language="javascript">
-{`// npm i @stomp/stompjs sockjs-client
+
+```javascript
+// npm i @stomp/stompjs sockjs-client
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
@@ -69,7 +75,9 @@ const client = new Client({
   },
 });
 
-client.activate();`}
+client.activate();
+```
+
 </CodeBlockToggle>
 
 ## Socket payload contract (v2.0.8)
@@ -80,7 +88,9 @@ client.activate();`}
 - `eventType: "VERBOSE"` for verbose runtime progress/error events
 
 <CodeBlockToggle title="AUDIT envelope example" language="json">
-{`{
+
+```json
+{
   "eventType": "AUDIT",
   "auditId": 12031,
   "stage": "STEP_ENTER",
@@ -94,11 +104,15 @@ client.activate();`}
     }
   },
   "verbose": null
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="VERBOSE envelope example" language="json">
-{`{
+
+```json
+{
   "eventType": "VERBOSE",
   "auditId": null,
   "stage": "VERBOSE",
@@ -125,7 +139,9 @@ client.activate();`}
     "level": "INFO",
     "text": "Checking credit rating from credit union."
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ## Socket + Audit API usage

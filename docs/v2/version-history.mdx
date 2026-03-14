@@ -3,11 +3,51 @@ title: Version History
 sidebar_position: 30
 ---
 
+## 2.0.12
+
+<div className="ce-schema ce-intro-box">
+2.0.12 is the Spring Boot 4 and async conversation persistence release. Compared to 2.0.11, this upgrades the framework to Spring Boot 4.0.1, introduces async conversation state persistence, adds the query-failure embedding rebuild endpoint, and ships `thymeleaf-spring6` as the official Thymeleaf integration module.
+</div>
+
+- Spring Boot 4.0.1 upgrade:
+  - `version.spring-boot` property bumped to `4.0.1` in `pom.xml`.
+  - `thymeleaf-spring6` replaces the legacy Thymeleaf Spring integration artifact.
+  - All Spring Boot transitive dependencies updated in lockstep via `spring-boot-dependencies` BOM.
+- Async conversation persistence:
+  - new `AsyncConversationPersistenceService` with `@Async saveAsync(CeConversation)` for fire-and-forget `ce_conversation` saves, decoupling state persistence from the synchronous pipeline path and preserving sub-millisecond turn response times.
+- Query-failure embedding rebuild endpoint:
+  - `POST /api/v1/db/semantic/embeddings/query-failures/rebuild` – targeted pgvector embedding rebuild for entries in `ce_semantic_query_failures`; accepts `SemanticEmbeddingCatalogRebuildRequest` with `queryClassKey`, `entityKey`, `onlyMissing`, `limit`, `embeddingModel`, `embeddingVersion` controls.
+  - wired into `DbSchemaController` alongside the existing model and catalog rebuild endpoints.
+
+## 2.0.11
+
+<div className="ce-schema ce-intro-box">
+2.0.11 is the DB-driven semantic model overlay and legacy cleanup release. Compared to 2.0.10, this introduces four new control tables for runtime semantic model overrides without requiring YAML file changes, ships `SemanticModelDynamicOverlayService` to merge DB rows into the live semantic model, adds a targeted embedding catalog rebuild endpoint, and provides the one-time migration script to drop legacy DBKG tables.
+</div>
+
+- DB-driven semantic model overlay:
+  - new `SemanticModelDynamicOverlayService` applies DB-sourced overrides on top of the YAML-loaded `SemanticModel` at runtime; overlay is fault-tolerant (table missing or empty = no-op, allowing gradual adoption).
+  - four new DDL tables (Postgres, Oracle, SQLite):
+    - `ce_semantic_entity_override` – overrides or extends entities in the YAML model: `entity_name`, `description`, `primary_table`, `related_tables`, `synonyms`, `fields_json`, `priority`, `enabled`.
+    - `ce_semantic_relationship_override` – adds or replaces FK relationships: `relationship_name`, `from_table`, `from_column`, `to_table`, `to_column`, `relation_type`, `priority`, `enabled`.
+    - `ce_semantic_join_hint` – augments join-hint graph used by `JGraphTSchemaGraphEngine`: `base_table`, `join_table`, `priority`, `enabled`.
+    - `ce_semantic_value_pattern` – adds value-routing prefix rules merged into `valuePatterns`: `from_field`, `to_field`, `value_starts_with`, `priority`, `enabled`.
+  - merge semantics: DB rows patch-merge over YAML definitions (DB wins on conflict); disabled rows are skipped; duplicate field keys from DB are unioned into existing entity field maps.
+  - `SemanticModelLoader` and `SemanticModelRegistry` now invoke `SemanticModelDynamicOverlayService.apply()` after YAML load.
+- Embedding catalog rebuild endpoint:
+  - `POST /api/v1/db/semantic/embeddings/catalog/rebuild` – targeted pgvector embedding rebuild for `ce_mcp_user_query_knowledge` catalog rows; accepts `SemanticEmbeddingCatalogRebuildRequest` (same shape as query-failure rebuild).
+  - new `SemanticEmbeddingCatalogRebuildRequest` / `SemanticEmbeddingCatalogRebuildResponse` DTOs.
+- Legacy DBKG table cleanup migration:
+  - `src/main/resources/sql/mcp/cleanup_drop_legacy_dbkg_tables_postgres.sql` – one-time idempotent migration to drop 17 legacy DBKG and catalog-era tables (`ce_mcp_case_signal`, `ce_mcp_db_column`, `ce_mcp_db_join_path`, `ce_mcp_domain_entity`, `ce_mcp_domain_relation`, `ce_mcp_executor_template`, `ce_mcp_id_lineage`, `ce_mcp_outcome_rule`, `ce_mcp_playbook*`, `ce_mcp_query_knowledge`, `ce_mcp_query_param_rule`, `ce_mcp_query_template`, `ce_mcp_schema_knowledge`, `ce_mcp_semantic_embedding`, `ce_mcp_sql_guardrail`, `ce_mcp_status_dictionary`, `ce_mcp_system_node`, `ce_mcp_system_relation`, `ce_mcp_api_flow`).
+  - safe to run multiple times (`DROP TABLE IF EXISTS … CASCADE`).
+
 ## 2.0.10
 
+<div className="ce-schema ce-intro-box">
 2.0.10 is the semantic-query and model-admin release line. Compared to 2.0.9, this adds the full semantic query AST pipeline, semantic model administration endpoints, user feedback and query knowledge entities, LLM client session-awareness, planner policy tagging, and new pipeline step annotations.
+</div>
 
-- Semantic Query runtime (full pipeline):
+- Semantic Query (full pipeline):
   - new `db.semantic.query` MCP tool mode (`mcp.db.query.mode=semantic`).
   - 7-stage deterministic pipeline: Retrieval → Join Path → AST Generation (LLM) → AST Validation → SQL Compile → SQL Execute → Result Summary.
   - `SemanticQueryRuntimeService` orchestrates stage DAG with interceptors (`SemanticQueryStageInterceptor`) and per-stage error determinants.
@@ -24,11 +64,11 @@ sidebar_position: 30
   - `DefaultSemanticResultSummarizer` builds markdown-table summaries from result rows.
   - Retrieval stage: `DefaultSemanticEntityTableRetriever` with deterministic lexical + optional pgvector blending.
   - Graph traversal: `JGraphTSchemaGraphEngine` + `DefaultJoinPathResolver` for FK-driven join-path resolution.
-  - Semantic model loader: `SemanticModelLoader` + `SemanticModelRegistry` load `semantic-layer.yaml`.
+  - Semantic model loader: `SemanticModelLoader` + `SemanticModelRegistry` load `semantic-layer.yml`.
   - AST compilation interceptor: `AstCompilationInterceptor` + `DefaultAstCompilationInterceptor`.
   - Correlated field reference: `$fieldName` values in exists/subquery `where` blocks resolve as outer-query field references.
 - Semantic model administration endpoints:
-  - `POST /api/v1/db/semantic-query/generate-model` – LLM-driven draft generation of `semantic-layer.yaml` from live DB schema.
+  - `POST /api/v1/db/semantic-query/generate-model` – LLM-driven draft generation of `semantic-layer.yml` from live DB schema.
   - `POST /api/v1/db/semantic-query/validate-model` – validates semantic model YAML against physical schema.
   - `POST /api/v1/db/semantic-query/save-model` – persists semantic model YAML to configured path.
   - `POST /api/v1/db/semantic-query/reload-model` – hot-reloads semantic model into runtime registry.
@@ -61,7 +101,7 @@ sidebar_position: 30
   - `operation_tag` field in planner output JSON schema.
   - `POLICY_RESTRICTED_OPERATION` tag: when planner marks a destructive ask, `McpToolStep` blocks tool execution before runtime and returns a policy-restricted final answer.
   - planner time context: `currentDate`, `currentDateTime`, `currentYear`, `currentTimezone`, `currentSystemDateTime`, `currentSystemTimezone` injected into planner prompt vars.
-  - DBKG capsule: planner receives compacted `dbkg_capsule` observation context from `DbkgSupportService`.
+  - semantic query capsule: planner receives compacted `semantic_capsule` observation context from `SemanticSupportService`.
   - observation payload compaction: large observation JSON is compacted before planner prompt injection.
   - planner tool filtering: `filterToolsByPlannerPrompt` narrows tool list based on planner prompt tool-code extraction.
   - `conversationHistory` now injected into planner prompt context.
@@ -73,14 +113,12 @@ sidebar_position: 30
   - configurable inter-tool delay via `applyToolDelay()`.
   - richer error details in tool error payloads via `buildErrorDetails()`.
 - SQL audit helper:
-  - new `McpSqlAuditHelper` utility consolidates SQL execution audit payload generation across `McpDbExecutor`, `DbkgQueryTemplateStepExecutor`, and `PostgresQueryToolHandler`.
-- Schema knowledge enhancements:
-  - `DbSemanticCatalogToolHandler` and `DbSemanticCatalogService` for semantic-catalog mode.
-  - `DbkgCaseResolveToolHandler`, `DbkgInvestigateExecuteToolHandler`, `DbkgInvestigatePlanToolHandler`, `DbkgKnowledgeLookupToolHandler`, `DbkgPlaybookValidateToolHandler` new DBKG tool handlers.
-  - `DbkgQueryTemplateStepExecutor` enhanced SQL execution auditing.
-  - `DefaultPostgresQueryInterceptor` + `PostgresQueryInterceptor` for query interception.
-  - `DefaultSemanticCatalogVectorSearchInterceptor` for catalog vector search.
-  - schema knowledge valid values and vector support in `DbkgSchemaCatalogService`.
+  - new `McpSqlAuditHelper` utility consolidates SQL execution audit payload generation across `McpDbExecutor`, `SemanticQueryTemplateStepExecutor`, and `PostgresQueryToolHandler`.
+- Semantic query enhancements:
+  - `DbSemanticInterpretToolHandler` + `SemanticInterpretService` for canonical intent generation.
+  - `DbSemanticQueryToolHandler` + `SemanticLlmQueryService` for SQL generation with retries.
+  - `DefaultPostgresQueryInterceptor` + `PostgresQueryInterceptor` for SQL interception/normalization.
+  - semantic failure-memory persistence and correction flow through `ce_semantic_query_failures`.
 - Pipeline step annotations moved to `engine.core.step.annotation` package:
   - `@ConversationBootstrapStep`, `@MustRunAfter`, `@MustRunBefore`, `@RequiresConversationPersisted`, `@StartStep`, `@TerminalStep`.
   - old `engine.pipeline.annotation` package deprecated and removed.
@@ -94,9 +132,9 @@ sidebar_position: 30
   - `ce_mcp_schema_knowledge` valid values and vector columns.
   - new Zapper domain DDL/seeds: `zapper/ddl_postgres.sql`, `zapper/ddl_sqlite.sql`, `zapper/seed.sql`, `zapper/zapper_business_seed.sql`.
   - semantic query MCP seeds: `zapper/semantic_query_mcp_seed_postgres.sql`, `zapper/semantic_query_mcp_seed_sqlite.sql`.
-  - DBKG dedicated DDL/seeds: `mcp/dbkg/ddl_postgres.sql`, `mcp/dbkg/ddl_sqlite.sql`, `mcp/dbkg/seed.sql`.
-  - schema-aware SQL seed: `dbkg/schema_aware_sql_seed.sql`.
-  - semantic model resource: `mcp/semantic-layer.yaml`.
+  - semantic query dedicated DDL/seeds: `mcp/semantic_query/ddl_postgres.sql`, `mcp/semantic_query/ddl_sqlite.sql`, `mcp/semantic_query/seed.sql`.
+  - schema-aware SQL seed: `semantic/schema_aware_sql_seed.sql`.
+  - semantic model resource: `mcp/semantic-layer.yml`.
 
 ## 2.0.9
 
@@ -133,7 +171,7 @@ sidebar_position: 30
     - MCP planning
     - response generation
   - `MCP_TOOL_CALL` now emits richer metadata (`tool_code`, args, action, intent, state, routing decision, observation context)
-  - new MCP SQL observability stages: `MCP_DB_SQL_EXECUTION` and `DBKG_QUERY_SQL_EXECUTION`
+  - new MCP SQL observability stages: `MCP_DB_SQL_EXECUTION` and `MCP_DB_SQL_EXECUTION`
   - both carry `sql`, `params`, `row_count`, and `rows` in audit payloads and can be surfaced through `ce_verbose`
 - Consumer extension support:
   - new `ConvEngineVerboseAdapter` allows hooks, container transformers, response transformers, and custom beans to emit either:

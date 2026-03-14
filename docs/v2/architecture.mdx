@@ -65,13 +65,17 @@ Final payload is persisted and returned as TEXT/JSON response, with full audit t
   packagePath="com.github.salilvnair.convengine.engine.provider"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java"
 >
-{`@Override
+
+```java
+@Override
 public EngineResult process(EngineContext engineContext) {
     EngineSession session = sessionFactory.open(engineContext);
     session.setConversationHistory(historyProvider.lastTurns(session.getConversationId(), 10));
     EnginePipeline pipeline = pipelineFactory.create();
     return pipeline.execute(session);
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -80,12 +84,16 @@ public EngineResult process(EngineContext engineContext) {
   packagePath="com.github.salilvnair.convengine.engine.pipeline"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/pipeline/EnginePipeline.java"
 >
-{`for (EngineStep step : steps) {
+
+```java
+for (EngineStep step : steps) {
     StepResult r = step.execute(session);
     if (r instanceof StepResult.Stop(EngineResult result)) {
         return result;
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 :::tip Intervention point

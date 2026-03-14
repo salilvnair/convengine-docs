@@ -89,7 +89,9 @@ These emitted determinant values are the same values you should use in `ce_verbo
 Consumer hooks, container transformers, response transformers, and other Spring beans can emit UI verbose messages through `ConvEngineVerboseAdapter`.
 
 <CodeBlockToggle title="Consumer verbose adapter usage" language="java">
-{`@Component
+
+```java
+@Component
 @RequiredArgsConstructor
 public class LoanResponseTransformer implements ResponseTransformerHandler {
 
@@ -106,7 +108,9 @@ public class LoanResponseTransformer implements ResponseTransformerHandler {
     );
     return responsePayload;
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 For `publish(session, this, "POST_TRANSFORM_START")`, `ce_verbose` resolution uses:
@@ -131,8 +135,12 @@ Both SSE and STOMP publish `AuditStreamEventResponse` with:
 - `payload.verbose`: verbose payload mirror for clients that read payload map
 
 <CodeBlockToggle title="Verbose rollout SQL (standalone assets)" language="text">
-{`src/main/resources/sql/verbose_ddl.sql
-src/main/resources/sql/verbose_seed.sql`}
+
+```text
+src/main/resources/sql/verbose_ddl.sql
+src/main/resources/sql/verbose_seed.sql
+```
+
 </CodeBlockToggle>
 
 <Highlight type="warning" title="Startup safety">

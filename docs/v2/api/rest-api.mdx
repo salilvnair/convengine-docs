@@ -9,87 +9,191 @@ import { CodeBlockToggle, DbTable, Highlight, FileRef, MethodRef } from "@site/s
 
 # REST API
 
-## Base
+<div className="ce-schema ce-intro-box">
+  The ConvEngine REST APIs provide interaction hooks for conversations, administrative controls for the database-driven semantic engine configuration, and advanced tooling for developers mapping state boundaries.
+</div>
 
-<FileRef>/api/v1/conversation</FileRef>
+## Conversation APIs
 
-## Endpoints
+Base: <FileRef>/api/v1/conversation</FileRef>
 
 <DbTable
   title="Conversation endpoints"
   columns={["Method", "Path", "Purpose"]}
   rows={[
-    ["POST", "/message", "Process one turn and return payload"],
-    ["POST", "/feedback", "Submit user feedback on a conversation turn"],
-    ["GET", "/audit/{conversationId}", "Raw audit rows for conversation"],
-    ["GET", "/audit/{conversationId}/trace", "Normalized step+stage timeline"],
-    ["GET", "/cache/refresh", "Evicts static configs memory tree (`ce_static_configs`) and triggers a Spring DB pre-loader to dynamically swap framework configuration"]
+    ["POST", "/message", "Process one conversation turn and return payload"],
+    ["POST", "/feedback", "Store thumbs up/down + optional correction metadata"],
+    ["GET", "/audit/{conversationId}", "Raw audit rows (`ce_audit`) for the conversation"],
+    ["GET", "/audit/{conversationId}/trace", "Step and stage timeline view derived from audit rows"]
   ]}
 />
 
-## POST <FileRef>/message</FileRef>
+### Turn Execution (`/message`)
 
-<CodeBlockToggle title="Request body" language="json" defaultOpen={true}>
-{`{
-  "conversationId": "uuid-optional",
-  "message": "Track request REQ-778102",
+Processes a single turn of conversation, accepting a user message and returning the deterministic intent/state payload alongside an AI generated response.
+
+<Tabs groupId="conv-api-message">
+  <TabItem value="request" label="Request Payload" default>
+
+<CodeBlockToggle title="POST /message request" language="json" defaultOpen={true}>
+
+```json
+{
+  "conversationId": "9bf7540a-b129-4685-a120-730e8a0cb94b",
+  "message": "show all disconnect requests",
   "reset": false,
   "inputParams": {
     "tenant": "acme"
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
-<CodeBlockToggle title="Success response" language="json" defaultOpen={true}>
-{`{
+  </TabItem>
+  <TabItem value="response-ok" label="Response (Success)">
+
+<CodeBlockToggle title="POST /message success response" language="json" defaultOpen={true}>
+
+```json
+{
   "success": true,
   "conversationId": "9bf7540a-b129-4685-a120-730e8a0cb94b",
-  "intent": "REQUEST_TRACKER",
-  "state": "IDLE",
+  "intent": "SEMANTIC_QUERY",
+  "state": "COMPLETED",
   "payload": {
     "type": "TEXT",
-    "value": "Request REQ-778102 is IN_REVIEW."
+    "value": "Found 7 matching disconnect requests."
   },
   "context": "{...}"
-}`}
+}
+```
+
 </CodeBlockToggle>
 
-## DB Schema Administration
+  </TabItem>
+  <TabItem value="response-err" label="Response (Error)">
+
+<CodeBlockToggle title="POST /message error payload" language="json" defaultOpen={true}>
+
+```json
+{
+  "success": false,
+  "conversationId": "9bf7540a-b129-4685-a120-730e8a0cb94b",
+  "intent": "ERROR",
+  "state": "ERROR",
+  "payload": {
+    "type": "ERROR",
+    "value": "{\"errorCode\":\"400_BAD_REQ\",\"message\":\"...\",\"recoverable\":false}"
+  }
+}
+```
+
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## Cache APIs
+
+Base: <FileRef>/api/v1/cache</FileRef>
+
+<DbTable
+  title="Cache endpoints"
+  columns={["Method", "Path", "Purpose"]}
+  rows={[
+    ["POST", "/refresh", "Evict and reload static caches; also refresh query-failure embeddings"],
+    ["GET", "/analyze", "Inspect cache health/state (`warmup` query param supported)"]
+  ]}
+/>
+
+## DB + Semantic admin APIs
 
 Base: <FileRef>/api/v1/db</FileRef>
 
 <DbTable
-  title="DB schema and semantic model administration endpoints"
+  title="Schema and semantic administration"
   columns={["Method", "Path", "Purpose"]}
   rows={[
-    ["GET", "/inspect-schema", "Introspect live DB schema (tables, columns, FKs). Optional `prefix` and `schema` query params."],
-    ["POST", "/agent", "Generate seed SQL from DB schema using LLM agent."],
-    ["POST", "/semantic/embeddings/rebuild", "Rebuild pgvector embeddings from semantic model."],
-    ["POST", "/semantic-query/generate-model", "LLM-driven draft generation of `semantic-layer.yaml` from live DB schema."],
-    ["POST", "/semantic-query/validate-model", "Validate semantic model YAML against physical schema."],
-    ["POST", "/semantic-query/save-model", "Persist semantic model YAML to configured path."],
-    ["POST", "/semantic-query/reload-model", "Hot-reload semantic model into runtime registry."],
-    ["GET", "/semantic-query/current-model-yaml", "Return current active semantic model YAML."]
+    ["GET", "/inspect-schema", "Inspect live DB schema (`schema`, `prefix`, `matchMode` query params)"],
+    ["POST", "/semantic/embeddings/rebuild", "Rebuild embeddings from semantic model"],
+
+    ["POST", "/semantic/embeddings/query-failures/rebuild", "Rebuild `ce_semantic_query_failures.question_embedding` vectors"]
   ]}
 />
 
-<Highlight type="info" title="Requires semantic mode">
-Semantic model administration endpoints require `convengine.mcp.db.semantic.enabled=true` in `application.yml`.
+<Highlight type="info" title="Semantic mode">
+Semantic admin endpoints require semantic runtime to be enabled in `application.yml` (`convengine.mcp.db.semantic.enabled=true`) as well as `vector` support on your DB.
 </Highlight>
 
-## Experimental endpoint (feature-flagged)
+### Embeddings Pipeline (`/semantic/embeddings/*`)
+
+Controls the backend refresh state for Postgres `pgvector` knowledge graphs.
+
+<Tabs groupId="db-sema-admin">
+  <TabItem value="rebuild-embeddings" label="Rebuild Models" default>
+
+<CodeBlockToggle title="Rebuild Base Model Embeddings" language="json" defaultOpen={true}>
+
+```json
+{
+  "forceRebuildAll": false,
+  "onlyMissing": true
+}
+```
+
+</CodeBlockToggle>
+
+  </TabItem>
+  <TabItem value="rebuild-failures" label="Rebuild Failures">
+
+<CodeBlockToggle title="Rebuild Query Failures Embeddings" language="json" defaultOpen={true}>
+
+```json
+// POST /api/v1/db/semantic/embeddings/query-failures/rebuild
+{
+  "onlyMissing": true
+}
+
+// Response
+{
+  "indexedCount": 42,
+  "skippedCount": 100,
+  "failedCount": 0
+}
+```
+
+</CodeBlockToggle>
+
+  </TabItem>
+</Tabs>
+
+## Experimental APIs
 
 Base: <FileRef>/api/v1/conversation/experimental</FileRef>
 
-- <MethodRef>POST /generate-sql</MethodRef>
+<DbTable
+  title="Feature-flagged endpoints"
+  columns={["Method", "Path", "Purpose"]}
+  rows={[
+    ["POST", "/generate-sql", "Generate CE seed SQL from scenario input"],
+    ["POST", "/generate-sql/zip", "Generate ZIP package containing SQL/assets"]
+  ]}
+/>
 
 Enable with:
 
-<CodeBlockToggle title="application.yml (feature flag)" language="yaml">
-{`convengine:
+<Tabs>
+  <TabItem value="yml" label="application.yml" default>
+
+```yaml
+convengine:
   experimental:
-      enabled: true`}
-</CodeBlockToggle>
+    enabled: true
+```
+
+  </TabItem>
+</Tabs>
 
 <Tabs groupId="experimental-generate-sql">
   <TabItem value="postman" label="Postman" default>
@@ -99,51 +203,64 @@ Enable with:
   columns={["Field", "Value"]}
   rows={[
     ["Method", "POST"],
-    ["URL", "http://localhost:8080/api/v1/conversation/experimental/generate-sql"],
+    ["URL", "http://localhost:8080/api/v1/conversation/experimental/generate-sql/zip"],
     ["Headers", "Content-Type: application/json"],
     ["Body Mode", "raw (JSON)"],
+    ["Output", "Save Response -> Save to a file (creates ZIP)"]
   ]}
 />
 
-<CodeBlockToggle title="Postman body (JSON)" language="json">
-{`{
-  "scenario": "Build disconnect electricity workflow",
+<CodeBlockToggle title="Postman body (JSON)" language="json" defaultOpen={true}>
+
+```json
+{
+  "scenario": "Build semantic logic for disconnect workflow",
   "domain": "utilities",
-  "constraints": "Collect account number before action",
+  "constraints": "Focus on semantic filtering by date",
   "includeMcp": true
-}`}
+}
+```
+
 </CodeBlockToggle>
 
   </TabItem>
   <TabItem value="curl" label="curl">
 
-<CodeBlockToggle title="curl request" language="bash">
-{`curl -X POST "http://localhost:8080/api/v1/conversation/experimental/generate-sql" \\
+<CodeBlockToggle title="curl request" language="bash" defaultOpen={true}>
+
+```bash
+curl -X POST "http://localhost:8080/api/v1/conversation/experimental/generate-sql/zip" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "scenario": "Build disconnect electricity workflow",
+    "scenario": "Build semantic logic for disconnect workflow",
     "domain": "utilities",
-    "constraints": "Collect account number before action",
+    "constraints": "Focus on semantic filtering by date",
     "includeMcp": true
-  }'`}
+  }' --output semantic_payload.zip
+```
+
 </CodeBlockToggle>
 
   </TabItem>
 </Tabs>
 
-<CodeBlockToggle title="/experimental/generate-sql success response" language="json">
-{`{
+<CodeBlockToggle title="/experimental/generate-sql success response" language="json" defaultOpen={false}>
+
+```json
+{
   "success": true,
   "sql": "INSERT INTO ce_config ...;\\nINSERT INTO ce_intent ...;",
   "warnings": [],
   "note": "Experimental output: review before applying in production."
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <Highlight type="info" title="Generation scope">
-`generate-sql` is designed for non-transactional configuration tables (`ce_config`, `ce_intent`, `ce_rule`, `ce_prompt_template`, `ce_response`, `ce_output_schema`, `ce_container_config`, optional MCP tables). It does not generate runtime conversation/audit data.
+`generate-sql` is designed for non-transactional configuration tables (`ce_config`, `ce_intent`, `ce_rule`, `ce_prompt_template`, `ce_response`, `ce_output_schema`, `ce_semantic_*`). It does not generate runtime conversation/audit data.
 </Highlight>
 
 <Highlight type="warning" title="Experimental output">
-Generated SQL should be reviewed before use. The endpoint applies safety checks but does not replace human review.
+Generated SQL should always be reviewed before execution.
 </Highlight>

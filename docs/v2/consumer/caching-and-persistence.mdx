@@ -3,7 +3,9 @@ title: Caching & Persistence
 sidebar_position: 4
 ---
 
-import { DbTable, CodeBlockToggle, Highlight, MethodRef } from "@site/src/components/convengine";
+import { DbTable, CodeBlockToggle, Highlight, MethodRef,
+  FlowStep
+} from "@site/src/components/convengine";
 
 # Caching & Persistence
 
@@ -21,10 +23,14 @@ By default, to activate ConvEngine caching, you must pull in Spring Boot's cachi
 
 **Dependency requirement (`pom.xml`)**:
 <CodeBlockToggle title="pom.xml" language="xml">
-{`<dependency>
+
+```xml
+<dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-cache</artifactId>
-</dependency>`}
+</dependency>
+```
+
 </CodeBlockToggle>
 
 <Highlight type="warning" title="Startup crashes without this dependency">
@@ -38,13 +44,16 @@ This operates seamlessly once the module is present. It holds conversation state
 
 ---
 
-## 1. Ehcache 3 (JSR-107)
+<FlowStep step="1" title="Ehcache 3 (JSR-107)">
+
 
 For robust, production-grade memory bounds, **Ehcache** is a highly recommended on-premise memory provider. It allows conversational payloads to spill over from the active `heap` into `offheap` memory to prevent JVM garbage collection thrashing during large multi-turn flows.
 
 **Dependency update (`pom.xml`)**:
 <CodeBlockToggle title="pom.xml" language="xml">
-{`<dependency>
+
+```xml
+<dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-cache</artifactId>
 </dependency>
@@ -55,20 +64,28 @@ For robust, production-grade memory bounds, **Ehcache** is a highly recommended 
 <dependency>
     <groupId>org.ehcache</groupId>
     <artifactId>ehcache</artifactId>
-</dependency>`}
+</dependency>
+```
+
 </CodeBlockToggle>
 
 **App configuration (`application.yml`)**:
 <CodeBlockToggle title="application.yml" language="yaml">
-{`spring:
+
+```yaml
+spring:
   cache:
     jcache:
-      config: classpath:ehcache.xml`}
+      config: classpath:ehcache.xml
+```
+
 </CodeBlockToggle>
 
 **Provider specification (`src/main/resources/ehcache.xml`)**:
 <CodeBlockToggle title="ehcache.xml" language="xml">
-{`<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+
+```xml
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xmlns="http://www.ehcache.org/v3"
         xmlns:jsr107="http://www.ehcache.org/v3/jsr107"
         xsi:schemaLocation="
@@ -87,60 +104,82 @@ For robust, production-grade memory bounds, **Ehcache** is a highly recommended 
             <offheap unit="MB">100</offheap>
         </resources>
     </cache>
-</config>`}
+</config>
+```
+
 </CodeBlockToggle>
 
 ---
 
-## 2. Caffeine Cache
+</FlowStep>
+
+<FlowStep step="2" title="Caffeine Cache">
+
 
 If you prefer a highly optimized, high-performance local cache strictly contained inside the JVM (without off-heap spillage but statistically faster hit-rates than Ehcache), **Caffeine** is Spring Boot's default local provider replacement.
 
 **Dependency update (`pom.xml`)**:
 <CodeBlockToggle title="pom.xml" language="xml">
-{`<dependency>
+
+```xml
+<dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-cache</artifactId>
 </dependency>
 <dependency>
     <groupId>com.github.ben-manes.caffeine</groupId>
     <artifactId>caffeine</artifactId>
-</dependency>`}
+</dependency>
+```
+
 </CodeBlockToggle>
 
 **App configuration (`application.yml`)**:
 Unlike Ehcache, Caffeine can be fully initialized inside `application.yml` without distinct XML files.
 <CodeBlockToggle title="application.yml" language="yaml">
-{`spring:
+
+```yaml
+spring:
   cache:
     type: caffeine
     cache-names: ce_conversation_cache
     caffeine:
       # Max limits the cache to 5,000 conversational objects, expiring them 60 minutes after their last network write
-      spec: maximumSize=5000,expireAfterWrite=60m`}
+      spec: maximumSize=5000,expireAfterWrite=60m
+```
+
 </CodeBlockToggle>
 
 ---
 
-## 3. Redis
+</FlowStep>
+
+<FlowStep step="3" title="Redis">
+
 
 For horizontally scaled environments like Kubernetes (`k8s`) where your user traffic rotates across multiple server pods mid-conversation, you cannot use local memory (Ehcache/Caffeine). **Redis** binds ConvEngine's cache into an external centralized datastore.
 
 **Dependency update (`pom.xml`)**:
 <CodeBlockToggle title="pom.xml" language="xml">
-{`<dependency>
+
+```xml
+<dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-data-redis</artifactId>
 </dependency>
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-cache</artifactId>
-</dependency>`}
+</dependency>
+```
+
 </CodeBlockToggle>
 
 **App configuration (`application.yml`)**:
 <CodeBlockToggle title="application.yml" language="yaml">
-{`spring:
+
+```yaml
+spring:
   data:
     redis:
       host: localhost
@@ -151,7 +190,9 @@ For horizontally scaled environments like Kubernetes (`k8s`) where your user tra
       time-to-live: 60m
       cache-null-values: false
       use-key-prefix: true
-      key-prefix: "convengine:"`}
+      key-prefix: "convengine:"
+```
+
 </CodeBlockToggle>
 
 <Highlight type="warning" title="A note on serialization">
@@ -160,7 +201,10 @@ Because Redis runs outside the active server JVM, it relies on network transmiss
 
 ---
 
-## 4. Static Configuration Preloading
+</FlowStep>
+
+<FlowStep step="4" title="Static Configuration Preloading">
+
 
 Beyond dynamic conversational sessions, ConvEngine also permanently caches all non-transactional database rules (`ce_intent`, `ce_rule`, `ce_mcp_tool`, `ce_mcp_planner`, `ce_config`, etc.) into a generic `ce_static_configs` memory tree entirely upon JVM live initiation. This ensures that the engine never triggers synchronous relational fetches during the middle of a customer's turn.
 
@@ -170,14 +214,21 @@ If you connect to your database and update a `ce_rule` row manually using `SQL`,
 You can do this by hitting the integrated Admin Controller endpoint mapped generically natively into your backend:
 
 <CodeBlockToggle title="Cache Refresh Trigger" language="bash">
-{`curl -X GET "http://localhost:8080/api/v1/cache/refresh"`}
+
+```bash
+curl -X GET "http://localhost:8080/api/v1/cache/refresh"
+```
+
 </CodeBlockToggle>
 
 This endpoint executes `@CacheEvict(value = "ce_static_configs", allEntries = true)` and immediately re-triggers the Spring Data Preloader, locking in your latest SQL tweaks live.
 
 ---
 
-## 5. Cache Analyzer API (`/api/v1/cache/analyze`)
+</FlowStep>
+
+<FlowStep step="5" title="Cache Analyzer API (/api/v1/cache/analyze)">
+
 
 Use this endpoint when you want to validate cache health without guessing whether misses are caused by provider, proxying, or runtime wiring.
 
@@ -190,11 +241,15 @@ Use this endpoint when you want to validate cache health without guessing whethe
 />
 
 <CodeBlockToggle title="Example calls" language="bash">
-{`# Deep probe (runs warmup timing first-call vs second-call)
+
+```bash
+# Deep probe (runs warmup timing first-call vs second-call)
 curl "http://localhost:8080/api/v1/cache/analyze?warmup=true"
 
 # Passive snapshot (no extra warmup/timing calls)
-curl "http://localhost:8080/api/v1/cache/analyze?warmup=false"`}
+curl "http://localhost:8080/api/v1/cache/analyze?warmup=false"
+```
+
 </CodeBlockToggle>
 
 <Highlight type="info" title="warmup flag behavior">
@@ -220,7 +275,9 @@ Interpret each JSON block as follows:
 />
 
 <CodeBlockToggle title="Sample response" language="json">
-{`{
+
+```json
+{
   "warmupAndTimingEnabled": true,
   "cacheManagerClass": "org.springframework.cache.concurrent.ConcurrentMapCacheManager",
   "warmupTimingMs": {
@@ -397,7 +454,9 @@ Interpret each JSON block as follows:
       "nativeEntryCount": 0
     }
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ### Interpreting the sample you shared
@@ -407,3 +466,5 @@ Interpret each JSON block as follows:
 - Static `listSize` values are non-zero: static rows are loaded into cache as expected.
 - `firstCallMs=0` and `secondCallMs=0`: data is tiny and runtime is fast enough to round to 0 ms; this is normal.
 - Runtime caches at `nativeEntryCount=0`: no conversation/historical entries cached yet at capture time, or traffic was not running when the snapshot was taken.
+
+</FlowStep>

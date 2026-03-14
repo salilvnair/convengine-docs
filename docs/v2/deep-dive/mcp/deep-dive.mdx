@@ -7,28 +7,27 @@ import { DbTable, Highlight } from "@site/src/components/convengine";
 
 # Deep Dive
 
+<div className="ce-schema ce-intro-box">
 The detailed MCP runtime material now lives in [Advanced Guide](/docs/v2/deep-dive/mcp/advanced).
 
 This page is intentionally condensed so the section is not duplicated. Use it as a quick routing page:
+</div>
 
 - use [Advanced Guide](/docs/v2/deep-dive/mcp/advanced) for the current `2.0.10` execution model
-- use [Semantic Query](/docs/v2/deep-dive/mcp/semantic-query) for retrieval -> graph -> AST -> SQL stage internals
+- use [Semantic Query](/docs/v2/deep-dive/mcp/semantic-query) for interpret/query/postgres stage internals and code walkthrough
 - use [Example 3](/docs/v2/deep-dive/mcp/example3) for the full confirmation-first planner flow
-- use [Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog) for metadata grounding and dynamic SQL hinting
-- use [Knowledge (Database Knowledge Graph (DBKG))](/docs/v2/deep-dive/mcp/knowledge) for the DB-driven investigation architecture
-- use [Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4) for the guarded Database Knowledge Graph (DBKG) runtime in action
-- use [Example 5 - Semantic Query (Zapper)](/docs/v2/deep-dive/mcp/example5) for the semantic-query runtime in action
+- use [Table Config](/docs/v2/deep-dive/table-config) for DB-driven semantic metadata table contracts
+- use [Example 4 - Semantic Query (Zapper)](/docs/v2/deep-dive/mcp/example4) for Semantic Query in action
 
 <DbTable
   title="Where to go now"
   columns={["Need", "Best page", "Why"]}
   rows={[
     ["Current MCP execution order", "Advanced Guide", "This now carries the condensed but complete `2.0.10` runtime model."],
-    ["Semantic query internals", "Semantic Query", "Covers AST contracts, operators, validators, compiler handlers, and stage flow."],
+    ["Semantic query internals", "Semantic Query", "Covers handlers, services, retry loop, guardrails, and stage flow."],
     ["Planner/tool confirmation flow", "Example 3", "Shows the confirmation-first multi-turn MCP branch."],
-    ["Database Knowledge Graph (DBKG) internals", "Knowledge", "Covers the DBKG tables, runtime chain, and guard model in detail."],
-    ["Real DBKG production-debug example", "Example 4 - Zapper Disconnect", "Shows the full guarded DBKG path with a real transaction story."],
-    ["Real semantic-query production-debug example", "Example 5 - Semantic Query (Zapper)", "Shows retrieval/join-path/AST/SQL runtime with real transactional data."]
+    ["Semantic metadata contracts", "Table Config", "Covers semantic metadata tables and config mapping in detail."],
+    ["Real Semantic Query production-debug example", "Example 4 - Semantic Query (Zapper)", "Shows interpret -> query -> postgres runtime with transactional data."]
   ]}
 />
 
@@ -37,5 +36,5 @@ This page is intentionally condensed so the section is not duplicated. Use it as
 Historically, this page held the long-form planner trace. That material was moved into Advanced Guide to avoid duplicating the same lifecycle explanation across two pages.
 
 <Highlight type="tip" title="Recommended read path">
-Read [Basics](/docs/v2/deep-dive/mcp/basics), then [Advanced Guide](/docs/v2/deep-dive/mcp/advanced), then [Semantic Query](/docs/v2/deep-dive/mcp/semantic-query), then [Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog), then jump into [Example 5](/docs/v2/deep-dive/mcp/example5) or Database Knowledge Graph (DBKG) pages based on what you are debugging.
+Read [Basics](/docs/v2/deep-dive/mcp/basics), then [Advanced Guide](/docs/v2/deep-dive/mcp/advanced), then [Semantic Query](/docs/v2/deep-dive/mcp/semantic-query), then jump into [Example 4](/docs/v2/deep-dive/mcp/example4) and [Table Config](/docs/v2/deep-dive/table-config).
 </Highlight>

@@ -4,7 +4,7 @@ sidebar_position: 2
 hide_table_of_contents: true
 ---
 
-import { CodeBlockToggle, Highlight, FileRef, PipelineStepList } from "@site/src/components/convengine";
+import { CodeBlockToggle, Highlight, FileRef, PipelineStepList, FlowStep } from "@site/src/components/convengine";
 
 export const v2PipelineSteps = [
   { name: "LoadOrCreateConversationStep", description: "Hydrates existing conversation or creates new conversation shell." },
@@ -40,7 +40,8 @@ export const v2PipelineSteps = [
 
 This page is the quick lifecycle view. For the full interactive debug tree, open <FileRef>/docs/v2/deep-dive/request-lifecycle</FileRef>.
 
-## 1. API Entry Point
+<FlowStep step="1" title="API Entry Point">
+
 
 The journey begins when a client sends a POST request to `/api/v1/conversation/message`.
 
@@ -50,7 +51,9 @@ The journey begins when a client sends a POST request to `/api/v1/conversation/m
   packagePath="com.github.salilvnair.convengine.api.controller"
   filePath="src/main/java/com/github/salilvnair/convengine/api/controller/ConversationController.java"
 >
-{`@PostMapping("/message")
+
+```java
+@PostMapping("/message")
 public ConversationResponse message(@RequestBody ConversationRequest request) {
   EngineContext engineContext = EngineContext.builder()
       .conversationId(request.getConversationId())
@@ -61,10 +64,15 @@ public ConversationResponse message(@RequestBody ConversationRequest request) {
   EngineResult result = engine.process(engineContext);
 
   return mapToResponse(result);
-}`}
+}
+```
+
 </CodeBlockToggle>
 
-## 2. Engine Processing
+</FlowStep>
+
+<FlowStep step="2" title="Engine Processing">
+
 
 <CodeBlockToggle
   title="DefaultConversationalEngine.process"
@@ -72,16 +80,23 @@ public ConversationResponse message(@RequestBody ConversationRequest request) {
   packagePath="com.github.salilvnair.convengine.engine.provider"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java"
 >
-{`@Override
+
+```java
+@Override
 public EngineResult process(EngineContext engineContext) {
   EngineSession session = sessionFactory.open(engineContext);
   session.setConversationHistory(historyProvider.lastTurns(session.getConversationId(), 10));
   EnginePipeline pipeline = pipelineFactory.create();
   return pipeline.execute(session);
-}`}
+}
+```
+
 </CodeBlockToggle>
 
-## 3. The Pipeline (Step-by-Step)
+</FlowStep>
+
+<FlowStep step="3" title="The Pipeline (Step-by-Step)">
+
 
 <PipelineStepList ariaLabel="Pipeline step-by-step (v2)" steps={v2PipelineSteps} />
 
@@ -92,3 +107,5 @@ public EngineResult process(EngineContext engineContext) {
 <Highlight type="success" title="Audit Trail + Real-world trace">
 Every step emits audit events. Use `/audit/{id}/trace`, then open <FileRef>/docs/v2/deep-dive/request-lifecycle</FileRef> and <FileRef>/docs/v2/deep-dive/examples</FileRef> to compare turn-by-turn real-world traces.
 </Highlight>
+
+</FlowStep>

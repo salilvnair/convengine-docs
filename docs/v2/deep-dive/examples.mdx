@@ -81,7 +81,9 @@ This page is intentionally dense. Each flow is shown as:
 />
 
 <CodeBlockToggle title="FAQ seed snippet" language="sql">
-{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+
+```sql
+INSERT INTO ce_intent (intent_code, description, priority, enabled)
 VALUES ('FAQ', 'Answer informational questions from FAQ knowledge base', 10, true);
 
 INSERT INTO ce_intent_classifier (intent_code, rule_type, pattern, priority, enabled)
@@ -95,7 +97,9 @@ VALUES ('FAQ', 'IDLE', 'TEXT',
 
 INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
 VALUES ('FAQ', 'IDLE', 'TEXT', 'DERIVED',
-        'Answer FAQ using available context and user question.', 10, true);`}
+        'Answer FAQ using available context and user question.', 10, true);
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -117,24 +121,32 @@ VALUES ('FAQ', 'IDLE', 'TEXT', 'DERIVED',
 />
 
 <CodeBlockToggle title="Audit payload checkpoint: DIALOGUE_ACT_CLASSIFIED" language="json">
-{`{
+
+```json
+{
   "_meta": { "stage": "DIALOGUE_ACT_CLASSIFIED" },
   "userText": "How do I transfer my electricity connection?",
   "dialogueAct": "QUESTION",
   "dialogueActConfidence": 0.70,
   "dialogueActSource": "REGEX"
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="Audit payload checkpoint: INTERACTION_POLICY_DECIDED" language="json">
-{`{
+
+```json
+{
   "_meta": { "stage": "INTERACTION_POLICY_DECIDED" },
   "dialogueAct": "QUESTION",
   "policyDecision": "RECLASSIFY_INTENT",
   "skipIntentResolution": false,
   "hasPendingAction": false,
   "hasPendingSlot": false
-}`}
+}
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -214,7 +226,9 @@ VALUES ('FAQ', 'IDLE', 'TEXT', 'DERIVED',
 />
 
 <CodeBlockToggle title="Seed snippet: pending action + rules" language="sql">
-{`INSERT INTO ce_pending_action
+
+```sql
+INSERT INTO ce_pending_action
 (intent_code, state_code, action_key, bean_name, method_names, priority, enabled, description)
 VALUES
 ('CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'FINALIZE_CONNECTION_TRANSFER',
@@ -229,7 +243,9 @@ VALUES
  'SET_STATE', 'AWAITING_CONFIRMATION', 100, true),
 ('PRE_RESPONSE_RESOLUTION', 'CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'JSON_PATH',
  '$[?(@.state == ''AWAITING_CONFIRMATION'' && (@.pending_action_result == ''EXECUTED'' || @.inputParams.pending_action_result == ''EXECUTED''))]',
- 'SET_STATE', 'COMPLETED', 200, true);`}
+ 'SET_STATE', 'COMPLETED', 200, true);
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -252,25 +268,33 @@ VALUES
 />
 
 <CodeBlockToggle title="Audit payload checkpoint: PENDING_ACTION_EXECUTED" language="json">
-{`{
+
+```json
+{
   "_meta": { "stage": "PENDING_ACTION_EXECUTED" },
   "policyDecision": "EXECUTE_PENDING_ACTION",
   "pendingActionRef": "faqRuleTask:injectContainerData",
   "pendingActionResult": "EXECUTED",
   "intent": "CONNECTION_TRANSFER",
   "state": "AWAITING_CONFIRMATION"
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="Audit payload checkpoint: RULE_APPLIED after execution" language="json">
-{`{
+
+```json
+{
   "_meta": { "stage": "RULE_APPLIED" },
   "rulePhase": "PRE_RESPONSE_RESOLUTION",
   "intent": "CONNECTION_TRANSFER",
   "ruleStateCode": "AWAITING_CONFIRMATION",
   "action": "SET_STATE",
   "actionValue": "COMPLETED"
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <Highlight type="success" title="Fast failure triage">
@@ -326,7 +350,9 @@ If user says "yes" but flow loops back to confirmation, check in order:
   <TabItem value="db" label="Required ce_* Rows">
 
 <CodeBlockToggle title="Dynamic Slot & Task DML" language="sql" defaultOpen={true}>
-{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+
+```sql
+INSERT INTO ce_intent (intent_code, description, priority, enabled)
 VALUES ('CANCEL_ORDER', 'Cancel an order after collecting order number and confirmation.', 100, true);
 
 INSERT INTO ce_output_schema (intent_code, state_code, json_schema, description, enabled, priority)
@@ -364,7 +390,9 @@ INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_p
 VALUES ('CANCEL_ORDER', 'CANCELLED', 'DERIVED', 'Format cleanly.', 'Order {{context.orderNumber}} has been completely cancelled.', 0.0, true);
 
 INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
-VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Render the CANCELLED prompt using context.orderNumber.', 10, true);`}
+VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Render the CANCELLED prompt using context.orderNumber.', 10, true);
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -385,14 +413,18 @@ VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Render the CANCELLED pr
 />
 
 <CodeBlockToggle title="Audit payload checkpoint: PENDING_ACTION_EXECUTED" language="json">
-{`{
+
+```json
+{
   "_meta": { "stage": "PENDING_ACTION_EXECUTED" },
   "policyDecision": "EXECUTE_PENDING_ACTION",
   "pendingActionRef": "stripeCancelTask",
   "pendingActionResult": "EXECUTED",
   "intent": "CANCEL_ORDER",
   "state": "CONFIRM_CANCEL"
-}`}
+}
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -430,7 +462,9 @@ VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Render the CANCELLED pr
   <TabItem value="db" label="Required ce_* Rows">
 
 <CodeBlockToggle title="Tool Orchestration DML" language="sql" defaultOpen={true}>
-{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+
+```sql
+INSERT INTO ce_intent (intent_code, description, priority, enabled)
 VALUES ('DATABASE_QUERY', 'Answer read-only inventory queries using MCP DB tools.', 100, true);
 
 INSERT INTO ce_mcp_tool (tool_code, tool_group, intent_code, state_code, enabled, description)
@@ -440,7 +474,9 @@ INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_p
 VALUES ('DATABASE_QUERY', 'COMPLETED', 'DERIVED', 'You are an inventory assistant.', 'Answer from these database results: {{context.mcp.finalAnswer}}', 0.0, true);
 
 INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
-VALUES ('DATABASE_QUERY', 'COMPLETED', 'TEXT', 'DERIVED', 'Render the final answer from context.mcp.finalAnswer.', 10, true);`}
+VALUES ('DATABASE_QUERY', 'COMPLETED', 'TEXT', 'DERIVED', 'Render the final answer from context.mcp.finalAnswer.', 10, true);
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -493,14 +529,18 @@ VALUES ('DATABASE_QUERY', 'COMPLETED', 'TEXT', 'DERIVED', 'Render the final answ
   <TabItem value="db" label="Required Configuration">
 
 <CodeBlockToggle title="Memory Auto-Summarization Config" language="yaml" defaultOpen={true}>
-{`convengine:
+
+```yaml
+convengine:
   flow:
     memory:
       enabled: true
       # Max token size for the compressed summary string
       summary-max-chars: 1200
       # Number of turns to trigger a new summary compression cycle
-      recent-turns-for-summary: 3`}
+      recent-turns-for-summary: 3
+```
+
 </CodeBlockToggle>
 
   </TabItem>

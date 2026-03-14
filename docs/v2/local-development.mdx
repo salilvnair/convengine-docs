@@ -3,10 +3,13 @@ title: Local Development
 sidebar_position: 4
 ---
 
-import { CodeBlockToggle, Highlight, MethodRef } from "@site/src/components/convengine";
+import { CodeBlockToggle, Highlight, MethodRef,
+  FlowStep
+} from "@site/src/components/convengine";
 
 # Local Development
 
+<div className="ce-schema ce-intro-box">
 This page covers the practical local setup loop for the current v2 framework, not the early-v2 minimum-only setup.
 
 The modern local dev workflow should help you do five things reliably:
@@ -16,6 +19,7 @@ The modern local dev workflow should help you do five things reliably:
 - inspect audit and trace output
 - reload static config safely
 - debug rule, prompt, MCP, and response behavior quickly
+</div>
 
 ## Local prerequisites
 
@@ -37,7 +41,9 @@ Recommended for a productive setup:
 ## Minimal application wiring
 
 <CodeBlockToggle title="Recommended local bootstrap" language="java">
-{`@SpringBootApplication
+
+```java
+@SpringBootApplication
 @EnableConvEngine(stream = true)
 @EnableConvEngineCaching
 @EnableConvEngineAsyncConversation
@@ -45,7 +51,9 @@ public class MyApplication {
   public static void main(String[] args) {
     SpringApplication.run(MyApplication.class, args);
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 Add `@EnableConvEngineAsyncAuditDispatch` only if you want to test async audit dispatch behavior locally.
@@ -65,7 +73,9 @@ If any of those are missing, the framework may start but your target flow will s
 ## Recommended local config
 
 <CodeBlockToggle title="Local application.yml baseline" language="yaml">
-{`server:
+
+```yaml
+server:
   port: 8080
 
 spring:
@@ -163,7 +173,9 @@ convengine:
       fail-closed: false
 
   experimental:
-    enabled: false`}
+    enabled: false
+```
+
 </CodeBlockToggle>
 
 ## Local database setup strategy
@@ -230,7 +242,8 @@ Use cache analysis when you need to confirm whether the expected table cache is 
 
 ## Debugging the most important runtime surfaces
 
-### 1. Rule and state debugging
+<FlowStep step="1" title="Rule and state debugging">
+
 
 Check:
 
@@ -241,7 +254,10 @@ Check:
 
 If the engine is "technically working" but answering incorrectly, this is often where the root cause lives.
 
-### 2. Prompt and LLM debugging
+</FlowStep>
+
+<FlowStep step="2" title="Prompt and LLM debugging">
+
 
 Check:
 
@@ -253,7 +269,10 @@ Check:
 
 Modern v2 uses shared prompt rendering, so a prompt-variable issue can affect multiple steps.
 
-### 3. MCP debugging
+</FlowStep>
+
+<FlowStep step="3" title="MCP debugging">
+
 
 Check:
 
@@ -264,13 +283,15 @@ Check:
 - `MCP_TOOL_ERROR`
 - `MCP_FINAL_ANSWER`
 - `MCP_DB_SQL_EXECUTION`
-- `DBKG_QUERY_SQL_EXECUTION`
 
-For SQL-backed MCP and Database Knowledge Graph (DBKG) queries, inspect the audit payload metadata: `sql`, `params`, `row_count`, and `rows`.
+For SQL-backed MCP and Semantic Query queries, inspect the audit payload metadata: `sql`, `params`, `row_count`, and `rows`.
 
 Remember that current MCP scope is explicit. If a tool is not visible, verify `intent_code`, `state_code`, and whether the row is too narrow or too broad.
 
-### 4. Direct tool debugging
+</FlowStep>
+
+<FlowStep step="4" title="Direct tool debugging">
+
 
 Check:
 
@@ -280,6 +301,8 @@ Check:
 - `TOOL_ORCHESTRATION_REQUEST`
 - `TOOL_ORCHESTRATION_RESULT`
 - `TOOL_ORCHESTRATION_ERROR`
+
+</FlowStep>
 
 ## When to enable optional local features
 

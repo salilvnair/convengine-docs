@@ -247,13 +247,17 @@ The visual flow highlights the common deterministic runtime path. Conditional/sy
   packagePath="com.github.salilvnair.convengine.api.controller"
   filePath="src/main/java/com/github/salilvnair/convengine/api/controller/ConversationController.java"
 >
-{`EngineContext engineContext = EngineContext.builder()
+
+```java
+EngineContext engineContext = EngineContext.builder()
     .conversationId(conversationId.toString())
     .userText(request.getMessage())
     .inputParams(inputParams)
     .build();
 
-EngineResult result = engine.process(engineContext);`}
+EngineResult result = engine.process(engineContext);
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -262,10 +266,14 @@ EngineResult result = engine.process(engineContext);`}
   packagePath="com.github.salilvnair.convengine.engine.provider"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/provider/DefaultConversationalEngine.java"
 >
-{`EngineSession session = sessionFactory.open(engineContext);
+
+```java
+EngineSession session = sessionFactory.open(engineContext);
 session.setConversationHistory(historyProvider.lastTurns(session.getConversationId(), 10));
 EnginePipeline pipeline = pipelineFactory.create();
-return pipeline.execute(session);`}
+return pipeline.execute(session);
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -278,14 +286,18 @@ return pipeline.execute(session);`}
   packagePath="com.github.salilvnair.convengine.engine.factory"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/factory/EnginePipelineFactory.java"
 >
-{`@PostConstruct
+
+```java
+@PostConstruct
 public void init() {
   List<EngineStep> ordered = orderByDag(discoveredSteps);
   this.pipeline = new EnginePipeline(wrapWithTiming(ordered));
 }
 
 // orderByDag uses @MustRunAfter, @MustRunBefore, @RequiresConversationPersisted
-// wrapWithTiming adds STEP_ENTER / STEP_EXIT / STEP_ERROR audits + hook callbacks`}
+// wrapWithTiming adds STEP_ENTER / STEP_EXIT / STEP_ERROR audits + hook callbacks
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -294,13 +306,17 @@ public void init() {
   packagePath="com.github.salilvnair.convengine.engine.pipeline"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/pipeline/EnginePipeline.java"
 >
-{`for (EngineStep step : steps) {
+
+```java
+for (EngineStep step : steps) {
   StepResult r = step.execute(session);
   if (r instanceof StepResult.Stop(EngineResult result)) {
     return result;
   }
 }
-return session.getFinalResult();`}
+return session.getFinalResult();
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -313,12 +329,16 @@ return session.getFinalResult();`}
   packagePath="com.github.salilvnair.convengine.engine.hook"
   filePath="src/main/java/com/github/salilvnair/convengine/engine/hook/EngineStepHook.java"
 >
-{`public interface EngineStepHook {
+
+```java
+public interface EngineStepHook {
     default boolean supports(EngineStep.Name stepName, EngineSession session) { return true; }
     default void beforeStep(EngineStep.Name stepName, EngineSession session) {}
     default void afterStep(EngineStep.Name stepName, EngineSession session, StepResult result) {}
     default void onStepError(EngineStep.Name stepName, EngineSession session, Throwable error) {}
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -326,7 +346,9 @@ return session.getFinalResult();`}
   language="java"
   packagePath="com.zapper.convengine.hooks"
 >
-{`@Component
+
+```java
+@Component
 public class MyHook implements EngineStepHook {
   @Override
   public boolean supports(EngineStep.Name stepName, EngineSession session) {
@@ -337,7 +359,9 @@ public class MyHook implements EngineStepHook {
   public void beforeStep(EngineStep.Name stepName, EngineSession session) {
     session.putInputParam("consumer_hint", "compact");
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
   </TabItem>

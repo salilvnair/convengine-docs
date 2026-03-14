@@ -65,7 +65,7 @@ When triggered, it clears:
 - The `contextJson` (wiping all extracted schema facts).
 - The `inputParamsJson`.
 
-The session is marked as \`RUNNING\` again, but completely fresh. An audit event `CONVERSATION_RESET` is logged.
+The session is marked as `RUNNING` again, but completely fresh. An audit event `CONVERSATION_RESET` is logged.
 
 <CodeBlockToggle title="ResetConversationStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/ResetConversationStep.java" defaultOpen={true}>
 {`public StepResult execute(EngineSession session) {
@@ -173,7 +173,7 @@ Records the raw text query the user typed on this turn into the `ce_audit` table
 Secures the pipeline against prohibited input using `ce_policy`.
 
 It reads all active rows from `ce_policy`, executing either `REGEX`, `EXACT`, or `LLM` rules against the user's raw text. If a match occurs:
-- The conversation is forced to a \`BLOCKED\` status.
+- The conversation is forced to a `BLOCKED` status.
 - A `StepResult.Stop()` is returned immediately, skipping all remaining NLP and intent steps.
 - The `ce_policy.response_text` is loaded as the final payload shipped back to the consumer.
 

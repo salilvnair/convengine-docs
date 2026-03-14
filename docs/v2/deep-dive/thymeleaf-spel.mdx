@@ -108,7 +108,9 @@ Use `[[...]]` for rendered text output. Use `${...}` inside conditions and defau
 ## Prompt examples
 
 <CodeBlockToggle title="ce_prompt_template.user_prompt example" language="text">
-{`User input:
+
+```text
+User input:
 [[\${resolved_user_input}]]
 
 Current intent/state:
@@ -121,7 +123,9 @@ Loan draft:
 - tenureMonths: [[\${context.tenureMonths}]]
 
 If awaiting confirmation is true, ask for confirmation only.
-Awaiting confirmation: [[\${inputParams.awaiting_confirmation}]]`}
+Awaiting confirmation: [[\${inputParams.awaiting_confirmation}]]
+```
+
 </CodeBlockToggle>
 
 ## Conditional/default examples
@@ -129,9 +133,13 @@ Awaiting confirmation: [[\${inputParams.awaiting_confirmation}]]`}
 You can use SpEL-backed Thymeleaf expressions for simple branching and fallbacks:
 
 <CodeBlockToggle title="Conditional and fallback examples" language="text">
-{`[[\${context.customerId != null ? context.customerId : 'UNKNOWN_CUSTOMER'}]]
+
+```text
+[[\${context.customerId != null ? context.customerId : 'UNKNOWN_CUSTOMER'}]]
 [[\${inputParams.correction_applied == true ? 'Updated value captured.' : 'No correction applied.'}]]
-[[\${context.mcp != null && context.mcp.finalAnswer != null ? context.mcp.finalAnswer : 'Processing is still in progress.'}]]`}
+[[\${context.mcp != null && context.mcp.finalAnswer != null ? context.mcp.finalAnswer : 'Processing is still in progress.'}]]
+```
+
 </CodeBlockToggle>
 
 ## SpEL examples for confirmation-first flows
@@ -139,27 +147,37 @@ You can use SpEL-backed Thymeleaf expressions for simple branching and fallbacks
 These are the kinds of checks that pair well with `SET_INPUT_PARAM`, `DialogueActStep`, and `CorrectionStep`:
 
 <CodeBlockToggle title="Confirmation-focused SpEL examples" language="text">
-{`[[\${inputParams.awaiting_confirmation == true ? 'Awaiting user confirmation.' : 'No confirmation gate active.'}]]
+
+```text
+[[\${inputParams.awaiting_confirmation == true ? 'Awaiting user confirmation.' : 'No confirmation gate active.'}]]
 [[\${inputParams.routing_decision == 'PROCEED_CONFIRMED' ? 'User confirmed. Start processing.' : 'Still waiting for confirmation.'}]]
-[[\${inputParams.correction_applied == true ? 'Updated ' + inputParams.correction_target_field + '.' : 'No correction applied.'}]]`}
+[[\${inputParams.correction_applied == true ? 'Updated ' + inputParams.correction_target_field + '.' : 'No correction applied.'}]]
+```
+
 </CodeBlockToggle>
 
 ## Verbose message examples
 
 <CodeBlockToggle title="ce_verbose.message example" language="sql">
-{`INSERT INTO ce_verbose
+
+```sql
+INSERT INTO ce_verbose
   (intent_code, state_code, step_match, step_value, determinant, message, error_message, priority, enabled)
 VALUES
   ('LOAN_APPLICATION', 'CONFIRMATION', 'EXACT', 'CorrectionStep', 'CORRECTION_PATCH_APPLIED',
    'Updated [[\${correction_target_field}]]. Please confirm customer [[\${context.customerId}]] again.',
    'Could not apply the requested correction for [[\${context.customerId}]].',
-   10, true);`}
+   10, true);
+```
+
 </CodeBlockToggle>
 
 ## Direct adapter example
 
 <CodeBlockToggle title="ConvEngineVerboseAdapter with Thymeleaf text" language="java">
-{`@Component
+
+```java
+@Component
 @RequiredArgsConstructor
 public class LoanHook implements EngineStepHook {
 
@@ -174,7 +192,9 @@ public class LoanHook implements EngineStepHook {
         "Starting review for [[\${context.customerId}]] in state [[\${state}]]."
     );
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ## What happens when variables are missing

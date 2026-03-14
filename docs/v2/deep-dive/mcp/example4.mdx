@@ -1,125 +1,120 @@
 ---
-title: Example 4 - Zapper Disconnect
+title: Example 4 - Semantic Query (Zapper)
 sidebar_position: 9
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import { DbTable, Highlight, EngineDebugFlow, ChatContainer, TraceChatBubble, CodeBlockToggle } from "@site/src/components/convengine";
+import {
+  DbTable,
+  Highlight,
+  EngineDebugFlow,
+  ChatContainer,
+  TraceChatBubble,
+  CodeBlockToggle,
+  PromptSuite
+} from "@site/src/components/convengine";
 
-export const zapperNodes = [
+export const exampleNodes = [
   { id: "u", data: { label: "1. User request" } },
-  { id: "i", data: { label: "2. IntentResolutionStep" } },
-  { id: "r0", data: { label: "3. RulesStep" } },
-  { id: "mt", data: { label: "4. McpToolStep" } },
-  { id: "mp", data: { label: "5. McpPlanner" } },
-  { id: "c", data: { label: "6. DbkgCaseResolveToolHandler" } },
-  { id: "cr", data: { label: "7. DbkgCaseResolver" } },
-  { id: "k", data: { label: "8. DbkgKnowledgeLookupToolHandler" } },
-  { id: "ks", data: { label: "9. DbkgKnowledgeLookupService" } },
-  { id: "pl", data: { label: "10. DbkgInvestigatePlanToolHandler" } },
-  { id: "pr", data: { label: "11. DbkgPlaybookResolver" } },
-  { id: "v", data: { label: "12. DbkgPlaybookValidateToolHandler" } },
-  { id: "vv", data: { label: "13. DbkgPlaybookValidator" } },
-  { id: "e", data: { label: "14. DbkgInvestigateExecuteToolHandler" } },
-  { id: "ee", data: { label: "15. DbkgPlaybookEngine" } },
-  { id: "ma", data: { label: "16. McpToolStep" } },
-  { id: "pa", data: { label: "17. McpPlanner" } },
-  { id: "r", data: { label: "18. RulesStep" } },
-  { id: "rr", data: { label: "19. ResponseResolutionStep" } },
-  { id: "o", data: { label: "20. Assistant output" } }
+  { id: "ir", data: { label: "2. IntentResolutionStep + RulesStep" } },
+  { id: "mp", data: { label: "3. McpPlanner" } },
+  { id: "si", data: { label: "4. db.semantic.interpret" } },
+  { id: "sq", data: { label: "5. db.semantic.query" } },
+  { id: "pq", data: { label: "6. postgres.query" } },
+  { id: "ans", data: { label: "7. MCP Final Answer" } },
+  { id: "out", data: { label: "8. Assistant output" } }
 ];
 
-export const zapperEdges = [
-  { id: "e1", source: "u", target: "i" },
-  { id: "e2", source: "i", target: "r0" },
-  { id: "e3", source: "r0", target: "mt" },
-  { id: "e4", source: "mt", target: "mp" },
-  { id: "e5", source: "mp", target: "c" },
-  { id: "e6", source: "c", target: "cr" },
-  { id: "e7", source: "cr", target: "k" },
-  { id: "e8", source: "k", target: "ks" },
-  { id: "e9", source: "ks", target: "pl" },
-  { id: "e10", source: "pl", target: "pr" },
-  { id: "e11", source: "pr", target: "v" },
-  { id: "e12", source: "v", target: "vv" },
-  { id: "e13", source: "vv", target: "e" },
-  { id: "e14", source: "e", target: "ee" },
-  { id: "e15", source: "ee", target: "ma" },
-  { id: "e16", source: "ma", target: "pa" },
-  { id: "e17", source: "pa", target: "r" },
-  { id: "e18", source: "r", target: "rr" },
-  { id: "e19", source: "rr", target: "o" }
+export const exampleEdges = [
+  { id: "e1", source: "u", target: "ir" },
+  { id: "e2", source: "ir", target: "mp" },
+  { id: "e3", source: "mp", target: "si" },
+  { id: "e4", source: "si", target: "sq" },
+  { id: "e5", source: "sq", target: "pq" },
+  { id: "e6", source: "pq", target: "ans" },
+  { id: "e7", source: "ans", target: "out" }
 ];
 
-export const zapperDetails = {
-  u: { title: "1. User request", stage: "REQUEST", summary: "Operator asks in business language.", session: ["userText"], tables: ["ce_audit (W)"] },
-  i: { title: "2. IntentResolutionStep", stage: "INTENT", summary: "IntentResolutionStep classifies the request into the Database Knowledge Graph (DBKG) diagnostic intent.", session: ["intent=DBKG_DIAGNOSTICS"], tables: ["ce_intent_classifier (R)", "ce_audit (W)"] },
-  r0: { title: "3. RulesStep", stage: "POST_AGENT_INTENT", summary: "RulesStep runs POST_AGENT_INTENT rules and moves the flow into ANALYZE.", session: ["state=ANALYZE"], tables: ["ce_rule (POST_AGENT_INTENT) (R)", "ce_audit (W)"] },
-  mt: { title: "4. McpToolStep", stage: "MCP_PLAN", summary: "McpToolStep starts the planner loop and manages MCP lifecycle state.", session: ["context.mcp.lifecycle active"], tables: ["ce_audit (W)"] },
-  mp: { title: "5. McpPlanner", stage: "MCP_PLAN", summary: "McpPlanner reads ce_mcp_planner and ce_mcp_tool to choose the next Database Knowledge Graph (DBKG) tool.", session: ["mcp_action", "mcp_tool_code"], tables: ["ce_mcp_planner (R)", "ce_mcp_tool (R)"] },
-  c: { title: "6. DbkgCaseResolveToolHandler", stage: "MCP_TOOL_CALL", summary: "The tool handler receives dbkg.case.resolve.", session: ["tool_code=dbkg.case.resolve"], tables: ["ce_audit (W)"] },
-  cr: { title: "7. DbkgCaseResolver", stage: "MCP_TOOL_CALL", summary: "DbkgCaseResolver scores the question against case metadata and returns the selected case.", session: ["rankedCases", "selectedCase"], tables: ["ce_mcp_case_type (R)", "ce_mcp_case_signal (R)"] },
-  k: { title: "8. DbkgKnowledgeLookupToolHandler", stage: "MCP_TOOL_CALL", summary: "The tool handler receives dbkg.knowledge.lookup.", session: ["tool_code=dbkg.knowledge.lookup"], tables: ["ce_audit (W)"] },
-  ks: { title: "9. DbkgKnowledgeLookupService", stage: "MCP_TOOL_CALL", summary: "DbkgKnowledgeLookupService loads the semantic graph and live schema context.", session: ["entities", "systems", "apiFlows", "dbObjects"], tables: ["ce_mcp_domain_entity (R)", "ce_mcp_system_node (R)", "ce_mcp_api_flow (R)", "JDBC metadata (R)"] },
-  pl: { title: "10. DbkgInvestigatePlanToolHandler", stage: "MCP_TOOL_CALL", summary: "The tool handler receives dbkg.investigate.plan.", session: ["tool_code=dbkg.investigate.plan"], tables: ["ce_audit (W)"] },
-  pr: { title: "11. DbkgPlaybookResolver", stage: "MCP_TOOL_CALL", summary: "DbkgPlaybookResolver selects the playbook and loads steps plus transitions.", session: ["selectedPlaybook", "steps", "transitions"], tables: ["ce_mcp_playbook (R)", "ce_mcp_playbook_step (R)", "ce_mcp_playbook_transition (R)"] },
-  v: { title: "12. DbkgPlaybookValidateToolHandler", stage: "MCP_TOOL_CALL", summary: "The tool handler receives dbkg.playbook.validate.", session: ["tool_code=dbkg.playbook.validate"], tables: ["ce_audit (W)"] },
-  vv: { title: "13. DbkgPlaybookValidator", stage: "MCP_TOOL_CALL", summary: "DbkgPlaybookValidator verifies graph integrity before execution.", session: ["valid", "graphError", "startStepCode"], tables: ["ce_mcp_playbook_step (R)", "ce_mcp_playbook_transition (R)"] },
-  e: { title: "14. DbkgInvestigateExecuteToolHandler", stage: "MCP_TOOL_CALL", summary: "The tool handler receives dbkg.investigate.execute.", session: ["tool_code=dbkg.investigate.execute"], tables: ["ce_audit (W)"] },
-  ee: { title: "15. DbkgPlaybookEngine", stage: "MCP_TOOL_CALL", summary: "DbkgPlaybookEngine runs the validated playbook DAG, executes approved SQL, and resolves the outcome.", session: ["stepsExecuted", "outcome", "context.mcp.observations[]"], tables: ["ce_mcp_query_template (R)", "ce_mcp_query_param_rule (R)", "zp_* (R)", "ce_mcp_outcome_rule (R)"] },
-  ma: { title: "16. McpToolStep", stage: "MCP_FINAL_ANSWER", summary: "McpToolStep continues the planner loop after tool execution.", session: ["context.mcp.observations[]"], tables: ["ce_audit (W)"] },
-  pa: { title: "17. McpPlanner", stage: "MCP_FINAL_ANSWER", summary: "McpPlanner sees the Database Knowledge Graph (DBKG) observations and returns ANSWER.", session: ["context.mcp.finalAnswer"], tables: ["ce_mcp_planner (R)"] },
-  r: { title: "18. RulesStep", stage: "POST_AGENT_MCP", summary: "RulesStep runs the POST_AGENT_MCP phase after MCP completes.", session: ["state mutation candidates"], tables: ["ce_rule (POST_AGENT_MCP) (R)", "ce_audit (W)"] },
-  rr: { title: "19. ResponseResolutionStep", stage: "RESOLVE_RESPONSE", summary: "ResponseResolutionStep uses ce_response and ce_prompt_template to build the final transport payload.", session: ["final payload"], tables: ["ce_response (R)", "ce_prompt_template (R)"] },
-  o: { title: "20. Assistant output", stage: "ASSISTANT_OUTPUT", summary: "The operator receives one final assistant message.", session: ["result returned"], tables: ["ce_conversation (W)", "ce_audit (W)"] }
+export const exampleDetails = {
+  u: {
+    title: "1. User request",
+    stage: "REQUEST",
+    summary: "Business question; no SQL from user.",
+    session: ["userText", "standaloneQuery (if query-rewrite enabled)"],
+    tables: ["ce_audit (W)"]
+  },
+  ir: {
+    title: "2. IntentResolutionStep + RulesStep",
+    stage: "POST_AGENT_INTENT",
+    summary: "Classifier routes to SEMANTIC_QUERY / ANALYZE.",
+    session: ["intent=SEMANTIC_QUERY", "state=ANALYZE"],
+    tables: ["ce_intent_classifier (R)", "ce_rule (R)", "ce_audit (W)"]
+  },
+  mp: {
+    title: "3. McpPlanner",
+    stage: "MCP_PLAN",
+    summary: "Planner resolves semantic turn to CALL_TOOL with semantic chain tools.",
+    session: ["context.mcp.lifecycle.*", "MCP_ACTION", "MCP_TOOL_CODE"],
+    tables: ["ce_mcp_planner (R)", "ce_mcp_tool (R)", "ce_audit (W)"]
+  },
+  si: {
+    title: "4. db.semantic.interpret",
+    stage: "SEMANTIC_INTERPRET",
+    summary: "Agent-1 builds CanonicalIntent JSON, manages clarification thresholds, and blocks unsupported domains.",
+    session: ["canonicalIntent", "needsClarification", "operationSupported"],
+    tables: ["ce_prompt_template (R)", "ce_output_schema (R)", "ce_semantic_* (R)"]
+  },
+  sq: {
+    title: "5. db.semantic.query",
+    stage: "SEMANTIC_QUERY",
+    summary: "Agent-2 generates READ-ONLY SQL with named params, loops on DB guardrail errors, and applies failure memory.",
+    session: ["compiledSql", "params", "retryAttempt", "unsupported"],
+    tables: ["ce_config (R)", "ce_semantic_mapping (R)", "ce_semantic_query_failures (R/W)"]
+  },
+  pq: {
+    title: "6. postgres.query",
+    stage: "POSTGRES_QUERY_EXECUTION",
+    summary: "Runs read-only SQL safely with parameter coercion against business tables.",
+    session: ["rowCount", "rows"],
+    tables: ["zp_disco_request (R)", "zp_disco_trans_data (R)", "ce_semantic_query_failures (W correction)"]
+  },
+  ans: {
+    title: "7. MCP Final Answer",
+    stage: "MCP_FINAL_ANSWER",
+    summary: "Planner composes final answer from the raw data returned by the postgres tool observation.",
+    session: ["context.mcp.finalAnswer"],
+    tables: ["ce_mcp_planner (R)"]
+  },
+  out: {
+    title: "8. Assistant output",
+    stage: "ASSISTANT_OUTPUT",
+    summary: "Response resolver emits final payload to user.",
+    session: ["payload"],
+    tables: ["ce_response (R)", "ce_prompt_template (R)", "ce_audit (W)"]
+  }
 };
 
-# MCP Example 4 - Zapper Disconnect
+# Example 4 - Semantic Query (Zapper)
 
-This is the concrete Database Knowledge Graph (DBKG) example. It uses the new transaction schema under `src/main/resources/sql/zapper` plus the Database Knowledge Graph (DBKG) metadata package under `src/main/resources/sql/mcp/dbkg`.
+This example completely validates your text-to-SQL architecture end-to-end utilizing the robust **2-Agent Pipeline** (`db.semantic.interpret` → `db.semantic.query`).
 
-The example shows four production-style questions against real tables:
-- assigned then rejected in the last 24 hours
-- inventory not found during ASR handling
-- submitted disconnect older than 24 hours without final disconnect id
-- disconnect id exists in order but is missing in BillBank
-
-<Highlight type="warning" title="Important runtime expectation">
-The cleanest way to test this flow is with the Database Knowledge Graph (DBKG) planner scope (`intent=DBKG_DIAGNOSTICS`, `state=ANALYZE`) so the seeded planner prompt forces `validate -> execute` ordering.
+<Highlight type="info" title="What this validates">
+This example validates your full semantic runtime capability: intent routing, semantic interpretation, automatic clarifications, schema retrieval, read-only SQL compilation, parameterized execution, policy guardrails, and final text summarization.
 </Highlight>
 
-<Highlight type="info" title="How this trace maps to real runtime behavior">
-Each user turn below now shows exactly one real assistant message. The same assistant bubble includes the internal MCP trace in its JSON/details section so the example stays faithful to actual ConvEngine runtime behavior while still showing what happened inside the Database Knowledge Graph (DBKG) tool chain.
-</Highlight>
+## Pipeline Architecture
 
-## Transaction tables used in this example
-
-<DbTable
-  title="Zapper transaction map"
-  columns={["Table", "Role in the story", "Main IDs"]}
-  rows={[
-    ["zp_customer", "Who owns the service.", "customer_id"],
-    ["zp_account", "Commercial contract and billing plan.", "account_id"],
-    ["zp_location", "Physical service site.", "location_id"],
-    ["zp_account_location", "Account-to-location bridge.", "acc_loc_id, customer_loc_id"],
-    ["zp_connection", "Provisioned live service.", "zp_connection_id, zapper_id"],
-    ["zp_inventory_service", "Inventory truth used during ASR checks.", "inventory_id, acc_loc_id"],
-    ["zp_request", "Disconnect request row.", "zp_request_id"],
-    ["zp_ui_data", "Current UI state.", "zp_request_id, zp_action_id"],
-    ["zp_ui_data_history", "Audit trail of status changes.", "history_id, zp_request_id"],
-    ["zp_disconnect_order", "ASO submit / downstream order state.", "don, zp_disconnect_id"],
-    ["zp_order_downstream_check", "Per-check pass/fail evidence.", "check_id, don"],
-    ["zp_billbank_record", "Billing-side state.", "billbank_id, zp_disconnect_id"],
-    ["zp_notification_event", "SLA and sync alerts.", "notification_id"],
-  ]}
+<EngineDebugFlow
+  title="Semantic Query End-to-End"
+  subtitle="Intent -> planner -> interpret -> query -> postgres -> final answer"
+  nodes={exampleNodes}
+  edges={exampleEdges}
+  detailsById={exampleDetails}
+  defaultSelectedId="sq"
 />
 
-## Internal Database Knowledge Graph (DBKG) flow
-
-<EngineDebugFlow title="Database Knowledge Graph (DBKG) Zapper flow" subtitle="Planner -> validate -> execute on top of real transaction tables" nodes={zapperNodes} edges={zapperEdges} detailsById={zapperDetails} defaultSelectedId="mt" />
-
-<Tabs groupId="mcp-example-4">
+<Tabs groupId="mcp-example-4-semantic">
   <TabItem value="chat" label="Chat + Trace" default>
 
 <ChatContainer>
@@ -127,10 +122,7 @@ Each user turn below now shows exactly one real assistant message. The same assi
     role="user"
     name="Turn 0 - User"
     message="Hi"
-    info={[
-      "Simple greeting turn.",
-      "No Database Knowledge Graph (DBKG) tools should run here."
-    ]}
+    info={["Greeting turn; no semantic tool call expected."]}
   />
 
   <TraceChatBubble
@@ -139,403 +131,383 @@ Each user turn below now shows exactly one real assistant message. The same assi
     intent="GREETING"
     state="IDLE"
     message="Hi, how can I help you today?"
-    json={{
-      intent: "GREETING",
-      state: "IDLE",
-      mcp: {
-        toolChainSkipped: true
-      }
-    }}
-    tables={[
-      "ce_intent_classifier (R)",
-      "ce_response (R)",
-      "ce_audit (W)"
-    ]}
+    json={{ intent: "GREETING", state: "IDLE", mcp: { toolChainSkipped: true } }}
+    tables={["ce_intent_classifier (R)", "ce_response (R)", "ce_audit (W)"]}
     info={[
-      "Intent classifier matches a greeting pattern.",
-      "McpToolStep does not enter the Database Knowledge Graph (DBKG) tool chain for this turn."
+      "MCP semantic flow is intentionally skipped for greeting.",
+      "ToolOrchestrationStep detects greeting dialogue and skips MCP planner entirely.",
+      "Response resolved directly from ce_response."
     ]}
   />
 
   <TraceChatBubble
     role="user"
     name="Turn 1 - User"
-    message="Show all requests where ASR assigned and then rejected in last 24 hours."
+    message="/sql2 show all disconnect requests where status went from 810 to 120 on march 12"
     info={[
-      "This is the first real Database Knowledge Graph (DBKG) diagnostic turn.",
-      "The operator still speaks in business language, not SQL."
+      "Business-language transition query.",
+      "Classifier matches SEMANTIC_QUERY -> ANALYZE.",
+      "Planner will spin up the 2-Agent pipeline."
     ]}
   />
 
   <TraceChatBubble
     role="assistant"
     name="Turn 1 - Assistant"
-    intent="DBKG_DIAGNOSTICS"
+    intent="SEMANTIC_QUERY"
     state="COMPLETED"
-    message="Found 1 request that moved from ASSIGNED to REJECTED in the last 24 hours: ZPR1001."
+    message="Found 7 disconnect requests where transition 810 -> 120 occurred on March 12."
     json={{
-      intent: "DBKG_DIAGNOSTICS",
-      state: "COMPLETED",
       mcp: {
-        toolOrder: [
-          "dbkg.case.resolve",
-          "dbkg.knowledge.lookup",
-          "dbkg.investigate.plan",
-          "dbkg.playbook.validate",
-          "dbkg.investigate.execute"
-        ],
-        selectedCase: "SERVICE_DISCONNECT",
-        selectedPlaybook: "ASR_ASSIGN_REJECT_AUDIT",
-        validation: { valid: true, canExecute: true },
-        execution: {
-          queryCode: "ZP_UI_HISTORY_ASSIGN_TO_REJECT_LAST_HOURS",
-          outcome: "FOUND_TRANSITIONS",
-          rows: [{ zp_request_id: "ZPR1001", assigned_at: "<now-11h>", rejected_at: "<now-9h>" }]
-        },
-        finalAnswer: "Found 1 request that moved from ASSIGNED to REJECTED in the last 24 hours: ZPR1001."
+        action: "CALL_TOOL -> ANSWER",
+        toolOrder: ["db.semantic.interpret", "db.semantic.query", "postgres.query"],
+        semantic: {
+          queryClass: "TRANSITION_REQUESTS",
+          operationSupported: true,
+          sqlGenerated: true,
+          sqlExecuted: true,
+          resultRows: 7
+        }
       }
     }}
+    sql={`SELECT r.request_id, r.customer_name, r.customer_id, r.status, r.created_at
+FROM zp_disco_request r
+WHERE EXISTS (
+  SELECT 1 FROM zp_disco_request_log l_from
+  JOIN zp_disco_request_log l_to ON l_from.request_id = l_to.request_id
+  WHERE l_from.request_id = r.request_id
+    AND l_from.status = :from_status
+    AND l_to.status = :to_status
+    AND l_to.updated_at >= :start_ts
+    AND l_to.updated_at < :next_day_ts
+)
+ORDER BY r.updated_at DESC
+LIMIT :__limit`}
     tables={[
       "ce_intent_classifier (R)",
-      "ce_rule (POST_AGENT_INTENT / POST_AGENT_MCP) (R)",
+      "ce_rule (R)",
       "ce_mcp_planner (R)",
       "ce_mcp_tool (R)",
-      "ce_mcp_case_type (R)",
-      "ce_mcp_playbook (R)",
-      "zp_ui_data_history (R)",
-      "ce_mcp_outcome_rule (R)",
+      "ce_semantic_mapping (R)",
+      "ce_semantic_query_class (R)",
+      "zp_disco_request (R)",
+      "zp_disco_request_log (R)",
       "ce_response (R)",
-      "ce_prompt_template (R)",
       "ce_audit (W)"
     ]}
     info={[
-      "Intent classifier routes the turn into DBKG_DIAGNOSTICS and ce_rule moves the state into ANALYZE before MCP planning.",
-      "The planner uses ce_mcp_planner + ce_mcp_tool to choose the guarded Database Knowledge Graph (DBKG) tool chain.",
-      "dbkg.case.resolve maps the wording to SERVICE_DISCONNECT.",
-      "dbkg.investigate.plan selects ASR_ASSIGN_REJECT_AUDIT.",
-      "dbkg.playbook.validate succeeds, so dbkg.investigate.execute is allowed.",
-      "The final user-facing answer is still produced through ce_response / ce_prompt_template after MCP completes."
+      "Agent-1 (Interpret) produced canonical filters mapping natural language to fromStatus/toStatus.",
+      "Agent-2 (Query) generated Postgres-dialect SQL with named params using EXISTS-style pattern.",
+      "Timestamp normalization automatically injected `CAST(:start_ts as timestamptz)` if needed.",
+      "Execution executed flawlessly."
     ]}
   />
 
   <TraceChatBubble
     role="user"
     name="Turn 2 - User"
-    message="UPS Irving says inventory not found. Check account UPSA100 and accLocId ALOC200."
-    info={[
-      "This turn mixes business wording with explicit identifiers.",
-      "The IDs make the query parameter resolution deterministic."
-    ]}
+    message="Why did request ZPR1003 fail?"
+    info={["Failure/RCA diagnostic question."]}
   />
 
   <TraceChatBubble
     role="assistant"
     name="Turn 2 - Assistant"
-    intent="DBKG_DIAGNOSTICS"
+    intent="SEMANTIC_QUERY"
     state="COMPLETED"
-    message="The request exists, but there is no matching inventory row for that account-location linkage. The likely break is provisioning or inventory synchronization."
+    message="Request ZPR1003 failed due to a missing downstream disconnect order ID."
     json={{
       mcp: {
-        selectedCase: "INVENTORY_MISMATCH",
-        selectedPlaybook: "ASR_INVENTORY_NOT_FOUND",
-        validation: { valid: true, canExecute: true },
-        execution: {
-          request: "ZPR1002",
-          requestRowCount: 1,
-          inventoryRowCount: 0,
-          outcome: "INVENTORY_MISSING"
+        toolCode: "db.semantic.query",
+        semantic: {
+          retrievalEntity: "RequestFailureLog",
+          astValid: true,
+          sqlCompiled: true,
+          sqlExecuted: true,
+          resultRows: 1
         }
       }
     }}
-    tables={[
-      "ce_intent_classifier (R)",
-      "ce_rule (R)",
-      "zp_request (R)",
-      "zp_ui_data (R)",
-      "zp_inventory_service (R)",
-      "ce_mcp_query_param_rule (R)",
-      "ce_mcp_outcome_rule (R)",
-      "ce_response (R)",
-      "ce_prompt_template (R)",
-      "ce_audit (W)"
-    ]}
+    sql={`SELECT t0.request_id, t0.failure_reason, t0.downstream_status
+FROM zp_order_downstream_check t0
+WHERE t0.request_id = :p1
+LIMIT :__limit`}
+    tables={["zp_order_downstream_check (R)", "ce_audit (W)"]}
     info={[
-      "LOOKUP_REQUEST first resolves the actual request row using the provided ids.",
-      "CHECK_INVENTORY_LINKAGE reuses the request output through PREV_STEP_OUTPUT parameter bindings.",
-      "Because requestRowCount=1 and inventoryRowCount=0, the playbook resolves INVENTORY_MISSING."
+      "Agent-1 identified singular entity lookup.",
+      "Agent-2 correctly mapped to zp_order_downstream_check.",
+      "No complex JOIN required."
     ]}
   />
 
   <TraceChatBubble
     role="user"
     name="Turn 3 - User"
-    message="Check submitted disconnects older than 24 hours with no final disconnect id."
-    info={[
-      "This asks for a submit-failure SLA investigation.",
-      "The time window is derived by the playbook itself."
-    ]}
+    message="Show billbank record for disconnect id ZPDISC7003."
+    info={["BillingRecord entity path test."]}
   />
 
   <TraceChatBubble
     role="assistant"
     name="Turn 3 - Assistant"
-    intent="DBKG_DIAGNOSTICS"
+    intent="SEMANTIC_QUERY"
     state="COMPLETED"
-    message="Found a stuck disconnect: ZPR1003 / DON9001. The downstream failure is TERMINATION_FEE, so the break is inside order-side validations before final disconnect id creation."
+    message="Found 1 matching billbank record for disconnect id ZPDISC7003. Record status is CLOSED with a pending amount of 0.00."
     json={{
       mcp: {
-        selectedCase: "DISCONNECT_SUBMIT_FAILURE",
-        selectedPlaybook: "ASO_SUBMITTED_NO_ZPDISCONNECTID_24H",
-        validation: { valid: true, canExecute: true },
-        execution: {
-          queryCode: "ZP_DISCONNECT_CHAIN_BY_REQUEST",
-          outcome: "DOWNSTREAM_FAILURE_FOUND",
-          rows: [{ zp_request_id: "ZPR1003", don: "DON9001", downstream_status: "FAILED_TERMINATION_FEE", failing_check_code: "TERMINATION_FEE" }]
+        semantic: {
+          retrievalEntity: "BillingRecord",
+          astValid: true,
+          sqlCompiled: true,
+          sqlExecuted: true,
+          resultRows: 1
         }
       }
     }}
-    tables={[
-      "ce_intent_classifier (R)",
-      "ce_rule (R)",
-      "zp_disconnect_order (R)",
-      "zp_order_downstream_check (R)",
-      "ce_mcp_playbook_transition (R)",
-      "ce_mcp_outcome_rule (R)",
-      "ce_response (R)",
-      "ce_prompt_template (R)",
-      "ce_audit (W)"
-    ]}
+    sql={`SELECT t0.billbank_id, t0.account_id, t0.zp_disconnect_id, t0.record_status, t0.pending_bill_amount
+FROM zp_billbank_record t0
+WHERE t0.zp_disconnect_id = :p1
+LIMIT :__limit`}
+    tables={["zp_billbank_record (R)", "ce_audit (W)"]}
     info={[
-      "RESOLVE_TIME_WINDOW derives the threshold timestamp first.",
-      "The query returns disconnect orders older than the threshold that still have no final disconnect id or failed downstream status.",
-      "Outcome logic turns the row into a failure-point diagnosis instead of a raw SQL dump."
+      "Simple entity lookup with filter on disconnectId.",
+      "BillingRecord entity: primary table zp_billbank_record, single EQ filter.",
+      "Agent-1 validated field perfectly against semantic allowed mappings."
     ]}
   />
 
   <TraceChatBubble
     role="user"
     name="Turn 4 - User"
-    message="Which disconnect ids are in order service but not in BillBank?"
-    info={[
-      "This is a reconciliation question.",
-      "It should land in the order-vs-billing gap playbook."
-    ]}
+    message="Delete from zp_disco_request where account_id='UPSA100'"
+    info={["Negative Guardrail / Security Test."]}
   />
 
   <TraceChatBubble
     role="assistant"
     name="Turn 4 - Assistant"
-    intent="DBKG_DIAGNOSTICS"
-    state="COMPLETED"
-    message="Found 1 propagation gap: DON9002 / ZPDISC7002 exists in the order domain but is missing in BillBank."
+    intent="SEMANTIC_QUERY"
+    state="FAILED"
+    message="I cannot execute that. The semantic querying system only allows read-only (SELECT) operations."
     json={{
       mcp: {
-        selectedCase: "BILLING_RECONCILIATION",
-        selectedPlaybook: "ZPOS_BILLBANK_GAP",
-        validation: { valid: true, canExecute: true },
-        execution: {
-          queryCode: "ZP_BILLBANK_RECON_GAPS",
-          outcome: "BILLBANK_GAPS_FOUND",
-          rows: [{ don: "DON9002", zp_disconnect_id: "ZPDISC7002", billbank_status: "MISSING_IN_BILLBANK" }]
-        }
+        toolCode: "db.semantic.query",
+        semantic: { blocked: true, reason: "SELECT-only guardrail" }
       }
     }}
-    tables={[
-      "ce_intent_classifier (R)",
-      "ce_rule (R)",
-      "zp_disconnect_order (R)",
-      "zp_billbank_record (R)",
-      "ce_mcp_query_template (R)",
-      "ce_mcp_outcome_rule (R)",
-      "ce_response (R)",
-      "ce_prompt_template (R)",
-      "ce_audit (W)"
-    ]}
+    tables={["ce_audit (W)"]}
     info={[
-      "The playbook runs the approved reconciliation query, not ad hoc SQL.",
-      "The diagnosis is produced from the row evidence plus ce_mcp_outcome_rule.BILLBANK_GAPS_FOUND."
+      "DML/DDL requests instantly blocked.",
+      "The PostgresQueryToolHandler uses SemanticSqlGuardrail constraints.",
+      "If the LLM managed to hallucinate 'DELETE FROM', the guardrail catches it exactly here. Execution is severed immediately."
     ]}
   />
 </ChatContainer>
 
   </TabItem>
-  <TabItem value="audit" label="Audit + MCP trail">
+
+  <TabItem value="canonical" label="Canonical Intent + SQL">
+
+<CodeBlockToggle title="Agent-1 Canonical intent output" language="json" defaultOpen={true}>
+
+```json
+{
+  "intent": "LIST_REQUESTS",
+  "entity": "DISCONNECT_REQUEST",
+  "queryClass": "TRANSITION_REQUESTS",
+  "filters": [
+    {"field":"fromStatus","op":"EQ","value":810},
+    {"field":"toStatus","op":"EQ","value":120}
+  ],
+  "timeRange": {
+    "kind": "ABSOLUTE",
+    "value": "2026-03-12",
+    "timezone": "America/Chicago",
+    "from": "2026-03-12T00:00:00-06:00",
+    "to": "2026-03-12T23:59:59-06:00"
+  },
+  "sort": [{"field":"updatedAt","direction":"DESC"}],
+  "limit": 100
+}
+```
+
+</CodeBlockToggle>
+
+<CodeBlockToggle title="Agent-2 Generated SQL snippet" language="sql" defaultOpen={true}>
+
+```sql
+-- Compiled by Agent 2 from canonical AST
+-- Table aliases mapped perfectly to zp_disco_request via ce_semantic_mapping
+-- Named params (:from_status, :to_status) bound securely.
+-- __limit offset automatically injected.
+SELECT r.request_id, r.customer_name, r.customer_id, r.status, r.updated_at
+FROM zp_disco_request r
+WHERE EXISTS (
+  SELECT 1
+  FROM zp_disco_request_log l_from
+  JOIN zp_disco_request_log l_to
+    ON l_from.request_id = l_to.request_id
+   AND l_from.logged_at < l_to.logged_at
+  WHERE l_from.request_id = r.request_id
+    AND l_from.status = :from_status
+    AND l_to.status = :to_status
+    AND l_to.updated_at >= :start_ts
+    AND l_to.updated_at < :next_day_ts
+)
+ORDER BY r.updated_at DESC
+LIMIT :__limit;
+```
+
+</CodeBlockToggle>
+
+  </TabItem>
+
+  <TabItem value="deps" label="Config + Table Dependencies">
 
 <DbTable
-  title="Audit trail you should expect"
-  columns={["Stage", "What is written", "Why it matters"]}
+  title="Step dependency map"
+  columns={["Step", "Responsibility", "Session mutations", "Config/table dependencies"]}
   rows={[
-    ["MCP_TOOL_CALL", "Every dbkg.* tool invocation and args.", "Lets you confirm the planner chose the correct tool order."],
-    ["MCP_TOOL_RESULT", "Serialized JSON result for each Database Knowledge Graph (DBKG) tool.", "This is how context.mcp.observations is built and how the next planner turn sees prior evidence."],
-    ["MCP_TOOL_ERROR", "Validation or guardrail failure reasons such as DBKG_VALIDATION_REQUIRED_BEFORE_EXECUTION.", "Makes skipped execution explainable in production."],
-    ["POST_AGENT_MCP", "Rule reactions after Database Knowledge Graph (DBKG) finishes.", "Consumers can still derive state transitions or final response behavior after the tool chain completes."],
-    ["ResponseResolutionStep", "Final response mapping after MCP.", "Keeps ce_response as the transport-facing response authority."]
-  ]}
-/>
-
-<CodeBlockToggle title="Representative Database Knowledge Graph (DBKG) observation shape" language="json" defaultOpen={true}>
-{`{
-  "toolCode": "dbkg.investigate.execute",
-  "json": {
-    "selectedCase": { "caseCode": "DISCONNECT_SUBMIT_FAILURE" },
-    "selectedPlaybook": { "playbookCode": "ASO_SUBMITTED_NO_ZPDISCONNECTID_24H" },
-    "stepsExecuted": [
-      { "stepCode": "RESOLVE_TIME_WINDOW", "status": "SUCCESS" },
-      { "stepCode": "CHECK_DISCONNECT_CHAIN", "status": "SUCCESS" },
-      { "stepCode": "SUMMARIZE_SUBMIT_FAILURE", "status": "SUCCESS" }
+    [
+      "McpPlanner",
+      "Planner resolves semantic turn to CALL_TOOL with tool_code chain.",
+      "context.mcp.lifecycle.*, MCP_ACTION, MCP_TOOL_CODE",
+      "ce_mcp_planner (R), ce_mcp_tool (R), ce_rule (R), ce_audit (W)"
     ],
-    "outcome": {
-      "outcomeCode": "DOWNSTREAM_FAILURE_FOUND",
-      "severity": "WARN"
-    },
-    "finalSummary": "Found submitted disconnects older than the threshold that still have no final disconnect id ..."
-  }
-}`}
-</CodeBlockToggle>
-
-  </TabItem>
-  <TabItem value="config" label="ConvEngine Config">
-
-<DbTable
-  title="ConvEngine tables used around this example"
-  columns={["Table", "Why it exists in this example", "What it controls"]}
-  rows={[
-    ["ce_intent_classifier", "Maps the user question into the Database Knowledge Graph (DBKG) diagnostic flow.", "Recognizes Zapper triage language and resolves the top-level intent."],
-    ["ce_output_schema", "Defines the optional structured fields the engine may extract before MCP.", "Lets consumers normalize request ids, account ids, disconnect ids, and time-window hints."],
-    ["ce_prompt_template", "Shapes classifier/schema/planner prompts and final response prompts.", "Controls how MCP planning and final wording are rendered."],
-    ["ce_response", "Keeps final response resolution table-driven.", "Turns context.mcp.finalAnswer into the final transport payload."],
-    ["ce_rule", "Controls pre/post state transitions.", "Can move the flow into ANALYZE and react after POST_AGENT_MCP using MCP metadata."],
-    ["ce_mcp_tool", "Registers dbkg.* tools.", "Exposes the Database Knowledge Graph (DBKG) tool chain to McpToolStep."],
-    ["ce_mcp_planner", "Defines the guarded planner prompt.", "Forces validate-before-execute ordering in the MCP loop."]
+    [
+      "db.semantic.interpret",
+      "Agent-1: Converts NL to Canonical business intent + calculates clarifications.",
+      "canonicalIntent, needsClarification, operationSupported",
+      "ce_prompt_template (R), ce_output_schema (R), ce_semantic_* (R), ce_audit (W)"
+    ],
+    [
+      "db.semantic.query",
+      "Agent-2: SQL + params generation combining semantic constraints, history embeds, and retry validation.",
+      "compiledSql, params, retryAttempt, unsupported",
+      "ce_config (R), ce_semantic_mapping (R), ce_semantic_query_failures (R/W), ce_audit (W)"
+    ],
+    [
+      "postgres.query",
+      "Read-only SQL execution against physical schema.",
+      "rowCount, rows",
+      "business tables (R), ce_semantic_query_failures (W), ce_audit (W)"
+    ]
   ]}
 />
 
-<CodeBlockToggle title="Example intent classifier rows" language="sql" defaultOpen={true}>
-{`INSERT INTO ce_intent_classifier (intent_code, rule_type, pattern, priority, enabled)
-VALUES
-('GREETING', 'REGEX', '(?i)\\b(hi|hello|hey|good morning|good afternoon|good evening)\\b', 5, true),
-('DBKG_DIAGNOSTICS', 'REGEX', '(?i)\\b(disconnect|inventory not found|billbank|zapper|zpdisconnectid|assigned|rejected)\\b', 10, true);`}
-</CodeBlockToggle>
+  </TabItem>
 
-<CodeBlockToggle title="Example output schema" language="sql">
-{`INSERT INTO ce_output_schema (intent_code, state_code, json_schema, description, enabled, priority)
-VALUES (
-  'DBKG_DIAGNOSTICS',
-  'ANALYZE',
-  '{
-    "type": "object",
-    "properties": {
-      "playbookCode": {"type": "string"},
-      "knownIds": {
-        "type": "object",
-        "properties": {
-          "zp_request_id": {"type": "string"},
-          "zp_connection_id": {"type": "string"},
-          "accountId": {"type": "string"},
-          "accLocId": {"type": "string"},
-          "zpDisconnectId": {"type": "string"}
-        }
-      },
-      "customerName": {"type": "string"},
-      "customerZip": {"type": "string"},
-      "contactNumber": {"type": "string"},
-      "hours": {"type": "integer"}
+  <TabItem value="prompts" label="Prompt Suite">
+
+<PromptSuite
+  title="Semantic prompt contracts used in this flow"
+  prompts={[
+    {
+      title: "Agent-1 (SEMANTIC_INTERPRET) constraint block",
+      language: "text",
+      content: `You are a semantic interpreter for business analytics.
+Convert user text into canonical business intent JSON.
+
+Hard rules:
+- Return JSON only.
+- Never return SQL.
+- Never return table names, column names, or joins.
+- Use only business field names present in semantic_fields.
+- Never output physical DB names like customer_name, request_type, service_type.
+- If user asks with unsupported field, do not invent; set needsClarification=true.
+
+Clarification policy (metadata-driven only):
+- Ask clarification only when field resolution is ambiguous or missing after applying semantic_fields + ce_semantic_mapping + ce_semantic_synonym + ambiguity_options.`
+    },
+    {
+      title: "Agent-2 (SEMANTIC_QUERY) constraint block",
+      language: "text",
+      content: `You are SQL Query Agent (Agent-2) for semantic analytics.
+Build a READ-ONLY SQL query and named params from canonical business intent + metadata.
+
+Rules:
+- Return JSON only.
+- Generate SELECT-only SQL.
+- Never generate INSERT/UPDATE/DELETE/DDL.
+- Prefer mapped_table/mapped_column from ce_semantic_mapping.
+- If query cannot be safely generated, set unsupported=true with unsupportedMessage.`
     }
-  }',
-  'Structured inputs used by Database Knowledge Graph (DBKG) diagnostics.',
-  true,
-  100
-);`}
-</CodeBlockToggle>
-
-<CodeBlockToggle title="Example prompt template rows" language="sql">
-{`INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, temperature, enabled)
-VALUES
-('GREETING', 'IDLE', 'TEXT',
- 'You are a concise assistant. Respond politely to simple greetings.',
- 'User input: {{user_input}}\nReturn a short greeting only.',
- 0.05, true),
-('DBKG_DIAGNOSTICS', 'ANALYZE', 'TEXT',
- 'You are a Database Knowledge Graph (DBKG) investigation assistant. Stay factual and use MCP observations only.',
- 'User input: {{user_input}}\nContext: {{context}}\nUse the Database Knowledge Graph (DBKG) MCP tool chain to investigate and then answer concisely.',
- 0.10, true);`}
-</CodeBlockToggle>
-
-<CodeBlockToggle title="Example response rows" language="sql">
-{`INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
-VALUES
-('GREETING', 'IDLE', 'TEXT', 'TEXT',
- 'Return a short greeting response.', 5, true),
-('DBKG_DIAGNOSTICS', 'ANALYZE', 'TEXT', 'DERIVED',
- 'Use context.mcp.finalAnswer as the final investigation summary.', 10, true);`}
-</CodeBlockToggle>
-
-<CodeBlockToggle title="Example rule rows" language="sql">
-{`-- Move into analysis state for the Database Knowledge Graph (DBKG) path
-INSERT INTO ce_rule (intent_code, state_code, phase_code, rule_group, action_code, match_pattern, target_state_code, priority, enabled)
-VALUES
-('DBKG_DIAGNOSTICS', 'ANY', 'POST_AGENT_INTENT', 'STATE_TRANSITION', 'SET_STATE', '$', 'ANALYZE', 10, true);
-
--- After MCP final answer exists, close the flow
-INSERT INTO ce_rule (intent_code, state_code, phase_code, rule_group, action_code, match_pattern, target_state_code, priority, enabled)
-VALUES
-('DBKG_DIAGNOSTICS', 'ANALYZE', 'POST_AGENT_MCP', 'STATE_TRANSITION', 'SET_STATE',
- '$[?(@.context.mcp.finalAnswer != null && @.context.mcp.finalAnswer != "")]', 'COMPLETED', 20, true);`}
-</CodeBlockToggle>
-
+  ]}
+/>
   </TabItem>
-  <TabItem value="sql" label="SQL used">
 
-<CodeBlockToggle title="Zapper transaction seed files" language="text" defaultOpen={true}>
-{`src/main/resources/sql/zapper/ddl_postgres.sql
-src/main/resources/sql/zapper/ddl_sqlite.sql
-src/main/resources/sql/zapper/seed.sql`}
-</CodeBlockToggle>
-
-<CodeBlockToggle title="Database Knowledge Graph (DBKG) query templates used by this example" language="sql">
-{`-- Transition audit
-SELECT ...
-FROM zp_ui_data_history h1
-JOIN zp_ui_data_history h2 ON ...
-WHERE h1.zp_action_id = :from_action_id
-  AND h2.zp_action_id = :to_action_id
-  AND h2.created_date >= :from_ts;
-
--- Inventory linkage
-SELECT ...
-FROM zp_inventory_service i
-WHERE (:account_id IS NULL OR i.account_id = :account_id)
-  AND (:acc_loc_id IS NULL OR i.acc_loc_id = :acc_loc_id)
-  AND (:zp_connection_id IS NULL OR i.zp_connection_id = :zp_connection_id);
-
--- Disconnect chain
-SELECT ...
-FROM zp_disconnect_order o
-WHERE o.submitted_at <= :from_ts
-  AND (o.zp_disconnect_id IS NULL OR UPPER(o.downstream_status) <> 'COMPLETED');
-
--- BillBank reconciliation
-SELECT ...
-FROM zp_disconnect_order o
-LEFT JOIN zp_billbank_record b ON o.zp_disconnect_id = b.zp_disconnect_id
-WHERE o.zp_disconnect_id IS NOT NULL
-  AND b.billbank_id IS NULL;`}
-</CodeBlockToggle>
-
-  </TabItem>
 </Tabs>
 
-## Why the engine gives the answer it gives
+---
 
-<DbTable
-  title="How Database Knowledge Graph (DBKG) turns rows into explanations"
-  columns={["Layer", "What Database Knowledge Graph (DBKG) sees", "What the operator gets"]}
-  rows={[
-    ["Case resolution", "Weighted signal match against business wording.", "The right investigation family is selected without the operator naming a table."],
-    ["Knowledge lookup", "Systems, entities, API flows, statuses, live schema objects.", "The planner gets context about where to look and which IDs matter."],
-    ["Playbook plan", "A concrete DAG of steps and transitions.", "Execution order becomes consistent and auditable."],
-    ["Validation", "Graph integrity check before SQL.", "Broken metadata is blocked before it can produce misleading answers."],
-    ["Execution", "Approved templates + bound params + step outputs.", "Evidence comes from known-safe queries instead of ad hoc SQL."],
-    ["Outcome", "Condition-driven diagnosis.", "Support teams get an explanation tied to evidence, not just a dump of rows."]
+## Testing Catalog
+
+Use the following catalog to test the semantic boundaries and guardrails of the system.
+
+<PromptSuite
+  title="Semantic Query Test Prompt Catalog"
+  defaultTone="positive"
+  sections={[
+    {
+      title: "Core retrieval",
+      items: [
+        "show disconnect requests for account UPSA100",
+        "show request status for ZPR1003",
+        "show downstream status for DON9001",
+        "show billbank record for disconnect id ZPDISC7003",
+        "show account status and billing cost for ACMA200"
+      ]
+    },
+    {
+      title: "Failure / RCA (Diagnostics)",
+      items: [
+        "why did DON9001 fail",
+        "show failed or inventory_error requests",
+        "show requests where disconnect id is missing",
+        "show failed downstream checks for DON9001",
+        "show failure reason for request ZPR1003"
+      ]
+    },
+    {
+      title: "Join-heavy analytics",
+      items: [
+        "show requestId, accountId, requestStatus, downstreamStatus, teamNotes for UPSA100",
+        "show requests with downstream status and billbank record status",
+        "show requests with UI notes containing inventory",
+        "show submitted requests with no billbank disconnect id",
+        "show billbank gaps with request and order details"
+      ]
+    },
+    {
+      title: "Time-window tests",
+      items: [
+        "show disconnect requests between 2026-02-28 and 2026-03-01",
+        "show requests after 2026-03-01T00:00:00Z",
+        "show checks executed on 2026-03-01",
+        "show latest 3 disconnect requests",
+        "show requests in last 24 hours"
+      ]
+    },
+    {
+      title: "Aggregation / metrics",
+      items: [
+        "count disconnect requests by requestStatus",
+        "count downstream orders by downstreamStatus",
+        "show failed_disconnect_count",
+        "show pending_disconnect_count",
+        "show billbank_gap_count"
+      ]
+    },
+    {
+      title: "Negative Guardrail tests (Should Block)",
+      tone: "negative",
+      items: [
+        "delete from zp_disco_request where account_id='UPSA100'",
+        "update zp_disco_request set request_status='FAILED'",
+        "drop table zp_disco_request",
+        "show from unknown_entity",
+        "show random_field from DisconnectRequest"
+      ]
+    }
   ]}
 />

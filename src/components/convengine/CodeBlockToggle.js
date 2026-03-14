@@ -2,9 +2,12 @@ import React, { useState } from "react";
 import CodeBlock from "@theme/CodeBlock";
 import { renderInlineTokens } from "./renderInlineTokens";
 
-function autoIndentBraceCode(snippet) {
+function autoIndentBraceCode(snippet, language) {
   const lines = snippet.split("\n");
   let indentLevel = 0;
+  const isJava = ["java", "c", "cpp", "cs"].includes(String(language || "").toLowerCase());
+  const spaceCount = isJava ? "    " : "  ";
+
   return lines
     .map((line) => {
       const trimmed = line.trim();
@@ -12,17 +15,17 @@ function autoIndentBraceCode(snippet) {
         return "";
       }
 
-      let closes = (trimmed.match(/}/g) || []).length;
-      const opens = (trimmed.match(/{/g) || []).length;
+      let closes = (trimmed.match(/[})\]]/g) || []).length;
+      const opens = (trimmed.match(/[{(\[]/g) || []).length;
 
-      if (/^}/.test(trimmed)) {
+      if (/^[})\]]/.test(trimmed)) {
         indentLevel = Math.max(0, indentLevel - 1);
         if (closes > 0) {
           closes -= 1;
         }
       }
 
-      const indented = `${"  ".repeat(indentLevel)}${trimmed}`;
+      const indented = `${spaceCount.repeat(indentLevel)}${trimmed}`;
       indentLevel = Math.max(0, indentLevel + opens - closes);
       return indented;
     })
@@ -83,9 +86,9 @@ function formatSqlSnippet(snippet) {
     sql = `${lines.join("\n")}\nfrom ${selectMatch[2].trim()}`;
   }
 
-  sql = sql
-    .replace(/\s+(left\s+outer\s+join|left\s+join|right\s+outer\s+join|right\s+join|inner\s+join|full\s+outer\s+join|full\s+join|join)\s+/gi, "\n$1 ")
-    .replace(/\s+on\s+/gi, "\n  on ")
+    sql = sql
+    .replace(/\s+(left\s+outer\s+join|left\s+join|right\s+outer\s+join|right\s+join|inner\s+join|full\s+outer\s+join|full\s+join|join)\s+/gi, "\n  $1 ")
+    .replace(/\s+on\s+/gi, "\n    on ")
     .replace(/\s+where\s+/gi, "\nwhere ")
     .replace(/\s+group\s+by\s+/gi, "\ngroup by ")
     .replace(/\s+having\s+/gi, "\nhaving ")
@@ -111,16 +114,29 @@ function normalizeYaml(snippet) {
     .join("\n");
 }
 
+function extractTextFromReactNode(node) {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractTextFromReactNode).join("");
+  if (node && node.props && node.props.children) {
+    return extractTextFromReactNode(node.props.children);
+  }
+  return "";
+}
+
 function normalizeCodeSnippet(children, language) {
-  if (typeof children !== "string") {
-    return children;
+  let rawText = "";
+  if (typeof children === "string") {
+    rawText = children;
+  } else {
+    rawText = extractTextFromReactNode(children);
   }
+  if (!rawText) return "";
+
   const normalizedLanguage = String(language || "").toLowerCase();
-  const normalizedNewlines = children.replace(/\r\n/g, "\n");
+  const normalizedNewlines = rawText.replace(/\r\n/g, "\n");
   const trimmed = normalizedNewlines.replace(/^\n+|\n+$/g, "");
-  if (normalizedLanguage === "yaml" || normalizedLanguage === "yml") {
-    return normalizeYaml(trimmed);
-  }
+  
   const lines = trimmed.split("\n");
   const nonEmpty = lines.filter((line) => line.trim().length > 0);
   if (nonEmpty.length === 0) {
@@ -136,9 +152,13 @@ function normalizeCodeSnippet(children, language) {
     .map((line) => line.slice(Math.min(minIndent, line.length)))
     .join("\n");
 
-  const braceLanguages = new Set(["javascript", "js", "typescript", "ts", "tsx", "jsx"]);
+  if (normalizedLanguage === "yaml" || normalizedLanguage === "yml") {
+    return normalizeYaml(base);
+  }
+
+  const braceLanguages = new Set(["javascript", "js", "typescript", "ts", "tsx", "jsx", "java", "c", "cpp", "cs"]);
   if (braceLanguages.has(normalizedLanguage)) {
-    return autoIndentBraceCode(base);
+    return autoIndentBraceCode(base, normalizedLanguage);
   }
   if (normalizedLanguage === "json") {
     return normalizeJson(base);

@@ -25,24 +25,34 @@ import { CodeBlockToggle, DbTable, MethodRef } from "@site/src/components/conven
 />
 
 <CodeBlockToggle title="ConversationalEngine" language="java" packagePath="com.github.salilvnair.convengine.engine.core">
-{`public interface ConversationalEngine {
+
+```java
+public interface ConversationalEngine {
     EngineResult process(EngineContext engineContext);
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="LlmClient" language="java" packagePath="com.github.salilvnair.convengine.llm.core">
-{`public interface LlmClient {
+
+```java
+public interface LlmClient {
     String generateText(EngineSession session, String hint, String contextJson);
     String generateJson(EngineSession session, String hint, String jsonSchema, String contextJson);
     float[] generateEmbedding(EngineSession session, String input);
     default String generateJsonStrict(EngineSession session, String hint, String jsonSchema, String context) {
         return generateJson(session, hint, jsonSchema, context);
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="EngineStep.Name enum (current)" language="java" packagePath="com.github.salilvnair.convengine.engine.pipeline">
-{`public interface EngineStep {
+
+```java
+public interface EngineStep {
     enum Name {
         AuditUserInputStep,
         CacheInspectAuditStep,
@@ -73,21 +83,31 @@ import { CodeBlockToggle, DbTable, MethodRef } from "@site/src/components/conven
         RulesStep,
         Unknown;
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="McpToolExecutor" language="java" packagePath="com.github.salilvnair.convengine.engine.mcp.executor">
-{`public interface McpToolExecutor {
+
+```java
+public interface McpToolExecutor {
     String toolGroup();
     String execute(CeMcpTool tool, Map<String, Object> args, EngineSession session);
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="ConversationMemoryStore" language="java" packagePath="com.github.salilvnair.convengine.engine.memory">
-{`public interface ConversationMemoryStore {
+
+```java
+public interface ConversationMemoryStore {
     default String read(EngineSession session) { return null; }
     default void write(EngineSession session, String summary) {}
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ## Flow configuration API

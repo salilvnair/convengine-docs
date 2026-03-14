@@ -32,7 +32,9 @@ On each stream event, refresh <FileRef>/audit/{'{conversationId}'}</FileRef> or 
   packagePath="src/api"
   filePath="src/api/convengine.api.js"
 >
-{`const API_BASE = "http://localhost:8080/api/v1/conversation";
+
+```js
+const API_BASE = "http://localhost:8080/api/v1/conversation";
 
 export async function sendMessage(conversationId, message, inputParams = {}, reset = false) {
   const res = await fetch(API_BASE + "/message", {
@@ -87,7 +89,9 @@ export function subscribeConversationSse(conversationId, handlers = {}) {
 //   });
 //   client.activate();
 //   return { close() { client.deactivate(); handlers.onClosed?.(); } };
-// }`}
+// }
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -96,7 +100,9 @@ export function subscribeConversationSse(conversationId, handlers = {}) {
   packagePath="src"
   filePath="src/App.jsx"
 >
-{`import { useEffect, useState } from "react";
+
+```jsx
+import { useEffect, useState } from "react";
 import { subscribeConversationSse } from "./api/convengine.api.js";
 
 export default function App() {
@@ -116,7 +122,9 @@ export default function App() {
   }, [conversationId]);
 
   return <div>conversationId={conversationId} auditVersion={auditVersion}</div>;
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ## React Vite (TypeScript)
@@ -127,7 +135,9 @@ export default function App() {
   packagePath="src/api"
   filePath="src/api/convengine.api.ts"
 >
-{`const API_BASE = "http://localhost:8080/api/v1/conversation";
+
+```ts
+const API_BASE = "http://localhost:8080/api/v1/conversation";
 
 export type SseStage =
   | "CONNECTED"
@@ -187,7 +197,9 @@ export function subscribeConversationSse<T = unknown>(
     });
 
   return { close() { source.close(); handlers.onClosed?.(); } };
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -196,7 +208,9 @@ export function subscribeConversationSse<T = unknown>(
   packagePath="src"
   filePath="src/App.tsx"
 >
-{`import { useEffect, useState } from "react";
+
+```tsx
+import { useEffect, useState } from "react";
 import { subscribeConversationSse } from "./api/convengine.api";
 
 export default function App() {
@@ -214,7 +228,9 @@ export default function App() {
   }, [conversationId]);
 
   return <main>auditVersion={auditVersion}</main>;
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ## Angular Integration (authored sample)
@@ -225,7 +241,9 @@ export default function App() {
   packagePath="src/app/core"
   filePath="src/app/core/convengine-api.service.ts"
 >
-{`import { Injectable } from '@angular/core';
+
+```ts
+import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
@@ -290,7 +308,9 @@ export class ConvengineApiService {
   // npm i @stomp/stompjs sockjs-client
   // connect ws://localhost:8080/ws-convengine
   // subscribe /topic/convengine/audit/{conversationId}
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -299,7 +319,9 @@ export class ConvengineApiService {
   packagePath="src/app/features/chat"
   filePath="src/app/features/chat/chat.component.ts"
 >
-{`import { Component, OnDestroy, OnInit } from '@angular/core';
+
+```ts
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ConvengineApiService } from '../../core/convengine-api.service';
@@ -351,7 +373,9 @@ export class ChatComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.streamCloser?.close();
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -360,7 +384,9 @@ export class ChatComponent implements OnInit, OnDestroy {
   packagePath="src/app/features/chat"
   filePath="src/app/features/chat/chat.component.html"
 >
-{`<section class="chat-shell">
+
+```html
+<section class="chat-shell">
   <div class="messages">
     <div *ngFor="let m of messages" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'">
       {{ m.text }}
@@ -372,7 +398,9 @@ export class ChatComponent implements OnInit, OnDestroy {
     <input [(ngModel)]="message" placeholder="Type message" />
     <button (click)="send()" [disabled]="typing">Send</button>
   </div>
-</section>`}
+</section>
+```
+
 </CodeBlockToggle>
 
 <Highlight type="tip" title="React + Angular parity">

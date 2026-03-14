@@ -14,7 +14,9 @@ import { CodeBlockToggle, Highlight, FlowStep, DbTable, MethodRef, FileRef, DocT
 Real scenario: For `LOG_ANALYSIS`, inject additional retrieval hint before schema extraction.
 
 <CodeBlockToggle title="EngineStepHook example" language="java" packagePath="com.zapper.convengine.hooks">
-{`@Component
+
+```java
+@Component
 public class LogAnalysisHintHook implements EngineStepHook {
     @Override
     public boolean supports(EngineStep.Name stepName, EngineSession session) {
@@ -26,7 +28,9 @@ public class LogAnalysisHintHook implements EngineStepHook {
     public void beforeStep(EngineStep.Name stepName, EngineSession session) {
         session.putInputParam("log_source_priority", "APM_FIRST");
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 :::tip Where to use this
@@ -38,7 +42,9 @@ Use hooks when you need low-friction runtime intervention without forking framew
 Real scenario: CCF returns nested payload; you flatten to schema-friendly map.
 
 <CodeBlockToggle title="ContainerDataTransformer example" language="java" packagePath="com.zapper.convengine.transformers">
-{`@Component
+
+```java
+@Component
 @ContainerDataTransformer(intent = "REQUEST_TRACKER", state = "IDLE")
 public class RequestTrackerContainerTransformer implements ContainerDataTransformerHandler {
     @Override
@@ -50,7 +56,9 @@ public class RequestTrackerContainerTransformer implements ContainerDataTransfor
         out.put("status", "IN_REVIEW");
         return out;
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ## `ResponseTransformer` - post-process final payload {#3-responsetransformer---post-process-final-payload}
@@ -58,7 +66,9 @@ public class RequestTrackerContainerTransformer implements ContainerDataTransfor
 Real scenario: Add support-team escalation footer for high-severity disconnect failures.
 
 <CodeBlockToggle title="ResponseTransformer example" language="java" packagePath="com.zapper.convengine.transformers">
-{`@Component
+
+```java
+@Component
 @ResponseTransformer(intent = "DISCONNECT_ELECTRICITY", state = "FAILED")
 public class DisconnectFailureResponseTransformer implements ResponseTransformerHandler {
     @Override
@@ -70,7 +80,9 @@ public class DisconnectFailureResponseTransformer implements ResponseTransformer
         }
         return responsePayload;
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ## `ContainerDataInterceptor` - intercept request/response around CCF {#4-containerdatainterceptor---intercept-requestresponse-around-ccf}
@@ -78,13 +90,17 @@ public class DisconnectFailureResponseTransformer implements ResponseTransformer
 Real scenario: add tenant metadata and redact a field before persistence.
 
 <CodeBlockToggle title="Interceptor scenario (concept)" language="text">
-{`Before Execute:
+
+```text
+Before Execute:
 - inject tenantId/requestId
 - attach observability headers
 
 After Execute:
 - redact sensitive node from raw container payload
-- enrich session input params for downstream rule checks`}
+- enrich session input params for downstream rule checks
+```
+
 </CodeBlockToggle>
 
 ## `ConvEngineVerboseAdapter` - publish UI verbose messages from consumer code {#5-convengineverboseadapter---publish-ui-verbose-messages-from-consumer-code}
@@ -92,7 +108,9 @@ After Execute:
 Use this when hooks, transformers, or custom Spring beans need to emit progress/error messages to the UI without embedding transport code.
 
 <CodeBlockToggle title="Verbose adapter example" language="java" packagePath="com.zapper.convengine.hooks">
-{`@Component
+
+```java
+@Component
 @RequiredArgsConstructor
 public class LoanConfirmationHook implements EngineStepHook {
 
@@ -109,7 +127,9 @@ public class LoanConfirmationHook implements EngineStepHook {
             "Reviewing customer [[\${context.customerId}]] in state [[\${state}]]."
         );
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 What it gives you:
@@ -130,7 +150,7 @@ Recommended pattern:
   title="MCP and runtime extension points"
   columns={["Extension", "Where it runs", "Typical consumer use"]}
   rows={[
-    ["`SemanticCatalogVectorSearchInterceptor`", "`db.semantic.catalog` ranking path", "Use pgvector or custom ANN retrieval instead of framework cosine fallback."],
+    ["`LlmClient` (embedding implementation)", "`db.semantic.interpret` + `db.semantic.query` retrieval paths", "Provide your own embedding provider/model for semantic retrieval and failure-memory ranking."],
     ["`PostgresQueryInterceptor`", "`postgres.query` pre-guardrail execution path", "Normalize/repair SQL, enforce schema prefixes, tenant constraints, org SQL policy."],
     ["`DbToolHandler`", "MCP DB tool execution path", "Register new DB-backed MCP tool_code handlers in Java."],
     ["`HttpApiRequestingToolHandler` / `HttpApiProcessorToolHandler`", "MCP HTTP tool path", "Add custom request/response mapping logic for HTTP tools."],
@@ -138,45 +158,23 @@ Recommended pattern:
   ]}
 />
 
-## `SemanticCatalogVectorSearchInterceptor` - custom vector ranking {#61-semanticcatalogvectorsearchinterceptor---custom-vector-ranking}
+## `LlmClient` embedding override for semantic retrieval
 
-Real scenario: use PGVector cosine distance directly from your DB instead of Java fallback ranking.
+Real scenario: replace framework embedding calls with your provider for semantic concept retrieval and failure-example ranking.
 
-<CodeBlockToggle title="SemanticCatalogVectorSearchInterceptor example" language="java" packagePath="com.zapper.convengine.mcp">
-{`@Component
-@Order(10) // higher priority than framework fallback
-@RequiredArgsConstructor
-public class PgVectorSemanticSearchInterceptor implements SemanticCatalogVectorSearchInterceptor {
+<CodeBlockToggle title="LlmClient embedding override example" language="java" packagePath="com.zapper.convengine.mcp">
 
-    private final JdbcTemplate jdbcTemplate;
-    private final LlmClient llmClient;
-
+```java
+@Component
+public class CustomLlmClient implements LlmClient {
     @Override
-    public boolean supports(ConvEngineMcpConfig.Db.Knowledge.VectorSearch config) {
-        return config != null && config.isEnabled();
+    public float[] generateEmbedding(Object session, String text) {
+        // Call your embedding model/provider and return float[]
+        return new float[] {0.1f, 0.2f, 0.3f};
     }
+}
+```
 
-    @Override
-    public List<Map<String, Object>> rank(
-            String sourceType,
-            String question,
-            List<Map<String, Object>> rows,
-            ConvEngineMcpConfig.Db.Knowledge cfg) {
-
-        String embedding = llmClient.generateEmbedding(question); // consumer-controlled impl
-        String table = "query".equalsIgnoreCase(sourceType)
-                ? cfg.getQueryCatalogTable()
-                : cfg.getSchemaCatalogTable();
-        int k = Math.max(1, cfg.getVectorSearch().getMaxResults());
-
-        String sql = "SELECT t.*, 1 - (t.vector <=> CAST(:embedding AS vector)) AS _vector_score " +
-                "FROM " + table + " t " +
-                "ORDER BY t.vector <=> CAST(:embedding AS vector) " +
-                "LIMIT :k";
-
-        return jdbcTemplate.queryForList(sql, Map.of("embedding", embedding, "k", k));
-    }
-}`}
 </CodeBlockToggle>
 
 ## `PostgresQueryInterceptor` - normalize/fix SQL before execution {#62-postgresqueryinterceptor---normalizefix-sql-before-execution}
@@ -185,7 +183,9 @@ Real scenario: planner generated epoch conversion for a timestamp column (`to_ti
 Interceptor rewrites SQL before `McpSqlGuardrail` and execution.
 
 <CodeBlockToggle title="PostgresQueryInterceptor example" language="java" packagePath="com.zapper.convengine.mcp">
-{`@Component
+
+```java
+@Component
 @Order(10) // runs before framework default interceptor
 public class PostgresTimestampFixInterceptor implements PostgresQueryInterceptor {
 
@@ -201,7 +201,9 @@ public class PostgresTimestampFixInterceptor implements PostgresQueryInterceptor
         return sql.replaceAll("(?i)to_timestamp\\\\(\\\\s*r\\\\.requested_at\\\\s*/\\\\s*1000(?:\\\\.0+)?\\\\s*\\\\)", "r.requested_at")
                   .replaceAll("(?i)to_timestamp\\\\(\\\\s*b\\\\.updated_at\\\\s*/\\\\s*1000(?:\\\\.0+)?\\\\s*\\\\)", "b.updated_at");
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <Highlight type="tip" title="Order and fallback">
@@ -257,11 +259,15 @@ Set <MethodRef>ce_rule.action</MethodRef> to <MethodRef>SET_TASK</MethodRef> and
 </FlowStep>
 
 <CodeBlockToggle title="SET_TASK rule example (SQL)" language="sql">
-{`INSERT INTO ce_rule
+
+```sql
+INSERT INTO ce_rule
   (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
   ('PRE_RESPONSE_RESOLUTION', 'REQUEST_TRACKER', 'ANY', 'REGEX', '(?i).*track.*request.*', 'SET_TASK', 'requestTrackerTask:loadStatus,attachEta', 10, true,
-   'Load tracker status + ETA from consumer service');`}
+   'Load tracker status + ETA from consumer service');
+```
+
 </CodeBlockToggle>
 
 <FlowStep step="2" title="Implement task bean">
@@ -274,7 +280,9 @@ Bean must be a Spring bean with the configured bean name and implement <MethodRe
   packagePath="com.zapper.convengine.tasks"
   filePath="src/main/java/com/acme/convengine/tasks/RequestTrackerTask.java"
 >
-{`@Component("requestTrackerTask")
+
+```java
+@Component("requestTrackerTask")
 public class RequestTrackerTask implements CeRuleTask {
 
     public void loadStatus(EngineSession session, CeRule rule) {
@@ -287,7 +295,9 @@ public class RequestTrackerTask implements CeRuleTask {
     public void attachEta(EngineSession session, CeRule rule) {
         session.putInputParam("eta_hours", 12);
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <FlowStep step="3" title="Use in response generation">
@@ -299,11 +309,15 @@ Downstream prompt/response can read new context/inputParams (for example `reques
 Use this to extract one value from runtime session JSON into a flat prompt var.
 
 <CodeBlockToggle title="SET_JSON rule example (SQL)" language="sql">
-{`INSERT INTO ce_rule
+
+```sql
+INSERT INTO ce_rule
   (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
   ('PRE_RESPONSE_RESOLUTION', 'LOG_ANALYSIS', 'ANY', 'JSON_PATH', '$.schemaJson.errorCode != null', 'SET_JSON', 'error_code:$.schemaJson.errorCode', 20, true,
-   'Expose extracted errorCode as prompt var');`}
+   'Expose extracted errorCode as prompt var');
+```
+
 </CodeBlockToggle>
 
 <Highlight type="info" title="What exactly gets updated">
@@ -316,11 +330,15 @@ It does not change `session.contextJson` unless your subsequent task/hook update
 Use this when prompt templates or tasks need full context as a single variable.
 
 <CodeBlockToggle title="GET_CONTEXT rule example (SQL)" language="sql">
-{`INSERT INTO ce_rule
+
+```sql
+INSERT INTO ce_rule
   (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
   ('PRE_RESPONSE_RESOLUTION', 'REQUEST_TRACKER', 'ANY', 'REGEX', '(?i).*status.*', 'GET_CONTEXT', 'ctx_snapshot', 30, true,
-   'Expose full context to prompt/task layer');`}
+   'Expose full context to prompt/task layer');
+```
+
 </CodeBlockToggle>
 
 If `action_value` is blank, engine uses default key `context`.
@@ -330,11 +348,15 @@ If `action_value` is blank, engine uses default key `context`.
 Use this for advanced derived responses that need runtime flags (`schemaComplete`, `intentLocked`, `missingRequiredFields`, etc).
 
 <CodeBlockToggle title="GET_SESSION rule example (SQL)" language="sql">
-{`INSERT INTO ce_rule
+
+```sql
+INSERT INTO ce_rule
   (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
   ('PRE_RESPONSE_RESOLUTION', 'DISCONNECT_ELECTRICITY', 'ANY', 'JSON_PATH', '$.schemaComplete == false', 'GET_SESSION', 'session_snapshot', 40, true,
-   'Expose full runtime session facts for follow-up prompt decisions');`}
+   'Expose full runtime session facts for follow-up prompt decisions');
+```
+
 </CodeBlockToggle>
 
 If `action_value` is blank, engine uses default key `session`.
@@ -344,12 +366,16 @@ If `action_value` is blank, engine uses default key `session`.
 Use this when you need lightweight runtime variables for later rules/steps without creating a custom task bean.
 
 <CodeBlockToggle title="SET_INPUT_PARAM rule example (SQL)" language="sql">
-{`INSERT INTO ce_rule
+
+```sql
+INSERT INTO ce_rule
   (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
   ('POST_SCHEMA_EXTRACTION', 'LOAN_APPLICATION', 'ELIGIBILITY_GATE', 'JSON_PATH', '$[?(@.schemaComplete == true)]',
    'SET_INPUT_PARAM', '{"awaiting_confirmation":true,"confirmation_key":"LOAN_APPLICATION_CONFIRM"}', 11, true,
-   'Mark confirmation flags after schema becomes complete');`}
+   'Mark confirmation flags after schema becomes complete');
+```
+
 </CodeBlockToggle>
 
 Typical uses:
@@ -373,13 +399,17 @@ Use this when `DialogueActStep` correctly preserves an LLM candidate (for exampl
 This is especially useful in `POST_DIALOGUE_ACT`.
 
 <CodeBlockToggle title="SET_DIALOGUE_ACT rule example (SQL)" language="sql">
-{`INSERT INTO ce_rule
+
+```sql
+INSERT INTO ce_rule
   (phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
   ('POST_DIALOGUE_ACT', 'LOAN_APPLICATION', 'ANY', 'JSON_PATH',
    '$[?(@.inputParams.dialogue_act == ''NEW_REQUEST'' && @.inputParams.dialogue_act_source == ''REGEX_GUARD'' && @.inputParams.dialogue_act_llm_candidate == ''EDIT'')]',
    'SET_DIALOGUE_ACT', '{"dialogueAct":"EDIT","source":"POST_DIALOGUE_ACT_RULE"}', 5, true,
-   'Promote guarded LLM EDIT back to EDIT before interaction policy');`}
+   'Promote guarded LLM EDIT back to EDIT before interaction policy');
+```
+
 </CodeBlockToggle>
 
 Accepted `action_value` formats:
@@ -444,7 +474,9 @@ Implement <MethodRef>RuleActionResolver</MethodRef> and return your action name 
   packagePath="com.zapper.convengine.rules"
   filePath="src/main/java/com/acme/convengine/rules/EnrichCustomerTierActionResolver.java"
 >
-{`@Component
+
+```java
+@Component
 public class EnrichCustomerTierActionResolver implements RuleActionResolver {
 
     @Override
@@ -462,7 +494,9 @@ public class EnrichCustomerTierActionResolver implements RuleActionResolver {
 
         session.putInputParam(key, value);
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <FlowStep step="2" title="Use action in ce_rule">
@@ -470,11 +504,15 @@ Set <MethodRef>ce_rule.action</MethodRef> to your custom token (case-insensitive
 </FlowStep>
 
 <CodeBlockToggle title="ce_rule row for custom action" language="sql">
-{`INSERT INTO ce_rule
+
+```sql
+INSERT INTO ce_rule
   (phase, intent_code, rule_type, match_pattern, action, action_value, priority, enabled, description)
 VALUES
   ('PRE_RESPONSE_RESOLUTION', 'REQUEST_TRACKER', 'REGEX', '(?i).*vip.*', 'ENRICH_TIER', 'customerTier:PREMIUM', 5, true,
-   'Mark VIP tier for downstream response logic');`}
+   'Mark VIP tier for downstream response logic');
+```
+
 </CodeBlockToggle>
 
 <Highlight type="tip" title="Auto-registration behavior">

@@ -93,7 +93,9 @@ If the conversation is new:
 This ensures that regardless of scale, the API is entirely stateless and can route requests to any pod.
 
 <CodeBlockToggle title="LoadOrCreateConversationStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/LoadOrCreateConversationStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         UUID id = session.getConversationId();
         CeConversation convo = conversationRepo.findById(id).orElseGet(() -> createNewConversation(id, conversationRepo));
 
@@ -104,7 +106,9 @@ This ensures that regardless of scale, the API is entirely stateless and can rou
         session.syncFromConversation();
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 
 When the LLM path is used, `DialogueActStep` now audits:
@@ -134,12 +138,16 @@ It still emits the final classification checkpoint as `DIALOGUE_ACT_CLASSIFIED`.
 Dynamically runs if `convengine.audit.cache-inspector` is true. It takes a complete JSON snapshot of the hydrated `EngineSession` conversation cache tree and logs it under the `CACHE_INSPECTION` priority stage before explicit user input audits are finalized.
 
 <CodeBlockToggle title="CacheInspectAuditStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/CacheInspectAuditStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("cache_snapshot", objectMapper.valueToTree(session.getConversation()));
         auditService.audit(ConvEngineAuditStage.CACHE_INSPECTION, session.getConversationId(), payload);
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -166,10 +174,12 @@ When triggered, it clears:
 - The `contextJson` (wiping all extracted schema facts).
 - The `inputParamsJson`.
 
-The session is marked as \`RUNNING\` again, but completely fresh. An audit event `CONVERSATION_RESET` is logged.
+The session is marked as `RUNNING` again, but completely fresh. An audit event `CONVERSATION_RESET` is logged.
 
 <CodeBlockToggle title="ResetConversationStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/ResetConversationStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (!shouldReset(session)) {
             return new StepResult.Continue();
         }
@@ -193,7 +203,9 @@ The session is marked as \`RUNNING\` again, but completely fresh. An audit event
         audit.audit(ConvEngineAuditStage.CONVERSATION_RESET, session.getConversationId(), payload);
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -216,14 +228,18 @@ The session is marked as \`RUNNING\` again, but completely fresh. An audit event
 A simple lifecycle checkpoint to ensure the conversation has a `createdAt` timestamp. If the user session just started in `LoadOrCreateConversationStep`, this step performs the initial `INSERT (ce_conversation)` to the database to ensure foreign-key dependencies (like audit logs) don't fail later in the loop.
 
 <CodeBlockToggle title="PersistConversationBootstrapStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/PersistConversationBootstrapStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (session.getConversation().getCreatedAt() == null) {
             session.getConversation().setCreatedAt(OffsetDateTime.now());
             session.getConversation().setUpdatedAt(OffsetDateTime.now());
             conversationRepo.save(session.getConversation());
         }
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -246,12 +262,16 @@ A simple lifecycle checkpoint to ensure the conversation has a `createdAt` times
 Records the raw text query the user typed on this turn into the `ce_audit` table. This is purely for debug tracing and business analytics. It binds the `USER_INPUT` audit stage with the conversation ID and the text payload.
 
 <CodeBlockToggle title="AuditUserInputStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/AuditUserInputStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put(com.github.salilvnair.convengine.engine.constants.ConvEnginePayloadKey.TEXT, session.getUserText());
         audit.audit(ConvEngineAuditStage.USER_INPUT, session.getConversationId(), payload);
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -274,12 +294,14 @@ Records the raw text query the user typed on this turn into the `ce_audit` table
 Secures the pipeline against prohibited input using `ce_policy`.
 
 It reads all active rows from `ce_policy`, executing either `REGEX`, `EXACT`, or `LLM` rules against the user's raw text. If a match occurs:
-- The conversation is forced to a \`BLOCKED\` status.
+- The conversation is forced to a `BLOCKED` status.
 - A `StepResult.Stop()` is returned immediately, skipping all remaining NLP and intent steps.
 - The `ce_policy.response_text` is loaded as the final payload shipped back to the consumer.
 
 <CodeBlockToggle title="PolicyEnforcementStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/PolicyEnforcementStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         String userText = session.getUserText();
 
         for (CePolicy policy : policyRepo.findByEnabledTrueOrderByPriorityAsc()) {
@@ -306,7 +328,9 @@ It reads all active rows from `ce_policy`, executing either `REGEX`, `EXACT`, or
         }
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -380,7 +404,9 @@ This keeps:
 - the state model dynamic instead of hardcoded in Java
 
 <CodeBlockToggle title="DialogueActStep.java (Simplified)" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/DialogueActStep.java" defaultOpen={true}>
-{`@MustRunAfter(AuditUserInputStep.class)
+
+```java
+@MustRunAfter(AuditUserInputStep.class)
 @MustRunBefore(IntentResolutionStep.class)
 public class DialogueActStep implements EngineStep {
 
@@ -447,7 +473,9 @@ public class DialogueActStep implements EngineStep {
 
         return new StepResult.Continue();
     }
-}`}
+}
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -487,7 +515,9 @@ The output maps to the `InteractionPolicyDecision` enum:
 4. Most crucially, if any of these policy decisions trigger, it sets `skipIntentResolution = true`. This stops Step 13 (`IntentResolutionStep`) from overriding the sticky intent. The payload is attached with `POLICY_DECISION`.
 
 <CodeBlockToggle title="InteractionPolicyStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/InteractionPolicyStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         String dialogueActRaw = session.inputParamAsString(ConvEngineInputParamKey.DIALOGUE_ACT);
         DialogueAct dialogueAct = parseDialogueAct(dialogueActRaw);
         Map<String, Object> context = session.contextDict();
@@ -551,7 +581,9 @@ The output maps to the `InteractionPolicyDecision` enum:
         audit.audit(ConvEngineAuditStage.INTERACTION_POLICY_DECIDED, session.getConversationId(), payload);
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -584,7 +616,9 @@ Why it matters:
 - It keeps correction behavior data-driven through prompt-template interaction semantics instead of hardcoded state-name parsing.
 
 <CodeBlockToggle title="CorrectionStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/CorrectionStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         // inspect interaction contract + pending structured context
         CorrectionDecision decision = correctionResolver.resolve(session);
 
@@ -603,7 +637,9 @@ Why it matters:
         ));
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -632,7 +668,9 @@ Status transitions (Enum `PendingActionStatus`):
 - `EXPIRED`: The TTL turn limit was reached before the user confirmed.
 
 <CodeBlockToggle title="ActionLifecycleStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/ActionLifecycleStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (!flowConfig.getActionLifecycle().isEnabled()) {
             return new StepResult.Continue();
         }
@@ -711,7 +749,9 @@ Status transitions (Enum `PendingActionStatus`):
 
         contextHelper.writeRoot(session, root);
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -736,7 +776,9 @@ A smart conversational router. If multiple pending actions apply to the current 
 It dynamically builds a multiple-choice prompt (or LLM synthesis) asking the user to clarify which action they meant. It emits an `ASSISTANT_OUTPUT` step, stalling the pipeline until the user clarifies.
 
 <CodeBlockToggle title="DisambiguationStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/DisambiguationStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (!flowConfig.getDisambiguation().isEnabled()) {
             return new StepResult.Continue();
         }
@@ -801,7 +843,9 @@ It dynamically builds a multiple-choice prompt (or LLM synthesis) asking the use
         payload.put(ConvEnginePayloadKey.QUESTION_SOURCE, questionResult.source());
         audit.audit(ConvEngineAuditStage.DISAMBIGUATION_REQUIRED, session.getConversationId(), payload);
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -825,7 +869,9 @@ The last line of defense before intent triggers. Reads the `ce_config` guardrail
 If a command is flagged as "sensitive" (e.g., destructive actions like closing an account), it can force an explicit `SENSITIVE_ACTION_APPROVAL_REQUIRED` pause, blocking the pipeline from executing tasks until MFA or explicit user verification is acquired.
 
 <CodeBlockToggle title="GuardrailStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/GuardrailStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (!flowConfig.getGuardrail().isEnabled()) {
             return new StepResult.Continue();
         }
@@ -871,7 +917,9 @@ If a command is flagged as "sensitive" (e.g., destructive actions like closing a
         payload.put("state", session.getState());
         audit.audit(ConvEngineAuditStage.GUARDRAIL_ALLOW, session.getConversationId(), payload);
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -901,7 +949,9 @@ Otherwise:
 - Sets the context state to `IDLE` (or whatever the initial configuration demands).
 
 <CodeBlockToggle title="IntentResolutionStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/IntentResolutionStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
 
         String previousIntent = session.getIntent();
 
@@ -975,7 +1025,9 @@ Otherwise:
         );
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -998,7 +1050,9 @@ Otherwise:
 A quality of life check. If the resolved intent matches one of the `RESET_INTENT_CODES` configured in Spring configuration (e.g. `START_OVER`, `RESET`), this step immediately executes a session wipe akin to `ResetConversationStep`, returning the conversation to a clean slate.
 
 <CodeBlockToggle title="ResetResolvedIntentStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/ResetResolvedIntentStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         String intent = session.getIntent();
         if (intent == null || !resetIntentCodes.contains(intent.trim().toUpperCase())) {
             return new StepResult.Continue();
@@ -1023,7 +1077,9 @@ A quality of life check. If the resolved intent matches one of the `RESET_INTENT
         audit.audit(ConvEngineAuditStage.CONVERSATION_RESET, session.getConversationId(), payload);
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1046,7 +1102,9 @@ A quality of life check. If the resolved intent matches one of the `RESET_INTENT
 A safety net. If the classifier fails to return any confidence, or an exception occurred, this step forcibly binds the native engine defaults to `UNKNOWN` intent and `UNKNOWN` state so that `ce_rule` and `ce_response` tables can still define fallback messaging (e.g., "I didn't understand that").
 
 <CodeBlockToggle title="FallbackIntentStateStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/FallbackIntentStateStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
 
         if (session.getIntent() == null) {
             Map<String, Object> payload = new LinkedHashMap<>();
@@ -1073,7 +1131,9 @@ A safety net. If the classifier fails to return any confidence, or an exception 
         session.getConversation().setIntentCode(session.getIntent());
         session.getConversation().setStateCode(session.getState());
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1096,7 +1156,9 @@ A safety net. If the classifier fails to return any confidence, or an exception 
 Bridges static tenant/consumer configurations. Evaluates `ce_container_config` to pull any global JSON context relevant to the intent and merges it directly into `session.contextJson`. This allows things like "Store Hours" or "Region Policies" to be globally attached to all LLM contexts without hardcoding.
 
 <CodeBlockToggle title="AddContainerDataStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/AddContainerDataStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
 
         List<CeContainerConfig> configs =
                 containerConfigRepo.findByIntentAndState(
@@ -1214,7 +1276,9 @@ Bridges static tenant/consumer configurations. Evaluates `ce_container_config` t
         }
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1239,7 +1303,9 @@ Executes Java code. If the InteractionPolicy is `EXECUTE_PENDING_ACTION` and the
 It invokes `CeTaskExecutor.execute()`, runs the backend transaction (e.g. Stripe Refund), and captures the boolean/json result back into the engine `EngineSession` context for downstream rules to evaluate.
 
 <CodeBlockToggle title="PendingActionStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/PendingActionStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (Boolean.TRUE.equals(session.getInputParams().get(ConvEngineInputParamKey.SKIP_PENDING_ACTION_EXECUTION))
                 || Boolean.TRUE.equals(session.getInputParams().get(ConvEngineInputParamKey.GUARDRAIL_BLOCKED))) {
             Map<String, Object> payload = basePayload(session, InteractionPolicyDecision.RECLASSIFY_INTENT, null);
@@ -1311,7 +1377,9 @@ It invokes `CeTaskExecutor.execute()`, runs the backend transaction (e.g. Stripe
         audit.audit(ConvEngineAuditStage.PENDING_ACTION_EXECUTED, session.getConversationId(), payload);
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1334,7 +1402,9 @@ It invokes `CeTaskExecutor.execute()`, runs the backend transaction (e.g. Stripe
 The gateway for Model Context Protocol (MCP) tooling. If `ce_tool` specifies that this intent requires a `tool_group`, this step binds the request and delegates to an external executor. It pauses the LLM, executes the backend SQL or REST fetch, and dumps the massive JSON result into `tool_result` dictionary in context.
 
 <CodeBlockToggle title="ToolOrchestrationStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/ToolOrchestrationStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (!flowConfig.getToolOrchestration().isEnabled()) {
             return new StepResult.Continue();
         }
@@ -1407,7 +1477,9 @@ The gateway for Model Context Protocol (MCP) tooling. If `ce_tool` specifies tha
             audit.audit(ConvEngineAuditStage.TOOL_ORCHESTRATION_ERROR, session.getConversationId(), result);
         }
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1430,7 +1502,9 @@ The gateway for Model Context Protocol (MCP) tooling. If `ce_tool` specifies tha
 Specifically iterates over `ce_mcp_tool` bindings. Instead of static grouped tools, this triggers an agent planner that interprets the input, selects an MCP tool, writes the payload, and executes it. This is the core of dynamic tool use in ConvEngine V2.
 
 <CodeBlockToggle title="McpToolStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/McpToolStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (Boolean.TRUE.equals(session.getInputParams().get(ConvEngineInputParamKey.SKIP_TOOL_EXECUTION))
                 || Boolean.TRUE.equals(session.getInputParams().get(ConvEngineInputParamKey.GUARDRAIL_BLOCKED))) {
             session.putInputParam(ConvEngineInputParamKey.MCP_STATUS, "SKIPPED_BY_GUARDRAIL");
@@ -1537,7 +1611,9 @@ Specifically iterates over `ce_mcp_tool` bindings. Instead of static grouped too
 
         session.syncToConversation();
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1569,7 +1645,9 @@ Prompt-template usage details:
 It then runs `missingFieldEvaluator.evaluate()`. If fields are missing, it sets `session.setSchemaLocked(true)`.
 
 <CodeBlockToggle title="SchemaExtractionStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/SchemaExtractionStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
 
         String intent = session.getIntent();
         String state = session.getState();
@@ -1595,7 +1673,9 @@ It then runs `missingFieldEvaluator.evaluate()`. If fields are missing, it sets 
 
         session.syncFromConversation(true);
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1618,7 +1698,9 @@ It then runs `missingFieldEvaluator.evaluate()`. If fields are missing, it sets 
 In V1, rules had to manually check if schema extraction was done. In V2, this step computes the boolean flags `schemaComplete` and `hasAny` and binds them to the session context. This allows `ce_rule` to simply trigger on `schemaComplete == true`.
 
 <CodeBlockToggle title="AutoAdvanceStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/AutoAdvanceStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
 
         if (session.getResolvedSchema() == null) {
             Map<String, Object> payload = new LinkedHashMap<>();
@@ -1642,7 +1724,9 @@ In V1, rules had to manually check if schema extraction was done. In V2, this st
         payload.put(com.github.salilvnair.convengine.engine.constants.ConvEnginePayloadKey.STATE, session.getState());
         audit.audit(ConvEngineAuditStage.AUTO_ADVANCE_FACTS, session.getConversationId(), payload);
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1668,11 +1752,15 @@ It evaluates expressions (like `JSON_PATH` or `REGEX`) against the `session.cont
 If a rule matches, it executes the target `action` (e.g. `SET_STATE` to `CONFIRMATION`, or `SET_TASK`). It loops until no more rules match, effectively "auto-advancing" state machine nodes.
 
 <CodeBlockToggle title="RulesStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/RulesStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         applyRules(session, "RulesStep", RulePhase.PRE_RESPONSE_RESOLUTION.name());
         session.syncToConversation();
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1695,7 +1783,9 @@ If a rule matches, it executes the target `action` (e.g. `SET_STATE` to `CONFIRM
 A strict validater. Checks `ce_state_graph` to see if the transition that just occurred in `RulesStep` was legally defined by the developer. If a rule jumped from `IDLE` to `CANCELLED` but there is no edge in the graph, this step logs an error and optionally reverts the state to prevent invalid transitions.
 
 <CodeBlockToggle title="StateGraphStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/StateGraphStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (!flowConfig.getStateGraph().isEnabled()) {
             return new StepResult.Continue();
         }
@@ -1729,7 +1819,9 @@ A strict validater. Checks `ce_state_graph` to see if the transition that just o
             session.putInputParam(ConvEngineInputParamKey.STATE_GRAPH_SOFT_BLOCK, true);
         }
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1757,7 +1849,9 @@ The final output generator. Queries `ce_response` for the current intent and sta
 Sets `session.getConversation().setLastAssistantJson()` with the payload.
 
 <CodeBlockToggle title="ResponseResolutionStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/ResponseResolutionStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
 
         if(AgentIntentResolver.INTENT_COLLISION_STATE.equals(session.getState())) {
             Map<String, Object> payload = new LinkedHashMap<>();
@@ -1848,7 +1942,9 @@ Sets `session.getConversation().setLastAssistantJson()` with the payload.
         audit.audit(ConvEngineAuditStage.ASSISTANT_OUTPUT, session.getConversationId(), outputPayload);
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1871,7 +1967,9 @@ Sets `session.getConversation().setLastAssistantJson()` with the payload.
 Evaluates the rolling history. If `ce_memory` is configured, and `recentTurns` exceeds the threshold, this step fires off a summarization prompt to the LLM. It compresses the last N turns into a dense paragraph and saves it as `memory.session_summary` in the context JSON, enabling infinite-context retention without blowing up token limits.
 
 <CodeBlockToggle title="MemoryStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/MemoryStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
         if (!flowConfig.getMemory().isEnabled()) {
             return new StepResult.Continue();
         }
@@ -1920,7 +2018,9 @@ Evaluates the rolling history. If `ce_memory` is configured, and `recentTurns` e
         payload.put("state", session.getState());
         audit.audit(ConvEngineAuditStage.MEMORY_UPDATED, session.getConversationId(), payload);
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -1943,7 +2043,9 @@ Evaluates the rolling history. If `ce_memory` is configured, and `recentTurns` e
 The database commit step. Writes the `CeConversation` row, saving the mutated `contextJson`, `inputParams`, new `intentCode`, and `stateCode`. The step is placed at the end so if an exception occurs mid-pipeline, the corrupted context is ignored and rolled back natively.
 
 <CodeBlockToggle title="PersistConversationStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/PersistConversationStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
 
         // --- sanity check ---
         if (session.getPayload() == null) {
@@ -1977,7 +2079,9 @@ The database commit step. Writes the `CeConversation` row, saving the mutated `c
         audit.audit(ConvEngineAuditStage.ENGINE_RETURN, session.getConversationId(), payload);
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 
@@ -2000,7 +2104,9 @@ The database commit step. Writes the `CeConversation` row, saving the mutated `c
 Timing and safety metrics. Audits the total millisecond execution time from Step 1 to 25. Fires the `PIPELINE_COMPLETE` audit log. Verifies that the resulting payload isn't null.
 
 <CodeBlockToggle title="PipelineEndGuardStep.execute()" language="java" filePath="src/main/java/com/github/salilvnair/convengine/engine/steps/PipelineEndGuardStep.java" defaultOpen={true}>
-{`public StepResult execute(EngineSession session) {
+
+```java
+public StepResult execute(EngineSession session) {
 
         // Sort by start time just in case
         session.getStepTimings().sort(Comparator.comparingLong(StepTiming::getStartedAtNs));
@@ -2023,7 +2129,9 @@ Timing and safety metrics. Audits the total millisecond execution time from Step
         audit.audit(ConvEngineAuditStage.PIPELINE_TIMING, session.getConversationId(), payload);
 
         return new StepResult.Continue();
-    }`}
+    }
+```
+
 </CodeBlockToggle>
 </details>
 

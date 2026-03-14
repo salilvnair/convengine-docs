@@ -75,14 +75,18 @@ The engine prevents intent drift during active schema collection automatically. 
   language="json"
   defaultOpen={false}
 >
-{`{
+
+```json
+{
   "type": "object",
   "required": ["customerId", "email"],
   "properties": {
     "customerId": {"type": "string"},
     "email": {"type": "string"}
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 Runtime facts are evaluated and written into the `EngineSession` context by `AutoAdvanceStep`, making them available for `ce_rule` evaluation:

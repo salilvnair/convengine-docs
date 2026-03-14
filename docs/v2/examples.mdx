@@ -187,7 +187,9 @@ Step loop invokes each <MethodRef>execute(session)</MethodRef>. If a step return
   <TabItem value="dml" label="DML Entries">
 
 <CodeBlockToggle title="FAQ seed SQL" language="sql" defaultOpen={true}>
-{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+
+```sql
+INSERT INTO ce_intent (intent_code, description, priority, enabled)
 VALUES ('FAQ', 'Answer informational questions from FAQ knowledge base', 10, true);
 
 INSERT INTO ce_intent_classifier (intent_code, rule_type, pattern, priority, enabled)
@@ -201,7 +203,9 @@ VALUES ('FAQ', 'IDLE', 'TEXT',
 
 INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
 VALUES ('FAQ', 'IDLE', 'TEXT', 'DERIVED',
-        'Answer FAQ using available context and user question.', 10, true);`}
+        'Answer FAQ using available context and user question.', 10, true);
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -242,7 +246,9 @@ VALUES ('FAQ', 'IDLE', 'TEXT', 'DERIVED',
   <TabItem value="dml" label="DML Entries">
 
 <CodeBlockToggle title="Schema & Rules SQL" language="sql" defaultOpen={true}>
-{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+
+```sql
+INSERT INTO ce_intent (intent_code, description, priority, enabled)
 VALUES ('CONNECTION_TRANSFER', 'Collect fields and confirm before moving a connection.', 100, true);
 
 INSERT INTO ce_output_schema (intent_code, state_code, json_schema, description, enabled, priority)
@@ -266,7 +272,9 @@ INSERT INTO ce_response (intent_code, state_code, response_type, output_format, 
 VALUES ('CONNECTION_TRANSFER', 'COLLECT_INPUTS', 'DERIVED', 'TEXT', true);
 
 INSERT INTO ce_response (intent_code, state_code, response_type, output_format, enabled)
-VALUES ('CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'DERIVED', 'TEXT', true);`}
+VALUES ('CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'DERIVED', 'TEXT', true);
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -306,7 +314,9 @@ VALUES ('CONNECTION_TRANSFER', 'AWAITING_CONFIRMATION', 'DERIVED', 'TEXT', true)
   <TabItem value="dml" label="DML Entries">
 
 <CodeBlockToggle title="Pending Action Assignment SQL" language="sql" defaultOpen={true}>
-{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+
+```sql
+INSERT INTO ce_intent (intent_code, description, priority, enabled)
 VALUES ('CANCEL_ORDER', 'Cancel an order after confirmation.', 100, true);
 
 INSERT INTO ce_pending_action (intent_code, state_code, action_key, bean_name, method_names, priority, enabled, description)
@@ -319,7 +329,9 @@ INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_p
 VALUES ('CANCEL_ORDER', 'CANCELLED', 'DERIVED', 'Format cleanly.', 'Order {{context.orderNumber}} has been completely cancelled.', 0.0, true);
 
 INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
-VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Use the DERIVED prompt for CANCEL_ORDER+CANCELLED and render with context.orderNumber.', 10, true);`}
+VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Use the DERIVED prompt for CANCEL_ORDER+CANCELLED and render with context.orderNumber.', 10, true);
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -357,7 +369,9 @@ VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Use the DERIVED prompt 
   <TabItem value="dml" label="DML Entries">
 
 <CodeBlockToggle title="Virtual DB Binding SQL" language="sql" defaultOpen={true}>
-{`INSERT INTO ce_intent (intent_code, description, priority, enabled)
+
+```sql
+INSERT INTO ce_intent (intent_code, description, priority, enabled)
 VALUES ('DATABASE_QUERY', 'Answer database-backed inventory questions.', 100, true);
 
 INSERT INTO ce_mcp_tool (tool_code, tool_group, intent_code, state_code, enabled, description)
@@ -367,7 +381,9 @@ INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_p
 VALUES ('DATABASE_QUERY', 'COMPLETED', 'DERIVED', 'You are an inventory assistant.', 'Answer from these database results: {{context.mcp.finalAnswer}}', 0.0, true);
 
 INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
-VALUES ('DATABASE_QUERY', 'COMPLETED', 'TEXT', 'DERIVED', 'Render the final answer from context.mcp.finalAnswer.', 10, true);`}
+VALUES ('DATABASE_QUERY', 'COMPLETED', 'TEXT', 'DERIVED', 'Render the final answer from context.mcp.finalAnswer.', 10, true);
+```
+
 </CodeBlockToggle>
 
   </TabItem>
@@ -402,14 +418,18 @@ VALUES ('DATABASE_QUERY', 'COMPLETED', 'TEXT', 'DERIVED', 'Render the final answ
   <TabItem value="dml" label="DML Entries">
 
 <CodeBlockToggle title="Memory Auto-Summarization Config" language="yaml" defaultOpen={true}>
-{`convengine:
+
+```yaml
+convengine:
   flow:
     memory:
       enabled: true
       # Max token size for the compressed summary string
       summary-max-chars: 1200
       # Number of turns to trigger a new summary compression cycle
-      recent-turns-for-summary: 3`}
+      recent-turns-for-summary: 3
+```
+
 </CodeBlockToggle>
 
   </TabItem>

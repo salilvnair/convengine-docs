@@ -7,9 +7,11 @@ import { DbTable, CodeBlockToggle, Highlight } from "@site/src/components/conven
 
 # Consumer Configuration
 
+<div className="ce-schema ce-intro-box">
 This guide covers the current tunable properties available for ConvEngine consumers. Properties are managed via Spring Boot `@ConfigurationProperties` and can be set in your `application.yml` or `application.properties`.
 
-It reflects the active v2 line through the later additions from `2.0.0` to `2.0.9`, including scoped MCP planner behavior, richer audit controls, `ce_verbose`, and the Database Knowledge Graph (DBKG) configuration surface.
+It reflects the active v2 line through the later additions from `2.0.0` to `2.0.9`, including scoped MCP planner behavior, richer audit controls, `ce_verbose`, and the current Semantic Query configuration surface.
+</div>
 
 ## Core namespaces
 
@@ -18,7 +20,7 @@ ConvEngine introduces several configuration namespaces:
 - `convengine.flow.*` (runtime behavior tuning)
 - `convengine.audit.*` (event and tracking controls)
 - `convengine.transport.*` (SSE/STOMP delivery settings)
-- `convengine.mcp.*` (planner/tool behavior, guardrails, HTTP defaults, Database Knowledge Graph (DBKG)
+- `convengine.mcp.*` (planner/tool behavior, guardrails, HTTP defaults, Semantic Query)
 - `convengine.tables.*` (dynamic table mapping overrides)
 - `convengine.experimental.*` (forward-looking toggles)
 
@@ -29,7 +31,9 @@ ConvEngine introduces several configuration namespaces:
 Below is a complete reference of the default configuration options exposed by ConvEngine.
 
 <CodeBlockToggle title="Complete application.yml reference" language="yaml" defaultOpen={true}>
-{`convengine:
+
+```yaml
+convengine:
     # Dynamic table mapping for CE_* entities (same as V1)
     tables:
       AUDIT: CE_AUDIT
@@ -124,65 +128,47 @@ Below is a complete reference of the default configuration options exposed by Co
           retry-status-codes: [429, 502, 503, 504]
           retry-on-io-exception: true
       db:
-        sql-guardrail-table: ce_mcp_sql_guardrail
-        semantic-catalog:
+        query:
+          mode: semantic
+        sql-guardrail-table: ""
+        introspect-tables: []
+        semantic:
           enabled: false
-          knowledge-capsule: true
-          schema-knowledge: true
-          query-knowledge: true
-          max-results: 5
-          scan-limit: 5000
-          min-score: 0.15
-          query-catalog-table: ce_mcp_query_knowledge
-          query-text-column: query_text
-          query-description-column: description
-          prepared-sql-column: prepared_sql
-          tags-column: tags
-          api-hints-column: api_hints
-          schema-catalog-table: ce_mcp_schema_knowledge
-          schema-table-name-column: table_name
-          schema-column-name-column: column_name
-          schema-valid-values-column: valid_values
-          schema-description-column: description
-          schema-tags-column: tags
-          vector-search:
-            enabled: false
-            max-results: 10
-            vector-column: vector
-        knowledge-graph:
-          enabled: false
-          max-results: 5
-          scan-limit: 5000
-          schema-introspection-enabled: true
-          schema-object-limit: 200
-          included-schemas: ["public"]
-          excluded-schemas: ["information_schema", "pg_catalog"]
-          sql-refinement-enabled: false
+          tool-code: db.semantic.query
+          model-path: classpath:/mcp/semantic-layer.yml
+          default-limit: 100
+          max-limit: 500
           sql-dialect: postgres
-          case-resolve-tool-code: dbkg.case.resolve
-          knowledge-lookup-tool-code: dbkg.knowledge.lookup
-          investigate-plan-tool-code: dbkg.investigate.plan
-          investigate-execute-tool-code: dbkg.investigate.execute
-          playbook-validate-tool-code: dbkg.playbook.validate
-          case-type-table: ce_mcp_case_type
-          case-signal-table: ce_mcp_case_signal
-          playbook-table: ce_mcp_playbook
-          playbook-signal-table: ce_mcp_playbook_signal
-          domain-entity-table: ce_mcp_domain_entity
-          domain-relation-table: ce_mcp_domain_relation
-          system-node-table: ce_mcp_system_node
-          system-relation-table: ce_mcp_system_relation
-          api-flow-table: ce_mcp_api_flow
-          db-object-table: ce_mcp_db_object
-          db-column-table: ce_mcp_db_column
-          db-join-path-table: ce_mcp_db_join_path
-          status-dictionary-table: ce_mcp_status_dictionary
-          id-lineage-table: ce_mcp_id_lineage
-          query-template-table: ce_mcp_query_template
-          query-param-rule-table: ce_mcp_query_param_rule
-          playbook-step-table: ce_mcp_playbook_step
-          playbook-transition-table: ce_mcp_playbook_transition
-          outcome-rule-table: ce_mcp_outcome_rule
+          timezone: system timezone
+          max-join-hops: 6
+          max-tables: 10
+          retrieval:
+            max-entities: 3
+            max-tables: 6
+            min-entity-score: 0.35
+            min-table-score: 0.30
+            synonym-weight: 0.40
+            field-weight: 0.25
+            id-pattern-weight: 0.20
+            lexical-weight: 0.15
+            vector-blend-weight: 0.30
+          vector:
+            enabled: false
+            feedback-enabled: true
+            table: ce_semantic_concept_embedding
+            namespace-column: namespace
+            target-type-column: target_type
+            target-name-column: target_name
+            embedding-column: embedding
+            metadata-column: metadata_json
+            max-results: 20
+          clarification:
+            enabled: true
+            confidence-threshold: 0.80
+            retrieval-weight: 0.60
+            join-weight: 0.40
+            min-top-entity-gap: 0.12
+            max-entity-options: 2
 
     # Transport mechanisms
     transport:
@@ -224,8 +210,8 @@ Below is a complete reference of the default configuration options exposed by Co
         mode: IMMEDIATE   # IMMEDIATE | DEFERRED_BULK
         jdbc-batch-size: 200
         max-buffered-events: 5000
-        flush-stages: ENGINE_KNOWN_FAILURE,ENGINE_UNKNOWN_FAILURE
-        final-step-names: PipelineEndGuardStep
+        flush-stages: [ENGINE_KNOWN_FAILURE, ENGINE_UNKNOWN_FAILURE]
+        final-step-names: [PipelineEndGuardStep]
         flush-on-stop-outcome: true
       dispatch:
         async-enabled: false
@@ -239,7 +225,9 @@ Below is a complete reference of the default configuration options exposed by Co
         window-ms: 1000
         per-conversation: true
         per-stage: true
-        max-tracked-buckets: 20000`}
+        max-tracked-buckets: 20000
+```
+
 </CodeBlockToggle>
 
 ---
@@ -403,7 +391,7 @@ The `convengine.flow.*` properties control the nuanced routing behavior without 
 
 ## Breakdown: MCP Configuration
 
-`convengine.mcp.*` is much broader in the current v2 line than the older docs implied. It now covers next-tool guardrails, framework-managed HTTP behavior, and the Database Knowledge Graph (DBKG) runtime.
+`convengine.mcp.*` is much broader in the current v2 line than the older docs implied. It now covers next-tool guardrails, framework-managed HTTP behavior, and Semantic Query.
 
 <DbTable
   title="convengine.mcp.orchestration"
@@ -445,20 +433,16 @@ The `convengine.flow.*` properties control the nuanced routing behavior without 
 />
 
 <DbTable
-  title="convengine.mcp.db.semantic-catalog"
+  title="convengine.mcp.db.semantic"
   columns={["Property", "Default", "Description"]}
   rows={[
-    ["enabled", "false", "Enables/disables `db.semantic.catalog` metadata grounding."],
-    ["knowledge-capsule", "true", "If false, planner input excludes DBKG capsule construction/usage from semantic-catalog observations."],
-    ["schema-knowledge", "true", "If false, ce_mcp_schema_knowledge is not read or ranked."],
-    ["query-knowledge", "true", "If false, ce_mcp_query_knowledge is not read or ranked."],
-    ["max-results / scan-limit", "5 / 5000", "Controls depth vs breadth of the semantic distance search queries."],
-    ["min-score", "0.15", "Relevance threshold to drop weak catalog matched schemas/queries."],
-    ["table overrides", "ce_mcp_*", "Allows consumers to remap the query knowledge and schema knowledge semantic tables."],
-    ["column overrides", "...", "Allows rewiring of fields such as query_text, description, tags, valid_values, etc."],
-    ["vector-search.enabled", "false", "Enables vector ranking path for semantic catalog."],
-    ["vector-search.max-results", "10", "Top K rows retained from vector ranking interceptor."],
-    ["vector-search.vector-column", "vector", "Column name that stores row vectors in semantic catalog tables."]
+    ["enabled", "false", "Enables semantic tool chain (`db.semantic.interpret -> db.semantic.query -> postgres.query`)."],
+    ["tool-code", "db.semantic.query", "Primary tool code used by semantic query stage."],
+    ["model-path", "classpath:/mcp/semantic-layer.yml", "Semantic model source path."],
+    ["default-limit / max-limit", "100 / 500", "Default and max row limits for semantic queries."],
+    ["sql-dialect", "postgres", "Dialect hint used during SQL generation."],
+    ["timezone", "system timezone", "Default timezone used for time parsing."],
+    ["max-join-hops / max-tables", "6 / 10", "Safety limits for SQL generation breadth."]
   ]}
 />
 
@@ -469,7 +453,9 @@ There is no config key for this SPI; override by providing your own interceptor 
 </Highlight>
 
 <CodeBlockToggle title="PostgresQueryInterceptor consumer example" language="java">
-{`@Component
+
+```java
+@Component
 @Order(10) // higher priority than framework fallback
 public class TenantSqlInterceptor implements PostgresQueryInterceptor {
 
@@ -485,27 +471,24 @@ public class TenantSqlInterceptor implements PostgresQueryInterceptor {
     return sql.replace(" FROM zp_", " FROM v2.zp_")
               .replace(" JOIN zp_", " JOIN v2.zp_");
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <DbTable
-  title="convengine.mcp.db.knowledge-graph"
+  title="convengine.mcp.db.semantic.retrieval / vector / clarification"
   columns={["Property", "Default", "Description"]}
   rows={[
-    ["enabled", "false", "Turns the Database Knowledge Graph (DBKG) tool chain on or off."],
-    ["schema-introspection-enabled", "true", "Lets Database Knowledge Graph (DBKG) read live schema from JDBC metadata."],
-    ["schema-object-limit", "200", "Caps discovered physical objects during schema scan."],
-    ["included-schemas", "[public]", "Schemas Database Knowledge Graph (DBKG) should inspect."],
-    ["excluded-schemas", "[information_schema, pg_catalog]", "Schemas Database Knowledge Graph (DBKG) should ignore."],
-    ["sql-refinement-enabled", "false", "Allows LLM to refine generated SQL from playbook definitions."],
-    ["sql-dialect", "postgres", "Dialect used for SQL execution contexts."],
-    ["case-resolve-tool-code", "dbkg.case.resolve", "Tool code used for case resolution."],
-    ["knowledge-lookup-tool-code", "dbkg.knowledge.lookup", "Tool code used for knowledge assembly."],
-    ["investigate-plan-tool-code", "dbkg.investigate.plan", "Tool code used for playbook planning."],
-    ["playbook-validate-tool-code", "dbkg.playbook.validate", "Tool code used for graph validation."],
-    ["investigate-execute-tool-code", "dbkg.investigate.execute", "Tool code used for execution."],
-    ["table-name overrides", "ce_mcp_* defaults", "Lets consumers remap any Database Knowledge Graph (DBKG) metadata table name."],
-    ["max-results / scan-limit", "5 / 5000", "Limits metadata ranking volume."]
+    ["retrieval.max-entities / max-tables", "3 / 6", "Candidate cap for entity and table retrieval."],
+    ["retrieval scoring weights", "synonym/field/id-pattern/lexical/vector-blend", "Controls retrieval ranking blend."],
+    ["vector.enabled", "false", "Enable vector-assisted retrieval."],
+    ["vector.feedback-enabled", "true", "Allow USER_QUERY feedback embeddings to boost retrieval."],
+    ["vector.table / columns", "ce_semantic_concept_embedding + overrides", "Embedding source table and column mapping."],
+    ["clarification.enabled", "true", "Enable clarification follow-up loop."],
+    ["clarification.confidence-threshold", "0.80", "Threshold below which clarification is asked."],
+    ["clarification.min-top-entity-gap", "0.12", "If top entity scores are too close, clarification is asked."],
+    ["clarification.max-entity-options", "2", "Maximum options shown in clarification question."]
   ]}
 />
 

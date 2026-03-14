@@ -9,14 +9,16 @@ import { DbTable, Highlight, CodeBlockToggle } from "@site/src/components/conven
 
 # Advanced Guide (v2.0.10)
 
-This page documents the current `2.0.10` MCP runtime: scoped planner/tool selection, current rule phases, next-tool guardrails, direct-tool execution, and the guarded Database Knowledge Graph (DBKG) branch.
+<div className="ce-schema ce-intro-box">
+This page documents the current `2.0.10` MCP runtime: scoped planner/tool selection, current rule phases, next-tool guardrails, direct-tool execution, and the guarded Semantic Query branch.
+</div>
 
 ## Read order
 
 1. [MCP Basics](/docs/v2/deep-dive/mcp/basics)
 2. Advanced Guide (this page)
-3. [Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog)
-4. [Knowledge (Database Knowledge Graph (DBKG))](/docs/v2/deep-dive/mcp/knowledge)
+3. [Semantic Query](/docs/v2/deep-dive/mcp/semantic-query)
+4. [Knowledge (Semantic Query)](/docs/v2/deep-dive/table-config)
 5. [HTTP Tool](/docs/v2/deep-dive/mcp/http-tool)
 6. [Example 1](/docs/v2/deep-dive/mcp/example1)
 7. [Example 2](/docs/v2/deep-dive/mcp/example2)
@@ -40,7 +42,7 @@ Compatibility note: legacy values (`PIPELINE_RULES`, `AGENT_POST_INTENT`, `AGENT
   rows={[
     ["Planner MCP", "McpToolStep", "Runs planner loop (`CALL_TOOL` / `ANSWER`) and accumulates `context.mcp.observations`.", "Next-tool guardrail, scoped `ce_mcp_tool`, scoped `ce_mcp_planner`."],
     ["Direct tool", "ToolOrchestrationStep", "Executes exactly one `tool_request` and writes `context.mcp.toolExecution`.", "Scoped tool lookup, `POST_TOOL_EXECUTION` rules."],
-    ["Database Knowledge Graph (DBKG)", "McpToolStep planner branch", "Runs the guarded DB investigation chain inside the planner loop.", "`dbkg.playbook.validate` must succeed before `dbkg.investigate.execute`; DB SQL is read-only."]
+    ["Semantic query", "McpToolStep planner branch", "Runs semantic interpret -> query -> SQL execution chain inside planner loop.", "`db.semantic.interpret` must resolve canonical intent before `db.semantic.query`; SQL remains read-only."]
   ]}
 />
 
@@ -56,14 +58,12 @@ Compatibility note: legacy values (`PIPELINE_RULES`, `AGENT_POST_INTENT`, `AGENT
 8. `PRE_RESPONSE_RESOLUTION` rules run.
 9. `ResponseResolutionStep` still decides the final transport payload.
 
-For the Database Knowledge Graph (DBKG) branch, the same planner loop is used, but the tool order is stricter:
+For the Semantic Query branch, the same planner loop is used, but the tool order is stricter:
 
-1. `dbkg.case.resolve`
-2. `dbkg.knowledge.lookup`
-3. `dbkg.investigate.plan`
-4. `dbkg.playbook.validate`
-5. `dbkg.investigate.execute`
-6. planner `ANSWER`
+1. `db.semantic.interpret`
+2. `db.semantic.query`
+3. `postgres.query`
+4. planner `ANSWER`
 
 ## Tool execution paths
 
@@ -109,10 +109,10 @@ When `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
 2. Rules in `POST_AGENT_MCP` still execute.
 3. `ce_response` remains the final response authority (commonly `DERIVED` using `context.mcp.finalAnswer`).
 
-For the Database Knowledge Graph (DBKG) path, there is one additional hard stop:
+For the Semantic Query path, there is one additional hard stop:
 
-1. if the planner proposes `dbkg.investigate.execute` before a successful `dbkg.playbook.validate`
-2. `McpToolStep` blocks execution with `DBKG_VALIDATION_REQUIRED_BEFORE_EXECUTION`
+1. if the planner proposes `db.semantic.query` before a successful `db.semantic.interpret`
+2. `McpToolStep` blocks execution with semantic validation guardrail reason
 3. audit and response resolution still continue through the normal MCP lifecycle
 
 ## Read-only DB behavior
@@ -120,7 +120,7 @@ For the Database Knowledge Graph (DBKG) path, there is one additional hard stop:
 All MCP DB execution is now enforced as read-only.
 
 - generic DB tools are guarded
-- Database Knowledge Graph (DBKG) query templates are guarded
+- Semantic Query query templates are guarded
 - statements such as `INSERT`, `UPDATE`, `DELETE`, `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `MERGE`, and `CALL` are blocked
 - `SELECT INTO`, `FOR UPDATE`, and multi-statement SQL are blocked
 - `ce_mcp_sql_guardrail` can extend function allow/block rules without making the runtime writable
@@ -218,8 +218,9 @@ VALUES
 ```sql
 INSERT INTO ce_mcp_tool (tool_id, tool_code, tool_group, intent_code, state_code, enabled, description)
 VALUES
-(9001, 'db.semantic.catalog', 'DB', 'ANY', 'ANY', true, 'Semantic catalog lookup'),
-(9002, 'order.status.api', 'HTTP_API', 'ANY', 'ANY', true, 'Order status API');
+(9001, 'db.semantic.interpret', 'DB', 'ANY', 'ANY', true, 'Semantic interpret'),
+(9002, 'db.semantic.query', 'DB', 'ANY', 'ANY', true, 'Semantic SQL generator'),
+(9003, 'postgres.query', 'DB', 'ANY', 'ANY', true, 'Read-only SQL execution');
 ```
 
   </TabItem>
@@ -240,5 +241,5 @@ For MCP chains, keep final user text in `ce_response`/`ce_prompt_template` and t
 </Highlight>
 
 <Highlight type="tip" title="Where the detailed examples live">
-Use [Example 3](/docs/v2/deep-dive/mcp/example3) for the full confirmation-first flow and [Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4) for the guarded Database Knowledge Graph (DBKG) path.
+Use [Example 3](/docs/v2/deep-dive/mcp/example3) for the full confirmation-first flow and [Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4) for the guarded Semantic Query path.
 </Highlight>

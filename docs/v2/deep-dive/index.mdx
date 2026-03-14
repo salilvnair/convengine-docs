@@ -5,7 +5,9 @@ sidebar_position: 1
 
 # Deep Dive
 
-This section documents the actual runtime behavior from code and schema, including step contracts, rule phases, audit traces, control-plane tables, MCP orchestration, and Database Knowledge Graph (DBKG).
+<div className="ce-schema ce-intro-box">
+This section documents the actual runtime behavior from code and schema, including step contracts, rule phases, audit traces, control-plane tables, MCP orchestration, and Semantic Query.
+</div>
 
 ## Quick jump
 
@@ -20,7 +22,7 @@ This section documents the actual runtime behavior from code and schema, includi
 - [Pipeline Steps](/docs/v2/deep-dive/pipeline-steps): Full step-by-step pipeline with exact stage purpose.
 - [Intent & Schema](/docs/v2/deep-dive/intent-and-schema): Intent resolution and schema extraction internals.
 - [Rules & Responses](/docs/v2/deep-dive/rules-responses): Rule phases, match/action behavior, and response resolution.
-- [MCP](/docs/v2/deep-dive/mcp): MCP planner/tool orchestration, audit surfaces, and Database Knowledge Graph (DBKG).
+- [MCP](/docs/v2/deep-dive/mcp): MCP planner/tool orchestration, audit surfaces, and Semantic Query.
 - [v2 Features](/docs/v2/deep-dive/v2-features): Detailed breakdown of release-line capabilities.
 - [Failure Gotchas](/docs/v2/deep-dive/failure-gotchas): Common failure and correctness risks.
 - [Improvement Backlog](/docs/v2/deep-dive/improvement-backlog): Known follow-up items and design pressure points.
@@ -31,5 +33,5 @@ Use Deep Dive when you need the real runtime model, not just onboarding guidance
 
 - Use it to trace which step made a decision.
 - Use it to identify which `ce_*` table owns a behavior.
-- Use it to understand how rules, responses, prompts, MCP, and Database Knowledge Graph (DBKG) interact.
+- Use it to understand how rules, responses, prompts, MCP, and Semantic Query interact.
 - Use it to debug production issues with audit-stage and step-level precision.

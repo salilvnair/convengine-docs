@@ -7,7 +7,9 @@ import { DbTable, Highlight } from "@site/src/components/convengine";
 
 # Table Config
 
+<div className="ce-schema ce-intro-box">
 This page is the control-plane map for ConvEngine. It explains the important `ce_*` tables, what each one controls, which step reads it, and which config families shape the runtime without requiring custom Java branching.
+</div>
 
 <Highlight type="info" title="How to use this page">
 If you are debugging behavior, start with the table that owns the decision. If you are tuning behavior, start with the config family that shapes the step before you touch custom code.
@@ -19,7 +21,7 @@ If you are debugging behavior, start with the table that owns the decision. If y
 - [Core static control tables](#core-static-control-tables)
 - [What these tables actually do](#what-these-tables-actually-do)
 - [Runtime persistence tables](#runtime-persistence-tables)
-- [Database Knowledge Graph (DBKG) metadata tables](#database-knowledge-graph-dbkg-metadata-tables)
+- [Semantic Query metadata tables](#semantic-query-metadata-tables)
 - [Config families and values](#config-families-and-values)
 - [High-impact lookup map](#high-impact-lookup-map)
 
@@ -35,7 +37,7 @@ The sections below go one table at a time for the primary static control-plane t
   title="ce_intent columns"
   columns={["Column", "Typical values", "What it does"]}
   rows={[
-    ["intent_code", "GREETING, LOAN_APPLICATION, ORDER_DIAGNOSTICS, DBKG_DIAGNOSTICS", "Primary intent identifier used everywhere else in scoped config."],
+    ["intent_code", "GREETING, LOAN_APPLICATION, ORDER_DIAGNOSTICS, SEMANTIC_QUERY_DIAGNOSTICS", "Primary intent identifier used everywhere else in scoped config."],
     ["description", "Free text", "Human-readable explanation of the intent."],
     ["priority", "Integer", "Used when multiple intents need deterministic ordering."],
     ["enabled", "true / false", "Disables the intent without deleting the row."],
@@ -144,7 +146,7 @@ The sections below go one table at a time for the primary static control-plane t
 
 ### `ce_response`
 
-`ce_response` is still the final response authority even when MCP or Database Knowledge Graph (DBKG) computes internal answers.
+`ce_response` is still the final response authority even when MCP or semantic query runtime computes internal answers.
 
 <DbTable
   title="ce_response columns"
@@ -394,7 +396,7 @@ Important:
     ["ce_pending_action", "Static catalog of confirmable pending tasks.", "ActionLifecycleStep, DisambiguationStep, PendingActionStep.", "action_key, bean_name, method_names, intent_code, state_code, priority, enabled"],
     ["ce_mcp_tool", "MCP tool registry with strict intent/state scope.", "McpToolStep, ToolOrchestrationStep, McpToolRegistry.", "tool_code, tool_group, intent_code, state_code, enabled"],
     ["ce_mcp_db_tool", "SQL-template fallback configuration for DB tools.", "McpDbToolExecutor / DB tool fallback paths.", "tool_id, dialect, sql_template, param_schema, safe_mode, max_rows"],
-    ["ce_mcp_sql_guardrail", "Read-only SQL safety extensions for MCP DB paths.", "McpSqlGuardrail, McpDbExecutor, DbkgQueryTemplateStepExecutor.", "rule_type, match_value, enabled, description"],
+    ["ce_mcp_sql_guardrail", "Read-only SQL safety extensions for MCP DB paths.", "McpSqlGuardrail, McpDbExecutor, SemanticQueryTemplateStepExecutor.", "rule_type, match_value, enabled, description"],
     ["ce_mcp_planner", "Planner prompts scoped by intent/state.", "McpPlanner.", "planner_id, intent_code, state_code, system_prompt, user_prompt, enabled"],
     ["ce_verbose", "Config-driven runtime progress and error messages.", "Verbose publishing adapters across many steps.", "intent_code, state_code, determinant, step_match, step_value, message, error_message, priority"]
   ]}
@@ -408,7 +410,7 @@ Important:
   title="Intent + routing tables"
   columns={["Table", "What it decides", "Important values / examples", "Why it matters"]}
   rows={[
-    ["ce_intent", "Which business intents exist.", "ORDER_DIAGNOSTICS, LOAN_APPLICATION, DBKG_DIAGNOSTICS, GREETING", "Every later scoped decision depends on a valid intent."],
+    ["ce_intent", "Which business intents exist.", "ORDER_DIAGNOSTICS, LOAN_APPLICATION, SEMANTIC_QUERY_DIAGNOSTICS, GREETING", "Every later scoped decision depends on a valid intent."],
     ["ce_intent_classifier", "How raw text maps to intent/state.", "rule_type is pattern-driven and consumer-defined (for example REGEX-style classification rows)", "This is the earliest business routing decision."],
     ["ce_rule", "How the engine mutates state, input params, JSON, tasks, and dialogue act after each phase.", "phase values include POST_AGENT_INTENT, POST_SCHEMA_EXTRACTION, PRE_AGENT_MCP, POST_AGENT_MCP, PRE_RESPONSE_RESOLUTION, POST_TOOL_EXECUTION, POST_DIALOGUE_ACT", "Most domain behavior should live here instead of hardcoded Java."],
     ["ce_policy", "Whether a turn should be short-circuited with a policy response before intent work continues.", "pattern and response_text form the policy contract", "This is the early safety boundary before expensive work starts."]
@@ -454,32 +456,23 @@ Important:
   ]}
 />
 
-## Database Knowledge Graph (DBKG) metadata tables
+## Semantic Query metadata tables
 
 <DbTable
-  title="Database Knowledge Graph (DBKG) ce_mcp_* knowledge graph tables"
+  title="Semantic Query ce_semantic_* tables"
   columns={["Table", "Purpose", "Used by", "What it makes possible"]}
   rows={[
-    ["ce_mcp_case_type", "Top-level investigation families.", "DbkgCaseResolver.", "Turns support language into a known case model."],
-    ["ce_mcp_case_signal", "Weighted matching signals for cases.", "DbkgCaseResolver.", "Lets case resolution stay DB-driven."],
-    ["ce_mcp_playbook", "Executable diagnostic playbooks.", "DbkgPlaybookResolver.", "Separates case family from exact diagnostic path."],
-    ["ce_mcp_playbook_signal", "Weighted matching signals for playbooks.", "DbkgPlaybookResolver.", "Lets one case choose the right playbook."],
-    ["ce_mcp_domain_entity", "Business nouns with synonyms, metadata_json, llm_hint.", "DbkgKnowledgeLookupService.", "Lets Database Knowledge Graph (DBKG) reason in business language, not just table names."],
-    ["ce_mcp_domain_relation", "Edges between business entities.", "DbkgKnowledgeLookupService.", "Adds graph semantics across entities."],
-    ["ce_mcp_system_node", "System/application registry.", "DbkgKnowledgeLookupService.", "Lets Database Knowledge Graph (DBKG) reason about system ownership and boundaries."],
-    ["ce_mcp_api_flow", "Declarative API/call-chain metadata.", "DbkgKnowledgeLookupService.", "Gives Database Knowledge Graph (DBKG) system flow and downstream context."],
-    ["ce_mcp_system_relation", "Edges between systems.", "DbkgKnowledgeLookupService.", "Models UI -> service -> downstream chains."],
-    ["ce_mcp_db_object", "Optional table/view overlay metadata.", "DbkgKnowledgeLookupService.", "Adds semantic hints on top of live schema introspection."],
-    ["ce_mcp_db_column", "Optional column overlay metadata.", "DbkgKnowledgeLookupService.", "Adds semantic names, synonyms, and hints without manually recreating schema."],
-    ["ce_mcp_db_join_path", "Preferred join overrides.", "DbkgKnowledgeLookupService.", "Lets business-preferred joins override pure FK joins."],
-    ["ce_mcp_status_dictionary", "Status code to label mapping.", "DbkgKnowledgeLookupService, Database Knowledge Graph (DBKG) param resolution.", "Turns codes like 200/400 into business meaning."],
-    ["ce_mcp_id_lineage", "Cross-system identifier lineage.", "DbkgKnowledgeLookupService.", "Explains how request/order/disconnect ids propagate."],
-    ["ce_mcp_executor_template", "Generic step executor registry.", "DbkgPlaybookEngine.", "Lets steps point to behavior by code instead of hardcoding."],
-    ["ce_mcp_query_template", "Approved SQL templates.", "DbkgPlaybookEngine.", "Keeps DB execution deterministic and auditable."],
-    ["ce_mcp_query_param_rule", "How query params are filled.", "DbkgPlaybookEngine.", "Lets params come from args, status dictionaries, context, or prior outputs."],
-    ["ce_mcp_playbook_step", "Playbook DAG nodes.", "DbkgPlaybookResolver, DbkgPlaybookValidator, DbkgPlaybookEngine.", "Defines each executable step in the investigation graph."],
-    ["ce_mcp_playbook_transition", "Playbook DAG edges.", "DbkgPlaybookValidator, DbkgPlaybookEngine.", "Controls execution order and branching."],
-    ["ce_mcp_outcome_rule", "Final diagnosis rules.", "DbkgOutcomeResolver.", "Turns runtime results into stable explanations."]
+    ["ce_semantic_concept", "Business concepts (ENTITY/STATUS/INTENT).", "SemanticInterpretService.", "Maps user language into domain concepts."],
+    ["ce_semantic_synonym", "Synonym table for concept matching.", "SemanticInterpretService.", "Improves recall for natural-language variants."],
+    ["ce_semantic_query_class", "Query class contracts (filters/sorts/defaults).", "SemanticInterpretService, SemanticLlmQueryService.", "Constrains query intent and default behavior."],
+    ["ce_semantic_mapping", "Business field -> physical mapping.", "SemanticInterpretService, SemanticLlmQueryService.", "Enables SQL generation from canonical intent."],
+    ["ce_semantic_ambiguity_option", "Explicit clarification options.", "SemanticInterpretService.", "Provides deterministic disambiguation choices."],
+    ["ce_semantic_concept_embedding", "Embedding corpus for concepts.", "SemanticInterpretService.", "Vector-assisted concept/entity retrieval."],
+    ["ce_semantic_entity_override", "Entity-level override metadata.", "SemanticInterpretService.", "Patch behavior without Java changes."],
+    ["ce_semantic_relationship_override", "Relationship override metadata.", "SemanticInterpretService.", "Override join relationships without Java changes."],
+    ["ce_semantic_join_hint", "Join hints metadata.", "SemanticInterpretService.", "Steers join planning for complex schemas."],
+    ["ce_semantic_value_pattern", "Value extraction patterns.", "SemanticInterpretService.", "Improves value parsing from natural language."],
+    ["ce_semantic_query_failures", "Failure memory + corrected SQL + embeddings.", "SemanticLlmQueryService, SemanticFailureFeedbackService.", "Supports retry, retrieval, and correction learning."]
   ]}
 />
 
@@ -594,20 +587,20 @@ Important:
   ]}
 />
 
-### `convengine.mcp.db.knowledge-graph.*`
+### `convengine.mcp.db.semantic.*`
 
 <DbTable
-  title="Database Knowledge Graph (DBKG) config"
+  title="Semantic Query config"
   columns={["Setting / value", "Possible values", "What it changes"]}
   rows={[
-    ["enabled", "true / false", "Turns the Database Knowledge Graph (DBKG) tool chain on or off."],
-    ["sqlGuardrailTable", "ce_mcp_sql_guardrail", "Points the shared SQL guard at the table that governs read-only function and keyword rules for all MCP DB execution paths."],
-    ["schemaIntrospectionEnabled", "true / false", "Lets Database Knowledge Graph (DBKG) read live schema from JDBC metadata."],
-    ["includedSchemas / excludedSchemas", "list of schema names", "Controls which database schemas Database Knowledge Graph (DBKG) scans."],
-    ["schemaObjectLimit", "integer", "Caps how many physical objects schema discovery returns."],
-    ["caseResolveToolCode / knowledgeLookupToolCode / investigatePlanToolCode / playbookValidateToolCode / investigateExecuteToolCode", "string tool codes", "Lets you remap Database Knowledge Graph (DBKG) tool codes without rewriting handlers."],
-    ["table name overrides", "string table names", "Lets you remap Database Knowledge Graph (DBKG) metadata table names if your schema naming differs."],
-    ["maxResults / scanLimit", "integer", "Limits metadata ranking and prevents low-value result flooding."]
+    ["enabled", "true / false", "Turns semantic runtime on/off."],
+    ["toolCode", "db.semantic.query", "Primary semantic query tool code."],
+    ["modelPath", "classpath:/mcp/semantic-layer.yml", "Semantic model path."],
+    ["defaultLimit / maxLimit", "integer", "Default and max row limits."],
+    ["sqlDialect / timezone", "string", "Dialect and timezone controls for query generation."],
+    ["retrieval.*", "weights + limits", "Controls semantic retrieval ranking behavior."],
+    ["vector.*", "enabled/table/columns/maxResults", "Controls embedding-based retrieval settings."],
+    ["clarification.*", "threshold + option limits", "Controls ambiguity clarification behavior."]
   ]}
 />
 
@@ -625,8 +618,9 @@ Important:
     ["Pending confirmations or task execution", "ce_pending_action + convengine.flow.action-lifecycle.*", "Those control the multi-turn task path."],
     ["Direct tool availability", "ce_mcp_tool + convengine.flow.tool-orchestration.*", "That controls tool visibility and direct execution."],
     ["Planner behavior", "ce_mcp_planner + convengine.mcp.guardrail.*", "That controls tool order and whether transitions are allowed."],
-    ["Database Knowledge Graph (DBKG) investigation routing", "ce_mcp_case_* + ce_mcp_playbook*", "That is where Database Knowledge Graph (DBKG) chooses the case and the playbook path."],
-    ["Database Knowledge Graph (DBKG) SQL and diagnosis logic", "ce_mcp_query_template + ce_mcp_query_param_rule + ce_mcp_outcome_rule", "That controls safe execution and the final explanation."],
+    ["Semantic intent mapping", "ce_semantic_concept + ce_semantic_synonym + ce_semantic_mapping", "That controls how user text becomes canonical business intent."],
+    ["Semantic query behavior", "ce_semantic_query_class + ce_semantic_ambiguity_option + ce_semantic_join_hint", "That controls query class constraints, clarification, and join guidance."],
+    ["Semantic retry memory", "ce_semantic_query_failures", "That controls failure-memory examples and corrected-SQL reuse."],
     ["Runtime progress messages", "ce_verbose", "That is the control-plane source for verbose messages."]
   ]}
 />

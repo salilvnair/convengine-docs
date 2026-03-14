@@ -25,7 +25,9 @@ This page lists all annotation types currently present in ConvEngine and how con
 />
 
 <CodeBlockToggle title="Basic enablement" language="java">
-{`@SpringBootApplication
+
+```java
+@SpringBootApplication
 @EnableConvEngine(stream = true)
 @EnableConvEngineCaching
 @EnableConvEngineAsyncConversation
@@ -33,15 +35,21 @@ public class MyApplication {
   public static void main(String[] args) {
     SpringApplication.run(MyApplication.class, args);
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="Optional relay + async markers" language="java">
-{`@Configuration
+
+```java
+@Configuration
 @EnableConvEngineAsyncAuditDispatch
 @EnableConvEngineStompBrokerRelay
 public class ConvEngineFeatureFlags {
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <Highlight type="info" title="How stream mode works">
@@ -60,7 +68,9 @@ public class ConvEngineFeatureFlags {
 />
 
 <CodeBlockToggle title="Response transformer example" language="java">
-{`@Component
+
+```java
+@Component
 @ResponseTransformer(intent = "REQUEST_TRACKER", state = "IDLE")
 public class TrackerResponseTransformer implements ResponseTransformerHandler {
   @Override
@@ -69,11 +79,15 @@ public class TrackerResponseTransformer implements ResponseTransformerHandler {
                                  Map<String, Object> inputParams) {
     return responsePayload;
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="Container transformer example" language="java">
-{`@Component
+
+```java
+@Component
 @ContainerDataTransformer(intent = "DISCONNECT_ELECTRICITY", state = "COLLECTING")
 public class DisconnectContainerTransformer implements ContainerDataTransformerHandler {
   @Override
@@ -82,11 +96,15 @@ public class DisconnectContainerTransformer implements ContainerDataTransformerH
                                        Map<String, Object> inputParams) {
     return Map.of("normalized", response);
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="Container interceptor example" language="java">
-{`@Component
+
+```java
+@Component
 @ContainerDataInterceptor(intent = "*", state = "*", order = 10)
 public class TraceContainerInterceptor
     implements ContainerDataRequestInterceptor, ContainerDataResponseInterceptor {
@@ -100,7 +118,9 @@ public class TraceContainerInterceptor
   public ContainerComponentResponse intercept(ContainerComponentResponse response, EngineSession session) {
     return response;
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <Highlight type="warning" title="Transformer/interceptor registration rules">
@@ -123,7 +143,9 @@ If a class uses `@ResponseTransformer` or `@ContainerDataTransformer` but does n
 />
 
 <CodeBlockToggle title="Custom step with ordering" language="java">
-{`@Component
+
+```java
+@Component
 @RequiresConversationPersisted
 @MustRunAfter(IntentResolutionStep.class)
 @MustRunBefore(ResponseResolutionStep.class)
@@ -132,7 +154,9 @@ public class CustomValidationStep implements EngineStep {
   public StepResult execute(EngineSession session) {
     return new StepResult.Continue();
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <Highlight type="warning" title="Important constraints">

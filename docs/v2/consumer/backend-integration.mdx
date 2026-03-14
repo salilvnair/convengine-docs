@@ -53,7 +53,9 @@ Semantic Query model-admin APIs are exposed from `DbSchemaController` under:
   packagePath="com.github.salilvnair"
   filePath="convengine-demo/src/main/java/com/github/salilvnair/ConvengineDemoApplication.java"
 >
-{`@SpringBootApplication
+
+```java
+@SpringBootApplication
 @ComponentScan(basePackages = {"com.github.salilvnair.convengdemo"})
 @EntityScan(basePackages = {"com.github.salilvnair.convengdemo.entity"})
 @EnableJpaRepositories(basePackages = {"com.github.salilvnair.convengdemo.repo"})
@@ -61,7 +63,9 @@ public class ConvengineDemoApplication {
   public static void main(String[] args) {
     SpringApplication.run(ConvengineDemoApplication.class, args);
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -70,7 +74,9 @@ public class ConvengineDemoApplication {
   packagePath="com.github.salilvnair.convengdemo.config"
   filePath="convengine-demo/src/main/java/com/github/salilvnair/convengdemo/config/ConvEngineConfig.java"
 >
-{`@Configuration
+
+```java
+@Configuration
 @EnableConvEngine
 @EnableConvEngineAsyncAuditDispatch // optional
 @EnableConvEngineStompBrokerRelay   // optional
@@ -85,7 +91,9 @@ public class ConvEngineConfig {
   public ObjectMapper objectMapper() {
     return new ObjectMapper();
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ## convengine-demo: Runtime config
@@ -95,7 +103,9 @@ public class ConvEngineConfig {
   language="yaml"
   filePath="convengine-demo/src/main/resources/application.yml"
 >
-{`server:
+
+```yaml
+server:
     port: 8080
 
 spring:
@@ -189,40 +199,54 @@ convengine:
         window-ms: 1000
         per-conversation: true
         per-stage: true
-        max-tracked-buckets: 20000`}
+        max-tracked-buckets: 20000
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="application-sse.yml" language="yaml" filePath="convengine-demo/src/main/resources/application-sse.yml">
-{`convengine:
+
+```yaml
+convengine:
     demo:
       stream-mode: SSE
     transport:
       sse:
         enabled: true
       stomp:
-        enabled: false`}
+        enabled: false
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="application-stomp.yml" language="yaml" filePath="convengine-demo/src/main/resources/application-stomp.yml">
-{`convengine:
+
+```yaml
+convengine:
   demo:
       stream-mode: STOMP
   transport:
     sse:
       enabled: false
     stomp:
-      enabled: true`}
+      enabled: true
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle title="application-both.yml" language="yaml" filePath="convengine-demo/src/main/resources/application-both.yml">
-{`convengine:
+
+```yaml
+convengine:
     demo:
       stream-mode: BOTH
     transport:
       sse:
         enabled: true
       stomp:
-        enabled: true`}
+        enabled: true
+```
+
 </CodeBlockToggle>
 
 <Highlight type="tip" title="Relay + async audit rollout">
@@ -236,7 +260,9 @@ Keep `broker.mode: SIMPLE` and `audit.dispatch.async-enabled: false` for baselin
   language="java"
   filePath="convengine-demo/src/main/java/com/github/salilvnair/convengdemo/config/DemoTransportProperties.java"
 >
-{`@Component
+
+```java
+@Component
 @ConfigurationProperties(prefix = "convengine.demo")
 public class DemoTransportProperties {
   private StreamMode streamMode = StreamMode.SSE;
@@ -247,7 +273,9 @@ public class DemoTransportProperties {
   public static class StepHook {
     private boolean enabled = true;
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -255,7 +283,9 @@ public class DemoTransportProperties {
   language="java"
   filePath="convengine-demo/src/main/java/com/github/salilvnair/convengdemo/config/ConvEngineTransportStartupLogger.java"
 >
-{`@Component
+
+```java
+@Component
 @RequiredArgsConstructor
 public class ConvEngineTransportStartupLogger {
   private final DemoTransportProperties demoTransportProperties;
@@ -268,7 +298,9 @@ public class ConvEngineTransportStartupLogger {
     boolean stompEnabled = transportConfig.getStomp().isEnabled();
     // validates mode and prints endpoints
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -276,7 +308,9 @@ public class ConvEngineTransportStartupLogger {
   language="java"
   filePath="convengine-demo/src/main/java/com/github/salilvnair/convengdemo/config/DemoEngineStepHook.java"
 >
-{`@Component
+
+```java
+@Component
 @RequiredArgsConstructor
 public class DemoEngineStepHook implements EngineStepHook {
   private static final Set<EngineStep.Name> TRACKED_STEPS = Set.of(
@@ -297,7 +331,9 @@ public class DemoEngineStepHook implements EngineStepHook {
   public void afterStep(EngineStep.Name stepName, EngineSession session, StepResult result) { /* logs */ }
   @Override
   public void onStepError(EngineStep.Name stepName, EngineSession session, Throwable error) { /* logs */ }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
 ## zapper-ui: How frontend consumes backend
@@ -307,12 +343,16 @@ public class DemoEngineStepHook implements EngineStepHook {
   language="js"
   filePath="zapper-ui/src/api/convengine.api.js"
 >
-{`const API_BASE = "http://localhost:8080/api/v1/conversation";
+
+```js
+const API_BASE = "http://localhost:8080/api/v1/conversation";
 
 export async function sendMessage(conversationId, message, inputParams = {}, reset = false) { /* ... */ }
 export async function fetchAudits(conversationId) { /* ... */ }
 export function subscribeConversationSse(conversationId, handlers = {}) { /* ... */ }
-// STOMP scaffold commented for optional enablement`}
+// STOMP scaffold commented for optional enablement
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -320,13 +360,17 @@ export function subscribeConversationSse(conversationId, handlers = {}) { /* ...
   language="jsx"
   filePath="zapper-ui/src/App.jsx"
 >
-{`useEffect(() => {
+
+```jsx
+useEffect(() => {
   const stream = subscribeConversationSse(conversationId, {
     onConnected: () => setAuditVersion(v => v + 1),
     onEvent: () => setAuditVersion(v => v + 1),
   });
   return () => stream.close();
-}, [conversationId]);`}
+}, [conversationId]);
+```
+
 </CodeBlockToggle>
 
 <CodeBlockToggle
@@ -334,9 +378,13 @@ export function subscribeConversationSse(conversationId, handlers = {}) { /* ...
   language="jsx"
   filePath="zapper-ui/src/components/ChatPanel.jsx"
 >
-{`const res = await sendMessage(conversationId, userText);
+
+```jsx
+const res = await sendMessage(conversationId, userText);
 setMessages(m => [...m, { role: "assistant", text: assistantText }]);
-// Typing indicator shown while request is in-flight`}
+// Typing indicator shown while request is in-flight
+```
+
 </CodeBlockToggle>
 
 <Highlight type="info" title="Backend + UI runbook">
@@ -346,7 +394,9 @@ setMessages(m => [...m, { role: "assistant", text: assistantText }]);
 </Highlight>
 
 <CodeBlockToggle title="Run commands" language="bash" defaultOpen={false}>
-{`# backend (convengine-demo)
+
+```bash
+# backend (convengine-demo)
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=sse
 # or
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=stomp
@@ -355,5 +405,7 @@ setMessages(m => [...m, { role: "assistant", text: assistantText }]);
 
 # frontend (zapper-ui)
 npm install
-npm run dev`}
+npm run dev
+```
+
 </CodeBlockToggle>

@@ -694,3 +694,139 @@ html[data-theme="dark"] .ce-codeblock-toggle {
   background: #f8fafc;
   font-weight: 600;
 }
+
+/* Semantic Query deep-debug view */
+.ce-semantic-debug-view {
+  margin: 1.25rem 0 2rem;
+  padding: 1rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(14, 116, 144, 0.08), transparent 40%),
+    linear-gradient(180deg, #f8fbff 0%, #f5f9ff 100%);
+}
+
+.ce-semantic-debug-view .ce-flow-step-card {
+  --chip-outline: #93c5fd;
+  --chip-bg: #dbeafe;
+  --chip-dot: #2563eb;
+  --chip-text: #1e3a8a;
+  border: 1px solid #cfe2f3;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.ce-semantic-debug-view .ce-flow-step-card:nth-of-type(4n + 2) {
+  --chip-outline: #86efac;
+  --chip-bg: #dcfce7;
+  --chip-dot: #16a34a;
+  --chip-text: #166534;
+}
+
+.ce-semantic-debug-view .ce-flow-step-card:nth-of-type(4n + 3) {
+  --chip-outline: #f9a8d4;
+  --chip-bg: #fce7f3;
+  --chip-dot: #db2777;
+  --chip-text: #9d174d;
+}
+
+.ce-semantic-debug-view .ce-flow-step-card:nth-of-type(4n + 4) {
+  --chip-outline: #fcd34d;
+  --chip-bg: #fef3c7;
+  --chip-dot: #d97706;
+  --chip-text: #92400e;
+}
+
+.ce-semantic-debug-view .ce-flow-step-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.8rem;
+  padding: 0.28rem 0.9rem 0.28rem 0.32rem;
+  border: 2px solid var(--chip-outline);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--chip-bg);
+}
+
+.ce-semantic-debug-view .ce-flow-step-index {
+  width: 2.2rem;
+  height: 2.2rem;
+  min-width: 2.2rem;
+  padding: 0;
+  text-align: center;
+  border-radius: 999px;
+  border: 0;
+  background: var(--chip-dot);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ce-semantic-debug-view .ce-flow-step-title-ribbon {
+  margin: 0;
+  padding: 0;
+  color: var(--chip-text);
+  font-size: 2rem;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  line-height: 1.2;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.ce-semantic-debug-view .ce-code-window {
+  border-color: #c7d7ea;
+}
+
+.ce-semantic-debug-view .ce-chat-container {
+  border: 1px dashed #b8d0e8;
+  border-radius: 12px;
+  padding: 0.65rem;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+html[data-theme="dark"] .ce-semantic-debug-view {
+  border-color: #2a3b4f;
+  background:
+    radial-gradient(circle at top right, rgba(45, 212, 191, 0.12), transparent 42%),
+    linear-gradient(180deg, #0d1420 0%, #0f1828 100%);
+}
+
+html[data-theme="dark"] .ce-semantic-debug-view .ce-flow-step-card {
+  --chip-outline: #60a5fa;
+  --chip-bg: rgba(30, 58, 138, 0.28);
+  --chip-dot: #2563eb;
+  --chip-text: #dbeafe;
+  border-color: #2f445b;
+  box-shadow: 0 10px 22px rgba(2, 8, 23, 0.45);
+}
+
+html[data-theme="dark"] .ce-semantic-debug-view .ce-flow-step-card:nth-of-type(4n + 2) {
+  --chip-outline: #4ade80;
+  --chip-bg: rgba(20, 83, 45, 0.36);
+  --chip-dot: #16a34a;
+  --chip-text: #dcfce7;
+}
+
+html[data-theme="dark"] .ce-semantic-debug-view .ce-flow-step-card:nth-of-type(4n + 3) {
+  --chip-outline: #f472b6;
+  --chip-bg: rgba(131, 24, 67, 0.34);
+  --chip-dot: #db2777;
+  --chip-text: #fce7f3;
+}
+
+html[data-theme="dark"] .ce-semantic-debug-view .ce-flow-step-card:nth-of-type(4n + 4) {
+  --chip-outline: #fbbf24;
+  --chip-bg: rgba(120, 53, 15, 0.34);
+  --chip-dot: #d97706;
+  --chip-text: #fef3c7;
+}
+
+html[data-theme="dark"] .ce-semantic-debug-view .ce-chat-container {
+  border-color: #35506d;
+  background: rgba(10, 20, 34, 0.6);
+}

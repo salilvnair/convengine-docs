@@ -35,8 +35,12 @@ Intent lock is used for incomplete schema collection to avoid drift.
 - re-resolution runs once schema collection is complete, and still runs for explicit switch/reset/force signals
 
 <CodeBlockToggle title="Sticky intent config" language="sql">
-{`INSERT INTO ce_config (config_type, config_key, config_value, enabled)
-VALUES ('IntentResolutionStep', 'STICKY_INTENT', 'true', true);`}
+
+```sql
+INSERT INTO ce_config (config_type, config_key, config_value, enabled)
+VALUES ('IntentResolutionStep', 'STICKY_INTENT', 'true', true);
+```
+
 </CodeBlockToggle>
 
 Force re-resolution signals:
@@ -54,8 +58,12 @@ Force re-resolution signals:
 - intent-based reset via `ResetResolvedIntentStep` (`ce_config`)
 
 <CodeBlockToggle title="Reset intent config" language="sql">
-{`INSERT INTO ce_config (config_type, config_key, config_value, enabled)
-VALUES ('ResetResolvedIntentStep', 'RESET_INTENT_CODES', 'RESET_SESSION,START_OVER', true);`}
+
+```sql
+INSERT INTO ce_config (config_type, config_key, config_value, enabled)
+VALUES ('ResetResolvedIntentStep', 'RESET_INTENT_CODES', 'RESET_SESSION,START_OVER', true);
+```
+
 </CodeBlockToggle>
 
 ## Practical advice

@@ -86,7 +86,7 @@ export const v2ExtDetails = {
   s16: { title: "AddContainerDataStep", file: "engine/steps/AddContainerDataStep.java", method: "execute(...)", stage: "CONTAINER_DATA", summary: "Injects container-configured data into runtime context.", session: ["container data merged"], tables: ["ce_container_config"] },
   s17: { title: "PendingActionStep", file: "engine/steps/PendingActionStep.java", method: "execute(...)", stage: "PENDING_ACTION", summary: "Executes or rejects pending actions via CeTaskExecutor.", session: ["pending action result"], tables: ["ce_pending_action", "ce_audit"] },
   s18: { title: "ToolOrchestrationStep", file: "engine/steps/ToolOrchestrationStep.java", method: "execute(...)", stage: "DIRECT_TOOL", summary: "Runs the direct request-driven tool path.", session: ["tool_result", "context.mcp.toolExecution"], tables: ["ce_mcp_tool", "ce_mcp_db_tool", "ce_audit"] },
-  s19: { title: "McpToolStep", file: "engine/steps/McpToolStep.java", method: "execute(...)", stage: "MCP", summary: "Runs the planner-driven MCP loop and Database Knowledge Graph (DBKG) tool chain when needed.", session: ["context.mcp.*"], tables: ["ce_mcp_tool", "ce_mcp_planner", "ce_audit"] },
+  s19: { title: "McpToolStep", file: "engine/steps/McpToolStep.java", method: "execute(...)", stage: "MCP", summary: "Runs the planner-driven MCP loop and semantic query runtime tool chain when needed.", session: ["context.mcp.*"], tables: ["ce_mcp_tool", "ce_mcp_planner", "ce_audit"] },
   s20: { title: "SchemaExtractionStep", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...)", stage: "SCHEMA", summary: "Performs structured extraction against ce_output_schema.", session: ["schema facts"], tables: ["ce_output_schema", "ce_prompt_template", "ce_audit"] },
   s21: { title: "AutoAdvanceStep", file: "engine/steps/AutoAdvanceStep.java", method: "execute(...)", stage: "AUTO_ADVANCE", summary: "Computes schema facts used for downstream transitions.", session: ["schemaComplete", "hasAny"], tables: ["none"] },
   s22: { title: "RulesStep", file: "engine/steps/RulesStep.java", method: "execute(...)", stage: "RULES", summary: "Runs phase-scoped rule evaluation and actions.", session: ["intent/state/input params may mutate"], tables: ["ce_rule", "ce_audit"] },
@@ -99,7 +99,9 @@ export const v2ExtDetails = {
 
 # Developer Guide
 
+<div className="ce-schema ce-intro-box">
 This page is the implementation map for consumers building on the current v2 line. It covers the real runtime pipeline as it exists now, not the smaller `2.0.0` launch-era mental model.
+</div>
 
 <EngineDebugFlow
   title="Current 27-Step Runtime Pipeline"
@@ -111,7 +113,7 @@ This page is the implementation map for consumers building on the current v2 lin
 />
 
 <Highlight type="info" title="Current repo scope">
-This guide reflects the active v2 line through the later additions from `2.0.6` to `2.0.9`, including cache diagnostics, scoped MCP planner flow, `ce_verbose`, `CorrectionStep`, and the Database Knowledge Graph (DBKG) investigation layer.
+This guide reflects the active v2 line through the later additions from `2.0.6` to `2.0.9`, including cache diagnostics, scoped MCP planner flow, `ce_verbose`, `CorrectionStep`, and Semantic Query.
 </Highlight>
 
 ## Build order for a new flow
@@ -134,7 +136,7 @@ This guide reflects the active v2 line through the later additions from `2.0.6` 
     ["2.0.6", "Cache reliability and diagnostics improved.", "Treat cache health and refresh tooling as part of your production operational model."],
     ["2.0.7", "Scoped MCP planner flow, stricter tool/planner scope validation, richer MCP lifecycle metadata.", "Design tools by explicit intent/state scope and test blocked-next-tool branches."],
     ["2.0.8", "ce_verbose, stream verbose transport, step telemetry, stronger MCP schema completeness behavior.", "Seed verbose rows early and use audit + verbose together in QA."],
-    ["2.0.9", "CorrectionStep, interaction semantics in prompt templates, shared Thymeleaf rendering path, Database Knowledge Graph (DBKG).", "Treat prompt metadata as routing contract and keep Database Knowledge Graph (DBKG) logic in DB metadata, not Java if/else."]
+    ["2.0.9", "CorrectionStep, interaction semantics in prompt templates, shared Thymeleaf rendering path, Semantic Query.", "Treat prompt metadata as routing contract and keep Semantic Query logic in DB metadata, not Java if/else."]
   ]}
 />
 
@@ -162,7 +164,9 @@ This guide reflects the active v2 line through the later additions from `2.0.6` 
   <TabItem value="tasks" label="CeTask" default>
 
 <CodeBlockToggle title="Creating a Pending Action Task" language="java" packagePath="com.zapper.convengine.tasks">
-{`@Component("shippingConfirmationTask")
+
+```java
+@Component("shippingConfirmationTask")
 public class ShippingConfirmationTask implements CeTask {
   @Override
   public TaskResult execute(EngineSession session, CePendingAction action) {
@@ -170,14 +174,18 @@ public class ShippingConfirmationTask implements CeTask {
     session.putInputParam("shippingStatus", "DISPATCHED");
     return TaskResult.success();
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
   </TabItem>
   <TabItem value="tools" label="McpToolExecutor">
 
 <CodeBlockToggle title="Tool execution adapter" language="java" packagePath="com.zapper.convengine.tools">
-{`@Component("billingToolAdapter")
+
+```java
+@Component("billingToolAdapter")
 public class BillingToolAdapter implements McpToolExecutor {
   @Override
   public ToolExecutionResult invoke(ToolRequest request, EngineSession session) {
@@ -186,56 +194,58 @@ public class BillingToolAdapter implements McpToolExecutor {
     }
     return ToolExecutionResult.skipped();
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
   </TabItem>
   <TabItem value="memory" label="Memory Store">
 
 <CodeBlockToggle title="Custom Session Snapshotting" language="java" packagePath="com.zapper.convengine.stores">
-{`@Component
+
+```java
+@Component
 public class CustomMemoryStore implements ConversationMemoryStore {
   @Override
   public String summarize(List<TurnSnapshot> turns) {
     return llmClient.summarizeWithLimits(turns, 100);
   }
-}`}
+}
+```
+
 </CodeBlockToggle>
 
   </TabItem>
 </Tabs>
 
-## Database Knowledge Graph (DBKG) implementation guidance
+## Semantic Query implementation guidance
 
-If you are using the newer Database Knowledge Graph (DBKG) path, treat it as a DB-driven investigation engine, not as a free-form SQL generator.
+If you are using Semantic Query, treat it as canonical-intent + metadata-driven SQL generation, not a free-form SQL generator.
 
 Core runtime path:
 
-1. `DbkgCaseResolveToolHandler`
-2. `DbkgCaseResolver`
-3. `DbkgKnowledgeLookupToolHandler`
-4. `DbkgKnowledgeLookupService`
-5. `DbkgInvestigatePlanToolHandler`
-6. `DbkgPlaybookResolver`
-7. `DbkgPlaybookValidateToolHandler`
-8. `DbkgPlaybookValidator`
-9. `DbkgInvestigateExecuteToolHandler`
-10. `DbkgPlaybookEngine`
+1. `DbSemanticInterpretToolHandler`
+2. `SemanticInterpretService`
+3. `DbSemanticQueryToolHandler`
+4. `SemanticLlmQueryService`
+5. `PostgresQueryToolHandler`
+6. `SemanticFailureFeedbackService` (failure/correction memory)
 
 Implementation rules:
 
-- keep case detection in `ce_mcp_case_type` + `ce_mcp_case_signal`
-- keep playbook routing and execution graphs in `ce_mcp_playbook*`
-- keep SQL in `ce_mcp_query_template`, not ad hoc generated Java strings
-- keep outcome explanation rules in `ce_mcp_outcome_rule`
-- let Java stay generic; do not encode project-specific investigation logic in handlers
-- treat validation as mandatory before execute
+- keep business semantics in `ce_semantic_concept` + `ce_semantic_synonym`
+- keep field/table mapping in `ce_semantic_mapping` + `ce_semantic_query_class`
+- keep ambiguity handling in `ce_semantic_ambiguity_option`
+- keep vector retrieval corpus in `ce_semantic_concept_embedding`
+- keep retry memory and corrected SQL in `ce_semantic_query_failures`
+- keep Java generic; avoid project-specific query logic hardcoded in handlers
 
-Related Database Knowledge Graph (DBKG) docs:
+Related Semantic Query docs:
 
 - [MCP](/docs/v2/deep-dive/mcp)
-- [MCP Semantic Catalog](/docs/v2/deep-dive/mcp/semantic-catalog)
-- [MCP Knowledge (Database Knowledge Graph (DBKG))](/docs/v2/deep-dive/mcp/knowledge)
+- [MCP Semantic Query](/docs/v2/deep-dive/mcp/semantic-query)
+- [Table Config](/docs/v2/deep-dive/table-config)
 - [MCP Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4)
 
 ## Operational safety checklist
@@ -245,7 +255,7 @@ Related Database Knowledge Graph (DBKG) docs:
 - **Prompt Contracts**: Define `interaction_mode` and `interaction_contract` intentionally so `CorrectionStep` behaves predictably.
 - **Scope Discipline**: Keep `ce_mcp_tool` and `ce_mcp_planner` scoped by real intent/state whenever possible.
 - **Guardrails**: Monitor `ce_audit` for guardrail and MCP blocked branches.
-- **Database Knowledge Graph (DBKG) Discipline**: If Database Knowledge Graph (DBKG) is enabled, validate playbooks and test blocked-execute paths before rollout.
+- **Semantic discipline**: If Semantic Query is enabled, validate allowlists/mappings and test unsupported + clarification paths before rollout.
 - **State Graph**: Enable strict transition validation before promoting a new flow to production.
 
 ## Regression strategy
@@ -253,11 +263,15 @@ Related Database Knowledge Graph (DBKG) docs:
 Use `ConversationReplayService` plus audit trace inspection to validate not just the final answer, but the path the engine took.
 
 <CodeBlockToggle title="ConversationReplayService assertion" language="java" filePath="src/test/java/com/zapper/RegressionTests.java">
-{`@Test
+
+```java
+@Test
 public void testShippingFlow() {
   ReplayResult finalTurn = replayService.runScript("shipping_confirmation_script.json");
 
   assertEquals("SHIPPING_CONFIRMED", finalTurn.getFinalIntent());
   assertEquals("EXECUTE_PENDING_ACTION", finalTurn.getAuditStages().getLastSystemAction());
-}`}
+}
+```
+
 </CodeBlockToggle>
