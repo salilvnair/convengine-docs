@@ -196,7 +196,7 @@ convengine:
 
 <FlowStep step="5" title="Configure Semantic Layer (If applicable)">
 
-If utilizing the Semantic Query module, configure `semantic-layer.yml`. This abstracts specific physical model knowledge from generic engine functionality. See [Configuration](./configuration) for specifics.
+If utilizing the Semantic Query module, provision the semantic model DB tables (`ce_semantic_*`) using your semantic SQL bootstrap scripts (for example, `semantic_layer_yml_ddl.sql` + `semantic_layer_yml_dml.sql`). This abstracts specific physical model knowledge from generic engine functionality. See [Configuration](./configuration) for specifics.
 
 ```yaml
 semantic-query:
@@ -233,7 +233,7 @@ semantic-query:
 
 <Highlight type="info" title="Troubleshooting Semantic Queries">
 If a query does not work as expected, verify:
-- **Missing or Invalid Filters**: Check `ce_semantic_entity_override` to ensure synonyms align with the user request vocabulary.
+- **Missing or Invalid Filters**: Check `ce_semantic_entity` to ensure synonyms align with the user request vocabulary.
 - **Failures Memory Cache**: Inspect physical table `ce_semantic_query_failures`. The semantic engine stores failure embeddings here and consults them for subsequent queries to prevent repeated failing logic paths. Use the [Cache APIs](../api/rest-api#cache-apis) to refresh query-failures.
 </Highlight>
 

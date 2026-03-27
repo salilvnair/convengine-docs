@@ -468,8 +468,8 @@ Important:
     ["ce_semantic_mapping", "Business field -> physical mapping.", "SemanticInterpretService, SemanticLlmQueryService.", "Enables SQL generation from canonical intent."],
     ["ce_semantic_ambiguity_option", "Explicit clarification options.", "SemanticInterpretService.", "Provides deterministic disambiguation choices."],
     ["ce_semantic_concept_embedding", "Embedding corpus for concepts.", "SemanticInterpretService.", "Vector-assisted concept/entity retrieval."],
-    ["ce_semantic_entity_override", "Entity-level override metadata.", "SemanticInterpretService.", "Patch behavior without Java changes."],
-    ["ce_semantic_relationship_override", "Relationship override metadata.", "SemanticInterpretService.", "Override join relationships without Java changes."],
+    ["ce_semantic_entity", "Entity-level override metadata.", "SemanticInterpretService.", "Patch behavior without Java changes."],
+    ["ce_semantic_relationship", "Relationship override metadata.", "SemanticInterpretService.", "Override join relationships without Java changes."],
     ["ce_semantic_join_hint", "Join hints metadata.", "SemanticInterpretService.", "Steers join planning for complex schemas."],
     ["ce_semantic_value_pattern", "Value extraction patterns.", "SemanticInterpretService.", "Improves value parsing from natural language."],
     ["ce_semantic_query_failures", "Failure memory + corrected SQL + embeddings.", "SemanticLlmQueryService, SemanticFailureFeedbackService.", "Supports retry, retrieval, and correction learning."]
@@ -595,7 +595,7 @@ Important:
   rows={[
     ["enabled", "true / false", "Turns semantic runtime on/off."],
     ["toolCode", "db.semantic.query", "Primary semantic query tool code."],
-    ["modelPath", "classpath:/mcp/semantic-layer.yml", "Semantic model path."],
+    ["semanticModelSource", "DB tables (`ce_semantic_*`)", "Semantic model source assembled from DB tables (no YAML path)."],
     ["defaultLimit / maxLimit", "integer", "Default and max row limits."],
     ["sqlDialect / timezone", "string", "Dialect and timezone controls for query generation."],
     ["retrieval.*", "weights + limits", "Controls semantic retrieval ranking behavior."],

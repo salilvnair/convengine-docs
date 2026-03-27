@@ -4610,3 +4610,92 @@ a.ce-version-dropdown {
   --sq-chip-dot: #d97706;
   --sq-chip-text: #fef3c7;
 }
+
+/* Semantic Query Deep Dive page styling */
+.ce-semantic-deepdive-hero {
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  padding: 0.9rem 1rem;
+  margin: 0.8rem 0 1rem;
+  background:
+    radial-gradient(720px 320px at 8% -10%, rgba(37, 99, 235, 0.14), transparent 55%),
+    linear-gradient(140deg, #eff6ff 0%, #ffffff 62%);
+}
+
+.ce-semantic-deepdive-hero p {
+  margin: 0.55rem 0 0;
+}
+
+.ce-semantic-deepdive-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ce-semantic-deepdive-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 0.7rem;
+  margin: 0.6rem 0 0.9rem;
+}
+
+.ce-semantic-deepdive-tile {
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 0.7rem 0.75rem;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.ce-semantic-deepdive-tile-title {
+  font-weight: 800;
+  font-size: 0.82rem;
+  margin-bottom: 0.35rem;
+  letter-spacing: 0.01em;
+  color: #1d4ed8;
+}
+
+.ce-semantic-deepdive-tile p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 996px) {
+  .ce-semantic-deepdive-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+[data-theme='dark'] .ce-semantic-deepdive-hero {
+  border-color: rgba(96, 165, 250, 0.5);
+  background:
+    radial-gradient(900px 340px at 8% -10%, rgba(59, 130, 246, 0.26), transparent 58%),
+    linear-gradient(140deg, rgba(30, 58, 138, 0.24) 0%, rgba(15, 23, 42, 0.96) 65%);
+}
+
+[data-theme='dark'] .ce-semantic-deepdive-tile {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: linear-gradient(180deg, rgba(30, 64, 175, 0.18), rgba(15, 23, 42, 0.92));
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.5);
+}
+
+[data-theme='dark'] .ce-semantic-deepdive-tile-title {
+  color: #bfdbfe;
+}
+
+/* Global markdown table width fix for Docusaurus wrappers */
+.theme-doc-markdown .table-responsive {
+  width: 100% !important;
+}
+
+.theme-doc-markdown .table-responsive > table,
+.theme-doc-markdown .table-responsive table {
+  width: 100% !important;
+  min-width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.theme-doc-markdown .table-responsive > table th,
+.theme-doc-markdown .table-responsive > table td {
+  word-break: break-word;
+}

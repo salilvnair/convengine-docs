@@ -57,6 +57,7 @@ const sidebars = {
             'deep-dive/mcp/basics',
             'deep-dive/mcp/advanced',
             'deep-dive/mcp/semantic-query',
+            'deep-dive/mcp/semantic-query-deep-dive',
             'deep-dive/mcp/http-tool',
             'deep-dive/mcp/deep-dive',
             'deep-dive/mcp/example1',

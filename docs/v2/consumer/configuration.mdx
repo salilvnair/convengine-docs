@@ -135,7 +135,7 @@ convengine:
         semantic:
           enabled: false
           tool-code: db.semantic.query
-          model-path: classpath:/mcp/semantic-layer.yml
+          # DB-driven semantic model (no file-path model source)
           default-limit: 100
           max-limit: 500
           sql-dialect: postgres
@@ -438,7 +438,7 @@ The `convengine.flow.*` properties control the nuanced routing behavior without 
   rows={[
     ["enabled", "false", "Enables semantic tool chain (`db.semantic.interpret -> db.semantic.query -> postgres.query`)."],
     ["tool-code", "db.semantic.query", "Primary tool code used by semantic query stage."],
-    ["model-path", "classpath:/mcp/semantic-layer.yml", "Semantic model source path."],
+    ["semantic model source", "DB tables (`ce_semantic_*`)", "Semantic model is assembled from DB tables; no YAML file path required."],
     ["default-limit / max-limit", "100 / 500", "Default and max row limits for semantic queries."],
     ["sql-dialect", "postgres", "Dialect hint used during SQL generation."],
     ["timezone", "system timezone", "Default timezone used for time parsing."],

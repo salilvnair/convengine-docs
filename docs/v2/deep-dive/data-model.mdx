@@ -38,8 +38,8 @@ This page reflects the current v2 line and the active Semantic Query (`db.semant
 - `ce_semantic_query_class`
 - `ce_semantic_ambiguity_option`
 - `ce_semantic_concept_embedding`
-- `ce_semantic_entity_override`
-- `ce_semantic_relationship_override`
+- `ce_semantic_entity`
+- `ce_semantic_relationship`
 - `ce_semantic_join_hint`
 - `ce_semantic_value_pattern`
 - `ce_semantic_query_failures`
@@ -328,8 +328,8 @@ Semantic Query is DB-driven through semantic metadata tables:
     ["ce_semantic_mapping", "Business field -> physical table/column map.", "Enable SQL generation from canonical intent."],
     ["ce_semantic_ambiguity_option", "Clarification options.", "Provide deterministic ambiguity resolution choices."],
     ["ce_semantic_concept_embedding", "Concept embedding corpus.", "Power vector-assisted entity/concept retrieval."],
-    ["ce_semantic_entity_override", "Entity-level override metadata.", "Patch entity behavior without code changes."],
-    ["ce_semantic_relationship_override", "Relationship override metadata.", "Patch relationship/join behavior without code changes."],
+    ["ce_semantic_entity", "Entity-level override metadata.", "Patch entity behavior without code changes."],
+    ["ce_semantic_relationship", "Relationship override metadata.", "Patch relationship/join behavior without code changes."],
     ["ce_semantic_join_hint", "Join hints.", "Guide join planning for tricky schemas."],
     ["ce_semantic_value_pattern", "Pattern metadata for value extraction.", "Improve value parsing/mapping from natural language."],
     ["ce_semantic_query_failures", "Failure-memory store with corrected SQL.", "Enable retrieval-augmented SQL retry and correction."]

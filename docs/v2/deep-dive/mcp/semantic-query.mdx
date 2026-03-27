@@ -23,7 +23,7 @@ export const semanticQueryTrace = [
   { name: "Engine Boot", description: "DefaultConversationalEngine opens a new EngineSession and delegates to the Pipeline." },
   { name: "Intent Resolution", description: "IntentResolutionStep classifies the request as SEMANTIC_QUERY and rules route it to ANALYZE state." },
   { name: "McpPlanner Allocation", description: "McpPlanner determines that semantic tools are required to fulfill the turn and suspends normal dialog." },
-  { name: "db.semantic.interpret (Agent 1)", description: "DbSemanticInterpretToolHandler creates CanonicalIntent from semantic-layer.yml rules." },
+  { name: "db.semantic.interpret (Agent 1)", description: "DbSemanticInterpretToolHandler creates CanonicalIntent from DB semantic model tables (`ce_semantic_*`) rules." },
   { name: "db.semantic.query (Agent 2)", description: "DbSemanticQueryToolHandler compiles read-only parameterized SQL and runs safety validations." },
   { name: "Postgres Execution", description: "The safe SQL string executes on the physical database yielding data rows." },
   { name: "Synthesis & Output", description: "McpPlanner consumes the data observation and generates the final assistant response payload." }
@@ -40,7 +40,7 @@ It is the Text-to-Intent-to-SQL architecture for ConvEngine MCP mode.
 ConvEngine utilizes a strict <strong>2-Agent Pipeline</strong> architecture for semantic querying. This creates a powerful firewall between natural language understanding and physical schema generation, eliminating classic text-to-SQL hallucinations and increasing success rates significantly.
 </div>
 
-- **Agent 1 (`db.semantic.interpret`)**: Responsible strictly for understanding user intent based on your `semantic-layer.yml`. Yields a `CanonicalIntent` JSON or asks for clarification.
+- **Agent 1 (`db.semantic.interpret`)**: Responsible strictly for understanding user intent based on your `DB semantic model tables (ce_semantic_*)`. Yields a `CanonicalIntent` JSON or asks for clarification.
 - **Agent 2 (`db.semantic.query`)**: Responsible strictly for compiling SQL safely. Takes the `CanonicalIntent`, maps it to database dialects with named parameters, utilizing guardrails and memory embeddings.
 
 ---
@@ -66,17 +66,17 @@ ConvEngine utilizes a strict <strong>2-Agent Pipeline</strong> architecture for 
 
 ### Core libraries
 
-- **Jackson YAML**: Handles hydration of `semantic-layer.yml` directly into `SemanticModel` Java objects.
+- **DB-backed semantic overlay**: Runtime semantic model is assembled from `ce_semantic_*` tables into `SemanticModel` Java objects.
 - **JDBC/named parameters**: SQL is executed entirely via bound parameters (no string concatenation of literals).
 
 ---
 
-## Semantic Model YAML (`semantic-layer.yml`)
+## Semantic Model (DB-driven)
 
-Semantic mode relies on a declarative semantic model file that maps business language to physical schema. Agent-1 uses this file to enforce business rules; Agent-2 uses it to map fields to real columns.
+Semantic mode relies on DB semantic model tables (`ce_semantic_*`) that map business language to physical schema. Agent-1 uses this model to enforce business rules; Agent-2 uses it to map fields to real columns.
 
 <DbTable
-  title="YAML section ownership"
+  title="Semantic section ownership"
   columns={["Section", "Primary consumers", "Runtime effect"]}
   rows={[
     ["settings", "author info", "timezone, limits, SQL dialect hints"],
@@ -92,22 +92,22 @@ Semantic mode relies on a declarative semantic model file that maps business lan
   ]}
 />
 
-<Highlight type="info" title="Configured path">
-`mcp.db.semantic.model-path=classpath:/mcp/semantic-layer.yml`
+<Highlight type="info" title="Model source">
+Semantic model is loaded from `ce_semantic_*` tables (no YAML file path).
 </Highlight>
 
-### `semantic-layer.yml` Tag Breakdown
+### Semantic Section Breakdown
 
-Below is a breakdown of how ConvEngine parses your configuration file into runtime constraints. 
+Below is a breakdown of how ConvEngine maps DB semantic sections into runtime constraints. 
 
 <Highlight type="info" title="Important loader behavior">
-`SemanticModelLoader` is configured with `FAIL_ON_UNKNOWN_PROPERTIES=false`. Unknown/unmapped YAML tags are ignored safely at load time. This allows you to stash extra context in the YAML for the LLMs without breaking the Java parsers!
+`SemanticModelLoader` is configured with `FAIL_ON_UNKNOWN_PROPERTIES=false`. Unknown model attributes not mapped by runtime loaders are ignored safely at load time. This allows you to store extra context in DB semantic model tables for the LLMs without breaking the Java parsers!
 </Highlight>
 
-<FlowStep step="1" title="Model identity tags">
+<FlowStep step="1" title="Model identity fields">
 
 
-<CodeBlockToggle title="Snippet: model identity" language="yaml" defaultOpen={false}>
+<CodeBlockToggle title="Snippet: semantic model identity" language="yaml" defaultOpen={false}>
 
 ```yaml
 version: 1 # Appears as semanticModelVersion in runtime output + audit payloads.
@@ -398,8 +398,8 @@ public SemanticInterpretResponse execute(InterpretToolInput input, EngineSession
     ["ce_semantic_mapping", "Field-level semantic -> physical mapping hints"],
     ["ce_semantic_ambiguity_option", "Deterministic clarification choices"],
     ["ce_semantic_concept_embedding", "Vector retrieval candidates and ranking"],
-    ["ce_semantic_entity_override", "Entity override patches without code"],
-    ["ce_semantic_relationship_override", "Relationship override patches without code"],
+    ["ce_semantic_entity", "Entity override patches without code"],
+    ["ce_semantic_relationship", "Relationship override patches without code"],
     ["ce_semantic_join_hint", "Join guidance for complex paths"],
     ["ce_semantic_value_pattern", "Pattern-based value-to-field reassignment"]
   ]}
@@ -515,7 +515,7 @@ Execution is now complete and control returns to `ConversationController`, which
   title="Semantic stage -> table usage map"
   columns={["Stage", "Primary Java classes", "Key tables used"]}
   rows={[
-    ["SEMANTIC_INTERPRET (Agent-1)", "DbSemanticInterpretToolHandler, SemanticInterpretService", "ce_semantic_concept, ce_semantic_synonym, ce_semantic_query_class, ce_semantic_mapping, ce_semantic_ambiguity_option, ce_semantic_concept_embedding, ce_semantic_entity_override, ce_semantic_relationship_override, ce_semantic_join_hint, ce_semantic_value_pattern"],
+    ["SEMANTIC_INTERPRET (Agent-1)", "DbSemanticInterpretToolHandler, SemanticInterpretService", "ce_semantic_concept, ce_semantic_synonym, ce_semantic_query_class, ce_semantic_mapping, ce_semantic_ambiguity_option, ce_semantic_concept_embedding, ce_semantic_entity, ce_semantic_relationship, ce_semantic_join_hint, ce_semantic_value_pattern"],
     ["SEMANTIC_QUERY (Agent-2)", "DbSemanticQueryToolHandler, SemanticLlmQueryService", "ce_semantic_mapping, ce_semantic_query_class, ce_config, ce_semantic_query_failures"],
     ["POSTGRES_QUERY_EXECUTION", "PostgresQueryToolHandler", "Business domain tables (read-only for semantic flow)"],
     ["SEMANTIC_FAILURE_FEEDBACK", "SemanticFailureFeedbackService", "ce_semantic_query_failures (record + retrieve corrected SQL patterns)"]
@@ -594,7 +594,7 @@ convengine:
       semantic:
         enabled: true
         tool-code: db.semantic.query
-        model-path: classpath:/mcp/semantic-layer.yml
+        # DB-driven semantic model tables (`ce_semantic_*`) are used; no model-path file required
         default-limit: 100
         max-limit: 500
         clarification-threshold: 0.80 # Generates Clarify intent if LLM confidence misses
