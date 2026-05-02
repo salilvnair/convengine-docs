@@ -35,6 +35,14 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'Builder Studios',
+      link: { type: 'doc', id: 'builder-studio/index' },
+      items: [
+        'builder-studio/ce-builder-studio',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Deep Dive',
       link: { type: 'doc', id: 'deep-dive/index' },
       items: [

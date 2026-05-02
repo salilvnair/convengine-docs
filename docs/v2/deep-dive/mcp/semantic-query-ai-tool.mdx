@@ -19,6 +19,14 @@ The AI agent should generate inserts for these tables:
   title="Semantic tables to seed"
   columns={["Table"]}
   rows={[
+    ["ce_semantic_model"],
+    ["ce_semantic_setting"],
+    ["ce_semantic_source_table"],
+    ["ce_semantic_source_column"],
+    ["ce_semantic_lexicon"],
+    ["ce_semantic_rule_allowed_table"],
+    ["ce_semantic_rule_deny_operation"],
+    ["ce_semantic_rule_config"],
     ["ce_semantic_join_hint"],
     ["ce_semantic_value_pattern"],
     ["ce_semantic_concept"],
@@ -49,6 +57,14 @@ You are generating SQL `INSERT` statements for ConvEngine semantic runtime table
 
 ## Goal
 Generate deterministic, production-safe seed inserts for:
+- ce_semantic_model
+- ce_semantic_setting
+- ce_semantic_source_table
+- ce_semantic_source_column
+- ce_semantic_lexicon
+- ce_semantic_rule_allowed_table
+- ce_semantic_rule_deny_operation
+- ce_semantic_rule_config
 - ce_semantic_join_hint
 - ce_semantic_value_pattern
 - ce_semantic_concept
@@ -163,6 +179,14 @@ You are generating SQL `INSERT` statements for ConvEngine semantic runtime table
 
 ## Goal
 Generate deterministic, production-safe seed inserts for:
+- ce_semantic_model
+- ce_semantic_setting
+- ce_semantic_source_table
+- ce_semantic_source_column
+- ce_semantic_lexicon
+- ce_semantic_rule_allowed_table
+- ce_semantic_rule_deny_operation
+- ce_semantic_rule_config
 - ce_semantic_join_hint
 - ce_semantic_value_pattern
 - ce_semantic_concept
@@ -474,6 +498,14 @@ ORDER BY fk_owner, fk_table_name, fk_constraint_name, cc.position;
 ```text
 Use the attached semantic_query_agent.md instructions and the schema metadata I provided.
 Generate complete SQL INSERT statements for:
+ce_semantic_model,
+ce_semantic_setting,
+ce_semantic_source_table,
+ce_semantic_source_column,
+ce_semantic_lexicon,
+ce_semantic_rule_allowed_table,
+ce_semantic_rule_deny_operation,
+ce_semantic_rule_config,
 ce_semantic_join_hint,
 ce_semantic_value_pattern,
 ce_semantic_concept,
@@ -504,7 +536,15 @@ Constraints:
 <CodeBlockToggle title="Quick coverage check" language="sql" defaultOpen={true}>
 
 ```sql
-SELECT 'ce_semantic_concept' AS table_name, COUNT(*) AS row_count FROM ce_semantic_concept
+SELECT 'ce_semantic_model' AS table_name, COUNT(*) AS row_count FROM ce_semantic_model
+UNION ALL SELECT 'ce_semantic_setting', COUNT(*) FROM ce_semantic_setting
+UNION ALL SELECT 'ce_semantic_source_table', COUNT(*) FROM ce_semantic_source_table
+UNION ALL SELECT 'ce_semantic_source_column', COUNT(*) FROM ce_semantic_source_column
+UNION ALL SELECT 'ce_semantic_lexicon', COUNT(*) FROM ce_semantic_lexicon
+UNION ALL SELECT 'ce_semantic_rule_allowed_table', COUNT(*) FROM ce_semantic_rule_allowed_table
+UNION ALL SELECT 'ce_semantic_rule_deny_operation', COUNT(*) FROM ce_semantic_rule_deny_operation
+UNION ALL SELECT 'ce_semantic_rule_config', COUNT(*) FROM ce_semantic_rule_config
+UNION ALL SELECT 'ce_semantic_concept', COUNT(*) FROM ce_semantic_concept
 UNION ALL SELECT 'ce_semantic_synonym', COUNT(*) FROM ce_semantic_synonym
 UNION ALL SELECT 'ce_semantic_mapping', COUNT(*) FROM ce_semantic_mapping
 UNION ALL SELECT 'ce_semantic_query_class', COUNT(*) FROM ce_semantic_query_class

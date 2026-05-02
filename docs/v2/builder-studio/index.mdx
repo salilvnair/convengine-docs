@@ -1,0 +1,26 @@
+---
+title: Builder Studios
+sidebar_position: 1
+---
+
+import { Highlight, DbTable } from "@site/src/components/convengine";
+
+# Builder Studios
+
+ConvEngine ships a visual builder environment that runs alongside the chat interface, accessible from the top navigation bar.
+
+<DbTable
+  title="Builder overview"
+  columns={["Studio", "Nav label", "activePage", "Purpose"]}
+  rows={[
+    ["CE Builder Studio", "Builder Studio", "ce_builder", "ConvEngine configuration builder. Drag-and-drop canvas for wiring up ConvEngine tables (intents, rules, responses, prompts). Deploys directly to the running backend."],
+  ]}
+/>
+
+<Highlight type="info" title="Where it lives">
+CE Builder Studio is a page inside <code>convengine-ui</code>. It is loaded via <code>PageContent</code> based on the <code>activePage</code> key set by the top navigation bar.
+</Highlight>
+
+## Quick links
+
+- [CE Builder Studio](/docs/v2/builder-studio/ce-builder-studio)

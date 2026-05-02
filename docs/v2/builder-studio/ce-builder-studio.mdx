@@ -1,0 +1,145 @@
+---
+title: CE Builder Studio
+sidebar_position: 3
+---
+
+import {
+  DbTable,
+  Highlight,
+  CodeBlockToggle,
+} from "@site/src/components/convengine";
+
+# CE Builder Studio
+
+<div className="ce-schema ce-intro-box">
+The <strong>CE Builder Studio</strong> is a drag-and-drop canvas for authoring ConvEngine configuration tables. Each block on the canvas maps 1:1 to a <code>ce_*</code> database table row. When you click <strong>Deploy</strong>, the canvas serializes to bulk upsert payloads and posts them to the backend, then triggers a cache refresh so the running engine picks up the new config with zero downtime.
+</div>
+
+## Layout
+
+```
+┌────────────────┬──────────────────────────────────┬──────────────────┐
+│  Block Palette │        ReactFlow Canvas           │  Editor Panel    │
+│  (left rail)   │   (drag blocks, wire edges)       │  (right rail)    │
+│                │                                   │  SubBlock fields │
+├────────────────┴──────────────────────────────────┴──────────────────┤
+│  Toolbar: [Deploy ▶]  [Load Existing]  [Clear]   status messages     │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+| Zone | Component | Description |
+|------|-----------|-------------|
+| Left | `CeBlockPalette` | Palette of all available CE block types, organized by category |
+| Center | `CeCanvas` | ReactFlow canvas. Drag blocks onto it to add rows. Wire edges between blocks to express relationships. |
+| Right | `CeEditorPanel` | Property inspector for the selected block. Renders sub-block fields from the block definition. |
+| Bottom toolbar | `CeBuilderPage` | Deploy button, Load Existing dialog, Clear canvas, status/error messages |
+
+---
+
+## Block types
+
+Every block in the CE Builder corresponds directly to a `ce_*` ConvEngine table. The block registry (`ce-builder/blocks/registry.js`) defines sub-block fields that mirror the JPA entity columns verbatim.
+
+<DbTable
+  title="CE Builder block catalog"
+  columns={["Block type", "ce_* table", "Category", "Description"]}
+  rows={[
+    ["intent", "ce_intent", "conversation", "Classifiable user goal routed by IntentResolutionStep."],
+    ["intent_classifier", "ce_intent_classifier", "routing", "Deterministic regex / contains / starts-with classifier for IntentResolutionStep."],
+    ["prompt_template", "ce_prompt_template", "conversation", "System + user prompt used by pipeline LLM calls for a given intent + state."],
+    ["rule", "ce_rule", "routing", "Deterministic transition applied by RulesStep at a specific pipeline phase."],
+    ["response", "ce_response", "conversation", "Final message template rendered by ResponseResolutionStep (EXACT or DERIVED)."],
+    ["mcp_tool", "ce_mcp_tool", "tools", "External tool registered for McpToolStep orchestration."],
+    ["mcp_db_tool", "ce_mcp_db_tool", "tools", "SQL extension of an MCP Tool — dialect, template, param schema, safety knobs."],
+    ["mcp_planner", "ce_mcp_planner", "tools", "Planner prompt used by the MCP tool orchestration step."],
+    ["policy", "ce_policy", "governance", "Guardrail policy evaluated during the pipeline (read by PolicyEnforcementStep)."],
+    ["config", "ce_config", "governance", "Generic (config_type, config_key) → config_value store for framework knobs."],
+    ["verbose", "ce_verbose", "governance", "Per-step debug/observability message keyed by (intent, state, step)."],
+    ["output_schema", "ce_output_schema", "conversation", "JSON schema the LLM must conform to for a given intent+state."],
+    ["container_config", "ce_container_config", "conversation", "Maps a JSON-schema field to a UI page/section/container for COLLECT mode."],
+    ["semantic_entity", "ce_semantic_entity", "semantic", "Business-level entity (Customer, Order…) used by the semantic query layer."],
+    ["semantic_relationship", "ce_semantic_relationship", "semantic", "Directed edge between two semantic entities (from_table → to_table)."],
+    ["semantic_join_hint", "ce_semantic_join_hint", "semantic", "Suggested join path between two tables for the semantic SQL optimizer."],
+    ["semantic_value_pattern", "ce_semantic_value_pattern", "semantic", "Routes a filter value from one field to another when a prefix pattern matches."],
+  ]}
+/>
+
+---
+
+## Sub-block field types
+
+<DbTable
+  title="Sub-block field types"
+  columns={["Type", "Renders as"]}
+  rows={[
+    ["SHORT_INPUT", "Single-line text field"],
+    ["LONG_INPUT", "Multi-line textarea"],
+    ["DROPDOWN", "Select with predefined options"],
+    ["SWITCH", "Boolean toggle"],
+    ["SLIDER", "Numeric range slider"],
+    ["JSON", "JSON textarea with validation"],
+  ]}
+/>
+
+---
+
+## Rule phases
+
+The `rule` block's `Phase` dropdown maps to the pipeline phases that `RulesStep` supports:
+
+<DbTable
+  title="Rule phase options"
+  columns={["Phase"]}
+  rows={[
+    ["POST_DIALOGUE_ACT"],
+    ["PRE_INTENT_RESOLUTION"],
+    ["POST_INTENT_RESOLUTION"],
+    ["PRE_SCHEMA_EXTRACTION"],
+    ["POST_SCHEMA_EXTRACTION"],
+    ["PRE_AGENT_MCP"],
+    ["POST_AGENT_MCP"],
+    ["PRE_RESPONSE_RESOLUTION"],
+    ["POST_RESPONSE_RESOLUTION"],
+  ]}
+/>
+
+---
+
+## Deploy flow
+
+Clicking **Deploy** triggers `deployCanvas()` from `ceConfig.api.js`:
+
+1. The canvas serializes each block to a flat column-value map (subBlocks → row payload).
+2. For each block type group, `POST /api/v1/config/<table>/bulk` is called with an array of row upserts.
+3. If all upserts succeed, `POST /api/v1/cache/refresh` is called so the backend's static cache reloads without restart.
+4. The toolbar shows per-table success/failure so you can pinpoint which table failed.
+
+<Highlight type="warning" title="Backend endpoints status">
+The <code>/api/v1/config/*</code> per-table CRUD endpoints are planned for the Spring Boot backend. Currently ConvEngine rows are authored via SQL Developer / DBeaver and then refreshed via <code>POST /api/v1/cache/refresh</code>. The CE Builder Studio UI transport layer (<code>ceConfig.api.js</code>) is already wired up and ready to connect once the backend endpoints land.
+</Highlight>
+
+---
+
+## Load Existing
+
+The **Load Existing** toolbar button opens `LoadExistingDialog`, which allows importing a previously exported canvas JSON to restore a saved configuration layout.
+
+---
+
+## Intended workflow
+
+1. Open CE Builder Studio from the top nav (label: **Builder Studio**).
+2. Drag blocks from the left palette onto the canvas — one block per `ce_*` row you want to create or update.
+3. Fill in the sub-block fields in the right Editor Panel.
+4. Wire edges between blocks to document relationships (e.g., connect an `intent` block to its `prompt_template` and `rule` blocks for visual clarity — edges are not required for deploy).
+5. Click **Deploy** to upsert all blocks to the database and trigger a cache refresh.
+6. Test the new config by sending a chat message to the ConvEngine chat panel.
+
+---
+
+## Quick links
+
+- [Agent Builder Studio](/docs/v2/builder-studio/agent-builder-studio)
+- [Annotations Reference](/docs/v2/consumer/annotations-reference)
+- [Table Config](/docs/v2/deep-dive/table-config)
+- [Pipeline Steps](/docs/v2/deep-dive/pipeline-steps)

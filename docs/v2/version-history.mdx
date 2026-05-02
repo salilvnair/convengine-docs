@@ -3,6 +3,20 @@ title: Version History
 sidebar_position: 30
 ---
 
+## 2.0.20
+
+<div className="ce-schema ce-intro-box">
+2.0.20 is the CE Builder Studio, Agent Builder Studio foundation, and semantic layer expansion release. Compared to 2.0.12, this adds the CE Builder visual canvas, Agent Builder Studio backend, expanded semantic DB table layer, and semantic model DB-overlay loader.
+</div>
+
+- Added **CE Builder Studio** (`ce-builder/`) — drag-and-drop canvas for authoring `ce_*` configuration table rows visually and deploying them directly to the running backend via bulk upsert + cache refresh.
+- Added **Agent Builder Studio** backend controllers (`AgentBuilderStudioController`, `BuilderStudioController`) exposing workspace sync/load, one-shot agent calls, full-graph run, and LLM provider management under `/api/v1/builder-studio/*`.
+- Added `ce-builder-studio` standalone Fastify/TypeScript server mirroring the builder REST surface for lightweight local development.
+- Expanded semantic layer DB tables: added `ce_semantic_model`, `ce_semantic_setting`, `ce_semantic_source_table`, `ce_semantic_source_column`, `ce_semantic_lexicon`, `ce_semantic_rule_allowed_table`, `ce_semantic_rule_deny_operation`, `ce_semantic_rule_config` loaded by `SemanticModelDynamicOverlayService`.
+- Added `ce_semantic_join_path` to `SemanticTableNames`, used by `SemanticLlmQueryService` SQL compilation.
+- Added `SemanticEmbeddingService` (replaces `SemanticEmbeddingDbService`) with embedding rebuild, catalog refresh, query failure embedding, and user-query knowledge indexing.
+- Added Builder Studio DB entities: `CeBsWorkspace`, `CeBsWorkflow`, `CeBsAgent`, `CeBsAgentPool`, `CeBsAgentSkill`, `CeBsSkill`, `CeBsTeam`, `CeBsLlmConfig`.
+
 ## 2.0.12
 
 <div className="ce-schema ce-intro-box">
