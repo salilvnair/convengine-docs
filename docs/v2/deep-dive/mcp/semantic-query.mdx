@@ -60,7 +60,7 @@ ConvEngine utilizes a strict <strong>2-Agent Pipeline</strong> architecture for 
     ["service/*", "Core agent logic", "SemanticInterpretService, SemanticLlmQueryService"],
     ["model/*", "Semantic model loading and registry", "SemanticModel, SemanticModelLoader, SemanticModelRegistry"],
     ["feedback/*", "SQL Failure/Correction embeddings loop", "SemanticFailureFeedbackService, SemanticFailureRecord"],
-    ["embedding/*", "Vector search implementations", "SemanticEmbeddingDbService, SemanticQueryFailureRepository"]
+    ["embedding/*", "Vector search implementations", "SemanticEmbeddingService (embedding rebuild, catalog refresh, user-query indexing)"]
   ]}
 />
 
@@ -79,16 +79,17 @@ Semantic mode relies on DB semantic model tables (`ce_semantic_*`) that map busi
   title="Semantic section ownership"
   columns={["Section", "Primary consumers", "Runtime effect"]}
   rows={[
-    ["settings", "author info", "timezone, limits, SQL dialect hints"],
-    ["entities", "Agent 1 & 2", "business entities, synonyms, field validations, example questions"],
-    ["tables", "Agent 2", "physical columns and foreign keys for compile constraints"],
-    ["relationships", "Agent 2", "table traversal edges and cardinality hints"],
-    ["join_hints", "planner/compiler", "frequent join relationships"],
+    ["model / settings", "bootstrap", "version, database identity, description, timezone, limits, SQL dialect — loaded from ce_semantic_model + ce_semantic_setting"],
+    ["entities", "Agent 1 & 2", "business entities, synonyms, field validations, example questions — loaded from ce_semantic_entity"],
+    ["tables / columns", "Agent 2", "physical columns and foreign keys for compile constraints — loaded from ce_semantic_source_table + ce_semantic_source_column"],
+    ["relationships", "Agent 2", "table traversal edges and cardinality hints — loaded from ce_semantic_relationship"],
+    ["join_hints", "planner/compiler", "frequent join relationships — loaded from ce_semantic_join_hint"],
+    ["join_paths", "Agent 2 SQL compile", "explicit join path registry — loaded from ce_semantic_join_path"],
     ["metrics", "Agent 1 & 2", "allowed arbitrary metric keys and SQL expressions"],
-    ["value_patterns", "Agent 1", "global value-prefix-driven field remap before validation"],
-    ["synonyms", "Agent 1", "domain query vocabulary expansion"],
+    ["value_patterns", "Agent 1", "global value-prefix-driven field remap before validation — loaded from ce_semantic_value_pattern"],
+    ["synonyms / lexicon", "Agent 1", "domain query vocabulary expansion — loaded from ce_semantic_synonym (direct queries) + ce_semantic_lexicon (model overlay)"],
     ["intent_rules", "Agent 1/Normalizer", "deterministic query intent overrides (e.g., force_entity, force_select)"],
-    ["rules", "policy guardrail", "allowed tables, denied operations, max limit hints"]
+    ["rules", "policy guardrail", "allowed tables + denied operations + config — loaded from ce_semantic_rule_allowed_table, ce_semantic_rule_deny_operation, ce_semantic_rule_config"]
   ]}
 />
 
@@ -392,15 +393,24 @@ public SemanticInterpretResponse execute(InterpretToolInput input, EngineSession
   title="Agent-1 semantic tables used in this stage"
   columns={["Table", "Used for"]}
   rows={[
+    ["ce_semantic_model", "Model version + database identity + description metadata"],
+    ["ce_semantic_setting", "Runtime settings (timezone, SQL dialect, max limit, etc.)"],
+    ["ce_semantic_source_table", "Physical source table registry loaded as SemanticTable objects"],
+    ["ce_semantic_source_column", "Physical column metadata (type, primary key, FK) per source table"],
+    ["ce_semantic_lexicon", "Lexicon synonym terms (augments/replaces ce_semantic_synonym for model overlay)"],
+    ["ce_semantic_rule_allowed_table", "Allowed table policy for SQL guardrail"],
+    ["ce_semantic_rule_deny_operation", "Denied SQL operations policy (INSERT/UPDATE/DELETE etc.)"],
+    ["ce_semantic_rule_config", "Rule configuration overrides (max limit, max joins, etc.)"],
     ["ce_semantic_concept", "Core business concepts and intent/entity anchors"],
-    ["ce_semantic_synonym", "Natural language expansion to canonical terms"],
+    ["ce_semantic_synonym", "Natural language expansion to canonical terms (direct interpret queries)"],
     ["ce_semantic_query_class", "Allowed query-shape contracts"],
     ["ce_semantic_mapping", "Field-level semantic -> physical mapping hints"],
     ["ce_semantic_ambiguity_option", "Deterministic clarification choices"],
     ["ce_semantic_concept_embedding", "Vector retrieval candidates and ranking"],
-    ["ce_semantic_entity", "Entity override patches without code"],
-    ["ce_semantic_relationship", "Relationship override patches without code"],
+    ["ce_semantic_entity", "Entity patches (override/extend base model entities without code)"],
+    ["ce_semantic_relationship", "Relationship patches (override/extend base model relationships without code)"],
     ["ce_semantic_join_hint", "Join guidance for complex paths"],
+    ["ce_semantic_join_path", "Explicit join path registry used by SemanticLlmQueryService SQL compilation"],
     ["ce_semantic_value_pattern", "Pattern-based value-to-field reassignment"]
   ]}
 />
@@ -515,8 +525,8 @@ Execution is now complete and control returns to `ConversationController`, which
   title="Semantic stage -> table usage map"
   columns={["Stage", "Primary Java classes", "Key tables used"]}
   rows={[
-    ["SEMANTIC_INTERPRET (Agent-1)", "DbSemanticInterpretToolHandler, SemanticInterpretService", "ce_semantic_concept, ce_semantic_synonym, ce_semantic_query_class, ce_semantic_mapping, ce_semantic_ambiguity_option, ce_semantic_concept_embedding, ce_semantic_entity, ce_semantic_relationship, ce_semantic_join_hint, ce_semantic_value_pattern"],
-    ["SEMANTIC_QUERY (Agent-2)", "DbSemanticQueryToolHandler, SemanticLlmQueryService", "ce_semantic_mapping, ce_semantic_query_class, ce_config, ce_semantic_query_failures"],
+    ["SEMANTIC_INTERPRET (Agent-1)", "DbSemanticInterpretToolHandler, SemanticInterpretService", "ce_semantic_concept, ce_semantic_synonym, ce_semantic_lexicon, ce_semantic_query_class, ce_semantic_mapping, ce_semantic_ambiguity_option, ce_semantic_concept_embedding, ce_semantic_entity, ce_semantic_relationship, ce_semantic_join_hint, ce_semantic_value_pattern"],
+    ["SEMANTIC_QUERY (Agent-2)", "DbSemanticQueryToolHandler, SemanticLlmQueryService", "ce_semantic_mapping, ce_semantic_query_class, ce_semantic_join_path, ce_semantic_concept, ce_semantic_synonym, ce_config, ce_semantic_query_failures"],
     ["POSTGRES_QUERY_EXECUTION", "PostgresQueryToolHandler", "Business domain tables (read-only for semantic flow)"],
     ["SEMANTIC_FAILURE_FEEDBACK", "SemanticFailureFeedbackService", "ce_semantic_query_failures (record + retrieve corrected SQL patterns)"]
   ]}
