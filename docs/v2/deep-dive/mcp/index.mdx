@@ -1,18 +1,42 @@
 ---
-title: MCP
+title: Agent Tools & MCP
 sidebar_position: 1
 ---
 
 import { DbTable, Highlight } from "@site/src/components/convengine";
 
-# MCP
+# Agent Tools & MCP
 
-MCP in ConvEngine is the runtime control loop for tool selection, tool execution, and final answer resolution.
+ConvEngine has two distinct but complementary concepts that are often discussed together:
 
-<Highlight type="info" title="Current focus">
-This section documents the current semantic path:
-`db.semantic.interpret -> db.semantic.query -> postgres.query`.
+<Highlight type="info" title="Two separate things — same pipeline">
+**Agent Tools** are ConvEngine's own DB-registered capabilities (DB queries, HTTP APIs, workflows, etc.).  
+**MCP Servers** are external servers connected via the real MCP protocol (JSON-RPC 2.0).  
+The `AgentPlanner` treats both transparently — `CALL_TOOL` works for either.
 </Highlight>
+
+## Agent Tools
+
+Agent Tools are ConvEngine's own capability registry. Each tool is defined in `ce_agent_tool` — scoped to an intent and state — and executed by a typed executor inside the framework. The `AgentPlanner` selects which tool to call based on the user query and prior observations.
+
+Tool groups supported out of the box:
+
+| Group | Executor | Purpose |
+|---|---|---|
+| `DB` | `DbToolExecutor` | SQL queries with guardrails and preflight |
+| `HTTP_API` | `HttpApiToolExecutor` | REST / SOAP calls with retry and auth |
+| `WORKFLOW_ACTION` | `WorkflowActionToolExecutor` | Trigger workflow actions |
+| `DOCUMENT_RETRIEVAL` | `DocumentRetrievalToolExecutor` | RAG / document search |
+| `CALCULATOR_TRANSFORM` | `CalculatorTransformToolExecutor` | Math and data transforms |
+| `NOTIFICATION` | `NotificationToolExecutor` | Email / SMS / Slack |
+| `FILES` | `FileToolExecutor` | File I/O |
+| `MCP_SERVER` | `McpServerToolExecutor` | External MCP server tools (see below) |
+
+## Real MCP Servers
+
+ConvEngine connects to any external MCP server (STDIO, HTTP, SSE transport) via `McpRegistry`. Servers are registered via the REST API — tools are discovered at runtime via `discoveredTools()` and surfaced to `AgentPlanner` alongside DB-registered Agent Tools. No DB entry needed for external MCP tools.
+
+Tool code format for discovered tools: `mcp.{serverId}.{toolName}`
 
 ## Quick navigation
 
@@ -22,21 +46,23 @@ This section documents the current semantic path:
 - [Semantic Query Deep Dive](/docs/v2/deep-dive/mcp/semantic-query-deep-dive)
 - [Semantic Query AI Tool](/docs/v2/deep-dive/mcp/semantic-query-ai-tool)
 - [HTTP Tool](/docs/v2/deep-dive/mcp/http-tool)
-- [Deep Dive](/docs/v2/deep-dive/mcp/deep-dive)
+- [Real MCP Protocol — Deep Dive](/docs/v2/deep-dive/mcp/deep-dive)
 - [Example 1](/docs/v2/deep-dive/mcp/example1)
 - [Example 2](/docs/v2/deep-dive/mcp/example2)
 - [Example 3](/docs/v2/deep-dive/mcp/example3)
 - [Example 4 - Semantic Query (Zapper)](/docs/v2/deep-dive/mcp/example4)
 
-## Core MCP tables
+## Core Agent Tool tables
 
 <DbTable
-  title="MCP table map"
+  title="Agent Tool table map"
   columns={["Table", "Purpose", "Used by"]}
   rows={[
-    ["ce_mcp_tool", "Tool registry and scoped activation", "McpToolStep / ToolOrchestrationStep"],
-    ["ce_mcp_planner", "Planner prompt selection by intent/state", "McpPlanner"],
-    ["ce_mcp_db_tool", "SQL-template fallback (non-handler path)", "McpDbExecutor"],
+    ["ce_agent_tool", "Agent Tool registry and scoped activation", "AgentToolStep / ToolOrchestrationStep"],
+    ["ce_agent_planner", "Planner prompt selection by intent/state", "AgentPlanner"],
+    ["ce_agent_db_tool", "SQL-template fallback (non-handler path)", "AgentDbExecutor"],
+    ["ce_agent_feedback", "User thumbs-up/down feedback on tool results", "ConversationFeedbackService"],
+    ["ce_agent_query_knowledge", "Reusable query knowledge with embeddings", "SemanticEmbeddingService"],
     ["ce_semantic_mapping", "Business field -> table/column mapping", "db.semantic.query"],
     ["ce_semantic_query_class", "Query class contracts and defaults", "db.semantic.interpret / db.semantic.query"],
     ["ce_semantic_query_failures", "Failure memory for retries and correction", "db.semantic.query / postgres.query"]

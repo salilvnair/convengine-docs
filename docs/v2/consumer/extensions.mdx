@@ -190,12 +190,12 @@ Interceptor rewrites SQL before `McpSqlGuardrail` and execution.
 public class PostgresTimestampFixInterceptor implements PostgresQueryInterceptor {
 
     @Override
-    public boolean supports(CeMcpTool tool, EngineSession session, Map<String, Object> args) {
+    public boolean supports(CeAgentTool tool, EngineSession session, Map<String, Object> args) {
         return tool != null && "postgres.query".equalsIgnoreCase(tool.getToolCode());
     }
 
     @Override
-    public String intercept(String sql, CeMcpTool tool, EngineSession session, Map<String, Object> args) {
+    public String intercept(String sql, CeAgentTool tool, EngineSession session, Map<String, Object> args) {
         if (sql == null || sql.isBlank()) return sql;
         // sample targeted rewrite policy
         return sql.replaceAll("(?i)to_timestamp\\\\(\\\\s*r\\\\.requested_at\\\\s*/\\\\s*1000(?:\\\\.0+)?\\\\s*\\\\)", "r.requested_at")

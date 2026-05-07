@@ -75,7 +75,7 @@ The sections below go one table at a time for the primary static control-plane t
   columns={["Column", "Typical values", "What it does"]}
   rows={[
     ["config_id", "Integer / PK", "Unique config row id."],
-    ["config_type", "McpPlanner, Flow, Audit, etc.", "Groups related config keys."],
+    ["config_type", "AgentPlanner, Flow, Audit, etc.", "Groups related config keys."],
     ["config_key", "String key", "The specific setting name inside the type group."],
     ["config_value", "String / JSON text", "The configured value read by the framework."],
     ["enabled", "true / false", "Disables the config row without deleting it."],
@@ -230,12 +230,12 @@ The sections below go one table at a time for the primary static control-plane t
   ]}
 />
 
-### `ce_mcp_tool`
+### `ce_agent_tool`
 
-`ce_mcp_tool` is the scoped MCP tool registry. In the current v2 line, scope is explicit and mandatory.
+`ce_agent_tool` is the scoped MCP tool registry. In the current v2 line, scope is explicit and mandatory.
 
 <DbTable
-  title="ce_mcp_tool columns"
+  title="ce_agent_tool columns"
   columns={["Column", "Typical values", "What it does"]}
   rows={[
     ["tool_id", "Integer / PK", "Unique tool row id."],
@@ -249,15 +249,15 @@ The sections below go one table at a time for the primary static control-plane t
   ]}
 />
 
-### `ce_mcp_db_tool`
+### `ce_agent_db_tool`
 
-`ce_mcp_db_tool` is the SQL-template fallback configuration when the DB tool path is template-driven.
+`ce_agent_db_tool` is the SQL-template fallback configuration when the DB tool path is template-driven.
 
 <DbTable
-  title="ce_mcp_db_tool columns"
+  title="ce_agent_db_tool columns"
   columns={["Column", "Typical values", "What it does"]}
   rows={[
-    ["tool_id", "FK to ce_mcp_tool.tool_id", "Binds the DB-specific config to a tool row."],
+    ["tool_id", "FK to ce_agent_tool.tool_id", "Binds the DB-specific config to a tool row."],
     ["dialect", "POSTGRES, SQLITE, ORACLE", "Selects the SQL dialect for the template."],
     ["sql_template", "SQL text", "Deterministic SQL template used for execution."],
     ["param_schema", "JSON schema", "Declares the expected input params and their shape."],
@@ -268,12 +268,12 @@ The sections below go one table at a time for the primary static control-plane t
   ]}
 />
 
-### `ce_mcp_sql_guardrail`
+### `ce_agent_sql_guardrail`
 
-`ce_mcp_sql_guardrail` is the shared SQL safety table for MCP DB execution. It keeps the runtime read-only while still letting you explicitly allow or block SQL functions and extra SQL keywords.
+`ce_agent_sql_guardrail` is the shared SQL safety table for MCP DB execution. It keeps the runtime read-only while still letting you explicitly allow or block SQL functions and extra SQL keywords.
 
 <DbTable
-  title="ce_mcp_sql_guardrail columns"
+  title="ce_agent_sql_guardrail columns"
   columns={["Column", "Typical values", "What it does"]}
   rows={[
     ["guardrail_id", "Integer / PK", "Unique SQL guardrail row id."],
@@ -286,7 +286,7 @@ The sections below go one table at a time for the primary static control-plane t
 />
 
 <DbTable
-  title="ce_mcp_sql_guardrail example values"
+  title="ce_agent_sql_guardrail example values"
   columns={["rule_type", "match_value", "Runtime effect"]}
   rows={[
     ["ALLOW_FUNCTION", "date_part", "Adds `date_part(...)` to the allowed function set on top of the built-in safe defaults."],
@@ -298,7 +298,7 @@ The sections below go one table at a time for the primary static control-plane t
 Example entry:
 
 ```sql
-INSERT INTO ce_mcp_sql_guardrail (
+INSERT INTO ce_agent_sql_guardrail (
   rule_type,
   match_value,
   enabled,
@@ -316,7 +316,7 @@ Allowed function example:
 ```sql
 -- Lets read-only MCP SQL use:
 -- select * from fetch_inventory_status(123)
-INSERT INTO ce_mcp_sql_guardrail (
+INSERT INTO ce_agent_sql_guardrail (
   rule_type,
   match_value,
   enabled,
@@ -334,12 +334,12 @@ Important:
 - it does not inspect the database function body
 - if `fetch_inventory_status(...)` performs writes internally, the SQL layer cannot detect that, so only add `ALLOW_FUNCTION` rows for functions your DB team guarantees are side-effect free
 
-### `ce_mcp_planner`
+### `ce_agent_planner`
 
-`ce_mcp_planner` makes planner prompts data-driven and scope-aware.
+`ce_agent_planner` makes planner prompts data-driven and scope-aware.
 
 <DbTable
-  title="ce_mcp_planner columns"
+  title="ce_agent_planner columns"
   columns={["Column", "Typical values", "What it does"]}
   rows={[
     ["planner_id", "Integer / PK", "Unique planner row id."],
@@ -394,10 +394,10 @@ Important:
     ["ce_rule", "Rule engine transitions and mutations.", "RulesStep and phase-specific rule hooks.", "phase, intent_code, state_code, rule_type, match_pattern, action, action_value, priority"],
     ["ce_policy", "Pre-intent policy-response rows.", "PolicyEnforcementStep.", "rule_type, pattern, response_text, priority, enabled"],
     ["ce_pending_action", "Static catalog of confirmable pending tasks.", "ActionLifecycleStep, DisambiguationStep, PendingActionStep.", "action_key, bean_name, method_names, intent_code, state_code, priority, enabled"],
-    ["ce_mcp_tool", "MCP tool registry with strict intent/state scope.", "McpToolStep, ToolOrchestrationStep, McpToolRegistry.", "tool_code, tool_group, intent_code, state_code, enabled"],
-    ["ce_mcp_db_tool", "SQL-template fallback configuration for DB tools.", "McpDbToolExecutor / DB tool fallback paths.", "tool_id, dialect, sql_template, param_schema, safe_mode, max_rows"],
-    ["ce_mcp_sql_guardrail", "Read-only SQL safety extensions for MCP DB paths.", "McpSqlGuardrail, McpDbExecutor, SemanticQueryTemplateStepExecutor.", "rule_type, match_value, enabled, description"],
-    ["ce_mcp_planner", "Planner prompts scoped by intent/state.", "McpPlanner.", "planner_id, intent_code, state_code, system_prompt, user_prompt, enabled"],
+    ["ce_agent_tool", "MCP tool registry with strict intent/state scope.", "AgentToolStep, ToolOrchestrationStep, AgentToolRegistry.", "tool_code, tool_group, intent_code, state_code, enabled"],
+    ["ce_agent_db_tool", "SQL-template fallback configuration for DB tools.", "McpDbToolExecutor / DB tool fallback paths.", "tool_id, dialect, sql_template, param_schema, safe_mode, max_rows"],
+    ["ce_agent_sql_guardrail", "Read-only SQL safety extensions for MCP DB paths.", "McpSqlGuardrail, McpDbExecutor, SemanticQueryTemplateStepExecutor.", "rule_type, match_value, enabled, description"],
+    ["ce_agent_planner", "Planner prompts scoped by intent/state.", "AgentPlanner.", "planner_id, intent_code, state_code, system_prompt, user_prompt, enabled"],
     ["ce_verbose", "Config-driven runtime progress and error messages.", "Verbose publishing adapters across many steps.", "intent_code, state_code, determinant, step_match, step_value, message, error_message, priority"]
   ]}
 />
@@ -436,10 +436,10 @@ Important:
   columns={["Table", "What it controls", "Important values / examples", "Why it matters"]}
   rows={[
     ["ce_pending_action", "Which pending tasks are available in a given intent/state.", "runtime lifecycle states are OPEN, IN_PROGRESS, EXECUTED, REJECTED, EXPIRED", "This keeps user confirmations and task execution table-driven."],
-    ["ce_mcp_tool", "Which tools are visible for a given intent/state.", "tool_group values: DB, HTTP_API, WORKFLOW_ACTION, DOCUMENT_RETRIEVAL, CALCULATOR_TRANSFORM, NOTIFICATION, FILES", "Prevents cross-intent tool leakage and drives both direct and planner MCP flows."],
-    ["ce_mcp_db_tool", "How DB tools can fall back to deterministic SQL templates.", "dialect values such as postgres/sqlite/oracle depending on consumer setup", "Used when DB execution is template-driven rather than handler-driven."],
-    ["ce_mcp_sql_guardrail", "How read-only SQL is further constrained or extended.", "rule_type values: ALLOW_FUNCTION, BLOCK_FUNCTION, BLOCK_KEYWORD", "Lets you stay read-only while still governing which SQL functions and extra keywords are permitted."],
-    ["ce_mcp_planner", "How planner prompts change by domain and state.", "resolution order is exact scope -> intent+ANY -> ANY+ANY -> legacy ce_config fallback", "This makes MCP planning data-driven instead of globally hardcoded."]
+    ["ce_agent_tool", "Which tools are visible for a given intent/state.", "tool_group values: DB, HTTP_API, WORKFLOW_ACTION, DOCUMENT_RETRIEVAL, CALCULATOR_TRANSFORM, NOTIFICATION, FILES", "Prevents cross-intent tool leakage and drives both direct and planner MCP flows."],
+    ["ce_agent_db_tool", "How DB tools can fall back to deterministic SQL templates.", "dialect values such as postgres/sqlite/oracle depending on consumer setup", "Used when DB execution is template-driven rather than handler-driven."],
+    ["ce_agent_sql_guardrail", "How read-only SQL is further constrained or extended.", "rule_type values: ALLOW_FUNCTION, BLOCK_FUNCTION, BLOCK_KEYWORD", "Lets you stay read-only while still governing which SQL functions and extra keywords are permitted."],
+    ["ce_agent_planner", "How planner prompts change by domain and state.", "resolution order is exact scope -> intent+ANY -> ANY+ANY -> legacy ce_config fallback", "This makes MCP planning data-driven instead of globally hardcoded."]
   ]}
 />
 
@@ -616,8 +616,8 @@ Important:
     ["Prompt text or confirmation semantics", "ce_prompt_template", "Prompt content and interaction_mode/interaction_contract live there."],
     ["Final assistant wording", "ce_response", "ResponseResolutionStep still resolves the final payload from here."],
     ["Pending confirmations or task execution", "ce_pending_action + convengine.flow.action-lifecycle.*", "Those control the multi-turn task path."],
-    ["Direct tool availability", "ce_mcp_tool + convengine.flow.tool-orchestration.*", "That controls tool visibility and direct execution."],
-    ["Planner behavior", "ce_mcp_planner + convengine.mcp.guardrail.*", "That controls tool order and whether transitions are allowed."],
+    ["Direct tool availability", "ce_agent_tool + convengine.flow.tool-orchestration.*", "That controls tool visibility and direct execution."],
+    ["Planner behavior", "ce_agent_planner + convengine.mcp.guardrail.*", "That controls tool order and whether transitions are allowed."],
     ["Semantic intent mapping", "ce_semantic_concept + ce_semantic_synonym + ce_semantic_mapping", "That controls how user text becomes canonical business intent."],
     ["Semantic query behavior", "ce_semantic_query_class + ce_semantic_ambiguity_option + ce_semantic_join_hint", "That controls query class constraints, clarification, and join guidance."],
     ["Semantic retry memory", "ce_semantic_query_failures", "That controls failure-memory examples and corrected-SQL reuse."],

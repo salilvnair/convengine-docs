@@ -104,48 +104,48 @@ export const loanExtendedDetails = {
     title: "Processing state",
     stage: "MCP_PLAN",
     summary: "Planner and tools are scoped to PROCESS_APPLICATION only, so no APIs run before user confirmation.",
-    session: ["state=PROCESS_APPLICATION", "context.mcp.lifecycle active"],
-    tables: ["ce_mcp_planner (R)", "ce_mcp_tool (R)", "ce_audit (W)"]
+    session: ["state=PROCESS_APPLICATION", "context.agent.lifecycle active"],
+    tables: ["ce_agent_planner (R)", "ce_agent_tool (R)", "ce_audit (W)"]
   },
   t1: {
     title: "Credit rating",
     stage: "MCP_TOOL_CALL",
     summary: "Tool 1 checks credit rating.",
-    session: ["context.mcp.observations[0]=credit rating"],
+    session: ["context.agent.observations[0]=credit rating"],
     tables: ["ce_audit (W)", "ce_verbose (optional R)"]
   },
   t2: {
     title: "Fraud check",
     stage: "MCP_TOOL_CALL",
     summary: "Tool 2 runs only when rating passes the threshold.",
-    session: ["context.mcp.observations[1]=fraud result"],
+    session: ["context.agent.observations[1]=fraud result"],
     tables: ["ce_audit (W)"]
   },
   t3: {
     title: "Debt summary",
     stage: "MCP_TOOL_CALL",
     summary: "Tool 3 evaluates dti and availableCredit.",
-    session: ["context.mcp.observations[2]=debt profile"],
+    session: ["context.agent.observations[2]=debt profile"],
     tables: ["ce_audit (W)"]
   },
   t4: {
     title: "Application submit",
     stage: "MCP_TOOL_CALL",
     summary: "Tool 4 submits the loan application when all prior checks pass.",
-    session: ["context.mcp.observations[3]=submit result"],
+    session: ["context.agent.observations[3]=submit result"],
     tables: ["ce_audit (W)", "ce_verbose (optional R)"]
   },
   post: {
     title: "Final MCP transition",
     stage: "POST_AGENT_MCP",
-    summary: "When context.mcp.finalAnswer exists, rules move PROCESS_APPLICATION -> COMPLETED.",
-    session: ["state=COMPLETED", "context.mcp.finalAnswer set"],
+    summary: "When context.agent.finalAnswer exists, rules move PROCESS_APPLICATION -> COMPLETED.",
+    session: ["state=COMPLETED", "context.agent.finalAnswer set"],
     tables: ["ce_rule (POST_AGENT_MCP)", "ce_audit (W)"]
   },
   done: {
     title: "Completed response",
     stage: "ASSISTANT_OUTPUT",
-    summary: "The completed response uses context.mcp.finalAnswer as the primary answer and validates against MCP observations.",
+    summary: "The completed response uses context.agent.finalAnswer as the primary answer and validates against MCP observations.",
     session: ["final payload returned"],
     tables: ["ce_response (R)", "ce_prompt_template (TEXT)", "ce_conversation (W)", "ce_audit (W)"]
   }
@@ -181,7 +181,7 @@ The current `convengine-demo` `mcp_planner_seed.sql` still scopes the loan plann
     ["ELIGIBILITY_GATE", "Required field collection", "Schema extraction collects customerId, requestedAmount, tenureMonths."],
     ["CONFIRMATION", "User review", "Show exact collected values; allow AFFIRM or EDIT."],
     ["PROCESS_APPLICATION", "MCP execution", "Planner runs credit -> fraud -> debt -> submit in sequence."],
-    ["COMPLETED", "Final answer", "Derived response uses context.mcp.finalAnswer as the primary summary."]
+    ["COMPLETED", "Final answer", "Derived response uses context.agent.finalAnswer as the primary summary."]
   ]}
 />
 
@@ -304,7 +304,7 @@ The current `convengine-demo` `mcp_planner_seed.sql` still scopes the loan plann
         ]
       }
     }}
-    tables={["ce_rule (PRE_AGENT_MCP)", "ce_mcp_planner (R)", "ce_mcp_tool (R)", "ce_audit (W)", "ce_verbose (optional R)"]}
+    tables={["ce_rule (PRE_AGENT_MCP)", "ce_agent_planner (R)", "ce_agent_tool (R)", "ce_audit (W)", "ce_verbose (optional R)"]}
     info={["Tools are now scoped to PROCESS_APPLICATION.", "This is the missing step in the current demo seed."]}
   />
 
@@ -327,7 +327,7 @@ The current `convengine-demo` `mcp_planner_seed.sql` still scopes the loan plann
       }
     }}
     tables={["ce_rule (POST_AGENT_MCP)", "ce_response (R)", "ce_prompt_template (R)", "ce_conversation (W)", "ce_audit (W)"]}
-    info={["POST_AGENT_MCP closes the flow only after context.mcp.finalAnswer exists.", "COMPLETED response derives from final MCP context."]}
+    info={["POST_AGENT_MCP closes the flow only after context.agent.finalAnswer exists.", "COMPLETED response derives from final MCP context."]}
   />
 </ChatContainer>
 
@@ -358,9 +358,9 @@ The current `convengine-demo` `mcp_planner_seed.sql` still scopes the loan plann
     ["Confirmation response", "ce_response, ce_prompt_template", "ce_audit", "Shows exact collected values before any MCP call."],
     ["Correction path", "session/context, optional ce_verbose", "ce_audit", "Patch only the changed field and stay in CONFIRMATION."],
     ["Pre-MCP gate", "ce_rule", "ce_audit", "PRE_AGENT_MCP checks routing_decision and unlocks PROCESS_APPLICATION."],
-    ["Planner + tools", "ce_mcp_planner, ce_mcp_tool", "ce_audit", "Run the credit/fraud/debt/submit chain only after confirmation."],
+    ["Planner + tools", "ce_agent_planner, ce_agent_tool", "ce_audit", "Run the credit/fraud/debt/submit chain only after confirmation."],
     ["Post-MCP close", "ce_rule", "ce_audit", "POST_AGENT_MCP moves PROCESS_APPLICATION -> COMPLETED."],
-    ["Final response", "ce_response, ce_prompt_template", "ce_conversation, ce_audit", "Return the final derived summary from context.mcp.finalAnswer."]
+    ["Final response", "ce_response, ce_prompt_template", "ce_conversation, ce_audit", "Return the final derived summary from context.agent.finalAnswer."]
   ]}
 />
 
@@ -556,7 +556,7 @@ VALUES
   'Context JSON:
 {{context}}
 
-If context.mcp.finalAnswer exists, return it directly.
+If context.agent.finalAnswer exists, return it directly.
 If the latest MCP lifecycle shows an error, tell the user they can retry.
 Otherwise keep the reply concise and indicate processing is in progress.',
   0.00,
@@ -579,8 +579,8 @@ VALUES
   'Context JSON:
 {{context}}
 
-Use context.mcp.finalAnswer as primary final answer.
-Use context.mcp.observations only to validate details.',
+Use context.agent.finalAnswer as primary final answer.
+Use context.agent.observations only to validate details.',
   0.00,
   'FINAL',
   '{"allows":["reset"],"expects":[]}',
@@ -656,7 +656,7 @@ VALUES
   'TEXT',
   'DERIVED',
   NULL,
-  'Use context.mcp.finalAnswer as primary answer. Include applicationId when present.',
+  'Use context.agent.finalAnswer as primary answer. Include applicationId when present.',
   NULL,
   10,
   true,
@@ -811,7 +811,7 @@ VALUES
   'LOAN_APPLICATION',
   'PROCESS_APPLICATION',
   'JSON_PATH',
-  '$[?(@.context.mcp.lifecycle.finished == true && @.context.mcp.lifecycle.error == false && @.context.mcp.finalAnswer != null && @.context.mcp.finalAnswer != '''')]',
+  '$[?(@.context.agent.lifecycle.finished == true && @.context.agent.lifecycle.error == false && @.context.agent.finalAnswer != null && @.context.agent.finalAnswer != '''')]',
   'SET_STATE',
   'COMPLETED',
   10,
@@ -843,7 +843,7 @@ VALUES
 -- MCP planner
 -- ------------------------------------------------------------
 
-INSERT INTO ce_mcp_planner
+INSERT INTO ce_agent_planner
 (planner_id, intent_code, state_code, system_prompt, user_prompt, enabled, created_at)
 VALUES
 (
@@ -888,7 +888,7 @@ Return strict JSON:
 -- MCP tools (only visible in PROCESS_APPLICATION)
 -- ------------------------------------------------------------
 
-INSERT INTO ce_mcp_tool
+INSERT INTO ce_agent_tool
 (tool_id, tool_code, tool_group, intent_code, state_code, enabled, description, created_at)
 VALUES
 (10201, 'loan.credit.rating.check', 'HTTP_API', 'LOAN_APPLICATION', 'PROCESS_APPLICATION', true, 'Step 1: credit rating check', CURRENT_TIMESTAMP),
@@ -938,7 +938,7 @@ VALUES
   'LOAN_APPLICATION',
   'PROCESS_APPLICATION',
   'EXACT',
-  'McpToolStep',
+  'AgentToolStep',
   'MCP_TOOL_CALL',
   NULL,
   'loan.application.submit',
@@ -1077,12 +1077,12 @@ If an MCP call fails in `PROCESS_APPLICATION`, the flow should stay in `PROCESS_
 
 Use this shape:
 
-- `POST_AGENT_MCP` completion rule matches only when `context.mcp.lifecycle.finished == true` and `context.mcp.lifecycle.error == false`
+- `POST_AGENT_MCP` completion rule matches only when `context.agent.lifecycle.finished == true` and `context.agent.lifecycle.error == false`
 - the `PROCESS_APPLICATION` prompt template uses `interaction_mode=PROCESSING`
 - the `PROCESS_APPLICATION` `interaction_contract` includes `retry`
 - `CorrectionStep` detects retry phrases like `retry`, `try again`, and `again`
 - it sets `routing_decision=RETRY_IN_PLACE`, `skip_intent_resolution=true`, and `skip_schema_extraction=true`
-- `McpToolStep` then runs again in the same state and re-calls the API
+- `AgentToolStep` then runs again in the same state and re-calls the API
 
 That gives you deterministic retry behavior without depending on state-name parsing or arbitrary runtime flags.
 

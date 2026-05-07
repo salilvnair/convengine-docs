@@ -206,7 +206,7 @@ Because Redis runs outside the active server JVM, it relies on network transmiss
 <FlowStep step="4" title="Static Configuration Preloading">
 
 
-Beyond dynamic conversational sessions, ConvEngine also permanently caches all non-transactional database rules (`ce_intent`, `ce_rule`, `ce_mcp_tool`, `ce_mcp_planner`, `ce_config`, etc.) into a generic `ce_static_configs` memory tree entirely upon JVM live initiation. This ensures that the engine never triggers synchronous relational fetches during the middle of a customer's turn.
+Beyond dynamic conversational sessions, ConvEngine also permanently caches all non-transactional database rules (`ce_intent`, `ce_rule`, `ce_agent_tool`, `ce_agent_planner`, `ce_config`, etc.) into a generic `ce_static_configs` memory tree entirely upon JVM live initiation. This ensures that the engine never triggers synchronous relational fetches during the middle of a customer's turn.
 
 If you connect to your database and update a `ce_rule` row manually using `SQL`, the active Java application won't automatically see it until you flush this static cache. 
 
@@ -285,15 +285,15 @@ Interpret each JSON block as follows:
       "secondCallMs": 0,
       "firstCallMs": 0
     },
-    "ce_mcp_tool": {
+    "ce_agent_tool": {
       "secondCallMs": 0,
       "firstCallMs": 0
     },
-    "ce_mcp_db_tool": {
+    "ce_agent_db_tool": {
       "secondCallMs": 0,
       "firstCallMs": 0
     },
-    "ce_mcp_planner": {
+    "ce_agent_planner": {
       "secondCallMs": 0,
       "firstCallMs": 0
     },
@@ -342,9 +342,9 @@ Interpret each JSON block as follows:
     "ce_conversation_history_cache",
     "ce_rule",
     "ce_container_config",
-    "ce_mcp_tool",
-    "ce_mcp_db_tool",
-    "ce_mcp_planner",
+    "ce_agent_tool",
+    "ce_agent_db_tool",
+    "ce_agent_planner",
     "ce_conversation_cache",
     "ce_pending_action",
     "ce_intent",
@@ -359,21 +359,21 @@ Interpret each JSON block as follows:
       "hasSimpleKeyEntry": true,
       "nativeEntryCount": 1
     },
-    "ce_mcp_tool": {
+    "ce_agent_tool": {
       "valueType": "java.util.ArrayList",
       "exists": true,
       "listSize": 2,
       "hasSimpleKeyEntry": true,
       "nativeEntryCount": 1
     },
-    "ce_mcp_db_tool": {
+    "ce_agent_db_tool": {
       "valueType": "java.util.ArrayList",
       "exists": true,
       "listSize": 2,
       "hasSimpleKeyEntry": true,
       "nativeEntryCount": 1
     },
-    "ce_mcp_planner": {
+    "ce_agent_planner": {
       "valueType": "java.util.ArrayList",
       "exists": true,
       "listSize": 3,

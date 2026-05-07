@@ -1,40 +1,422 @@
 ---
-title: Deep Dive
-sidebar_position: 5
+title: Real MCP Protocol
+sidebar_position: 3
 ---
 
-import { DbTable, Highlight } from "@site/src/components/convengine";
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { DbTable, Highlight, CodeBlockToggle, FlowStep, MethodRef, FileRef } from "@site/src/components/convengine";
 
-# Deep Dive
+# Real MCP Protocol — Deep Dive
 
 <div className="ce-schema ce-intro-box">
-The detailed MCP runtime material now lives in [Advanced Guide](/docs/v2/deep-dive/mcp/advanced).
-
-This page is intentionally condensed so the section is not duplicated. Use it as a quick routing page:
+This page covers ConvEngine's implementation of the **Model Context Protocol (MCP)** — the open JSON-RPC 2.0 standard for connecting external tool servers to AI runtimes. This is distinct from ConvEngine's DB-registered Agent Tools. Both are surfaced to the `AgentPlanner` transparently.
 </div>
 
-- use [Advanced Guide](/docs/v2/deep-dive/mcp/advanced) for the current `2.0.10` execution model
-- use [Semantic Query](/docs/v2/deep-dive/mcp/semantic-query) for interpret/query/postgres stage internals and code walkthrough
-- use [Example 3](/docs/v2/deep-dive/mcp/example3) for the full confirmation-first planner flow
-- use [Table Config](/docs/v2/deep-dive/table-config) for DB-driven semantic metadata table contracts
-- use [Example 4 - Semantic Query (Zapper)](/docs/v2/deep-dive/mcp/example4) for Semantic Query in action
+<Highlight type="info" title="Two things, one planner">
+**Agent Tools** (DB-registered, typed executors, `ce_agent_tool`) and **MCP Server Tools** (runtime-discovered, JSON-RPC 2.0, `McpRegistry`) are unified in the planner's tool list. `CALL_TOOL` works identically for both. External MCP tools require zero DB configuration.
+</Highlight>
+
+## What the real MCP layer is
+
+`engine/mcp/` is ConvEngine's implementation of the MCP client side of the JSON-RPC 2.0 protocol (protocol version `2024-11-05`). It is responsible for:
+
+- connecting to any external MCP server (STDIO subprocess, HTTP endpoint, or SSE stream)
+- discovering the tools that server exposes (`tools/list`)
+- caching those tool manifests so the `AgentPlanner` can include them in every plan-time tool list
+- routing `CALL_TOOL` decisions for external tools to the correct server and returning the result as an `AgentObservation`
+
+The MCP layer is **entirely separate** from ConvEngine's internal agent framework (`engine/agent/`). It does not touch intent resolution, rules, or state transitions.
+
+---
+
+## Core classes
 
 <DbTable
-  title="Where to go now"
-  columns={["Need", "Best page", "Why"]}
+  title="engine/mcp/ class map"
+  columns={["Class", "Role"]}
   rows={[
-    ["Current MCP execution order", "Advanced Guide", "This now carries the condensed but complete `2.0.10` runtime model."],
-    ["Semantic query internals", "Semantic Query", "Covers handlers, services, retry loop, guardrails, and stage flow."],
-    ["Planner/tool confirmation flow", "Example 3", "Shows the confirmation-first multi-turn MCP branch."],
-    ["Semantic metadata contracts", "Table Config", "Covers semantic metadata tables and config mapping in detail."],
-    ["Real Semantic Query production-debug example", "Example 4 - Semantic Query (Zapper)", "Shows interpret -> query -> postgres runtime with transactional data."]
+    ["McpRegistry", "Lifecycle manager: connects servers, caches tool manifests, exposes discoveredTools() and callTool()"],
+    ["McpClient", "JSON-RPC 2.0 client: initialize handshake, tools/list, tools/call over any McpTransport"],
+    ["McpTransport", "Transport interface: send(request) → response"],
+    ["StdioMcpTransport", "Subprocess stdin/stdout transport — for local Python/Node MCP servers"],
+    ["HttpMcpTransport", "HTTP POST transport — for remote stateless MCP endpoints"],
+    ["SseMcpTransport", "Server-Sent Events transport — for streaming MCP servers"],
+    ["McpServerConfig", "Server registration DTO: name, transport type, command/args/url/headers"],
+    ["McpDiscoveredTool", "Runtime-discovered tool record: toolCode, serverId, toolName, description"],
+    ["McpController", "REST API for server registration, status, and tool listing"],
+    ["McpException", "Typed exception for protocol and transport failures"],
   ]}
 />
 
-## What this page still means
+---
 
-Historically, this page held the long-form planner trace. That material was moved into Advanced Guide to avoid duplicating the same lifecycle explanation across two pages.
+## McpRegistry — server lifecycle and tool discovery
 
-<Highlight type="tip" title="Recommended read path">
-Read [Basics](/docs/v2/deep-dive/mcp/basics), then [Advanced Guide](/docs/v2/deep-dive/mcp/advanced), then [Semantic Query](/docs/v2/deep-dive/mcp/semantic-query), then jump into [Example 4](/docs/v2/deep-dive/mcp/example4) and [Table Config](/docs/v2/deep-dive/table-config).
+`McpRegistry` is the central hub. It manages server connections, runs the `initialize` + `tools/list` handshake on first contact, and caches the tool manifest.
+
+### `discoveredTools()`
+
+Called by `AgentPlanner` at plan time on every turn:
+
+```java
+// AgentPlanner.plan() — merges DB Agent Tools + runtime MCP tools
+List<AgentToolView> toolViews = buildDbToolViews(dbTools);
+if (mcpRegistry != null) {
+    mcpRegistry.discoveredTools().forEach(dt ->
+        toolViews.add(new AgentToolView(dt.toolCode(), dt.description(), AgentConstants.TOOL_GROUP_MCP_SERVER))
+    );
+}
+AgentPlan plan = llm.plan(toolViews, observations, userMessage);
+```
+
+`discoveredTools()` iterates registered servers, fetches tool manifests (from cache or live), and returns `List<McpDiscoveredTool>`. The planner sees these tools alongside DB-registered Agent Tools — the LLM makes a single unified decision.
+
+### `callTool(serverId, toolName, args)`
+
+Called by `McpServerToolExecutor` when the planner selects an external MCP tool:
+
+```java
+JsonNode result = mcpRegistry.callTool(serverId, toolName, argsNode);
+```
+
+Internally: looks up the server's `McpClient`, calls `tools/call` over the registered transport, returns the JSON result.
+
+### Server registration flow
+
+```
+POST /api/v1/mcp/servers
+    ↓
+McpController validates config
+    ↓
+McpRegistry stores McpServerConfig
+    ↓
+McpClient.initialize() — JSON-RPC handshake (protocolVersion: "2024-11-05")
+    ↓
+McpClient.listTools() — tools/list → toolCache
+    ↓
+discoveredTools() returns the new tools on next planner turn
+```
+
+No engine restart. No DB entry. Tools appear in the planner's list immediately on the next user turn.
+
+---
+
+## McpClient — JSON-RPC 2.0 protocol
+
+`McpClient` implements the MCP client protocol over any `McpTransport`.
+
+### Initialize handshake
+
+```json
+// → Request
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "clientInfo": { "name": "ConvEngine", "version": "2.0" },
+    "capabilities": {}
+  }
+}
+// ← Response
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2024-11-05",
+    "serverInfo": { "name": "acme-oms", "version": "1.0" },
+    "capabilities": { "tools": {} }
+  }
+}
+```
+
+### Tool discovery — `tools/list`
+
+```json
+// → Request
+{ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
+// ← Response
+{
+  "jsonrpc": "2.0", "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "get_order_status",
+        "description": "Returns real-time order status for a given orderId",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "orderId": { "type": "string" } },
+          "required": ["orderId"]
+        }
+      }
+    ]
+  }
+}
+```
+
+`McpRegistry` caches this manifest. `discoveredTools()` exposes it as `McpDiscoveredTool` with `toolCode = "mcp.acme-oms.get_order_status"`.
+
+### Tool invocation — `tools/call`
+
+```json
+// → Request
+{
+  "jsonrpc": "2.0", "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "get_order_status",
+    "arguments": { "orderId": "ORD-7017" }
+  }
+}
+// ← Response
+{
+  "jsonrpc": "2.0", "id": 3,
+  "result": {
+    "content": [
+      { "type": "text", "text": "{\"status\":\"SHIPPED\",\"eta\":\"2026-05-07\"}" }
+    ]
+  }
+}
+```
+
+The result is returned to `McpServerToolExecutor`, which wraps it as an `AgentObservation` and appends it to `context.agent.observations`. The planner loops with this new observation.
+
+---
+
+## Transports
+
+<Tabs groupId="mcp-transports">
+  <TabItem value="stdio" label="STDIO (subprocess)" default>
+
+**Best for:** local Python or Node.js MCP servers running on the same host.
+
+```http
+POST /api/v1/mcp/servers
+{
+  "name": "acme-oms",
+  "transport": "STDIO",
+  "command": "node",
+  "args": ["/opt/acme/oms-mcp-server/index.js"],
+  "env": { "OMS_API_KEY": "..." }
+}
+```
+
+`StdioMcpTransport` launches the process, writes JSON-RPC requests to stdin, reads responses from stdout. The process lifecycle is managed by `McpRegistry`.
+
+  </TabItem>
+  <TabItem value="http" label="HTTP (remote)">
+
+**Best for:** remote stateless MCP servers, microservices, or cloud-hosted tool endpoints.
+
+```http
+POST /api/v1/mcp/servers
+{
+  "name": "inventory-mcp",
+  "transport": "HTTP",
+  "url": "https://tools.internal.acme.com/mcp",
+  "headers": { "Authorization": "Bearer ${TOOLS_TOKEN}" }
+}
+```
+
+`HttpMcpTransport` sends each JSON-RPC request as an HTTP POST and reads the synchronous JSON response.
+
+  </TabItem>
+  <TabItem value="sse" label="SSE (streaming)">
+
+**Best for:** streaming tool servers, long-running tools, or servers that push incremental results.
+
+```http
+POST /api/v1/mcp/servers
+{
+  "name": "analytics-stream",
+  "transport": "SSE",
+  "url": "https://analytics.internal.acme.com/mcp/events",
+  "headers": { "Authorization": "Bearer ${ANALYTICS_TOKEN}" }
+}
+```
+
+`SseMcpTransport` opens a persistent SSE connection. Tool call results are streamed back as SSE events.
+
+  </TabItem>
+</Tabs>
+
+---
+
+## McpDiscoveredTool — the tool record
+
+```java
+public record McpDiscoveredTool(
+    String toolCode,    // "mcp.acme-oms.get_order_status"
+    String serverId,    // "acme-oms"
+    String toolName,    // "get_order_status"
+    String description  // from tools/list
+) {
+    public static String buildToolCode(String serverId, String toolName) {
+        return "mcp." + serverId + "." + toolName;
+    }
+    public static String extractServerId(String toolCode) { /* parses mcp.{s}.{t} */ }
+    public static String extractToolName(String toolCode)  { /* parses mcp.{s}.{t} */ }
+}
+```
+
+Tool code format: `mcp.{serverId}.{toolName}`. This is the string the LLM uses in its `CALL_TOOL` decision and what `McpServerToolExecutor` parses to route the call.
+
+---
+
+## McpServerToolExecutor — the routing executor
+
+`McpServerToolExecutor` implements `AgentToolExecutor` for tool group `MCP_SERVER`. It is the bridge between the agent planning loop and the MCP protocol layer.
+
+```java
+@Component
+public class McpServerToolExecutor implements AgentToolExecutor {
+
+    @Override
+    public String toolGroup() { return AgentConstants.TOOL_GROUP_MCP_SERVER; }
+
+    @Override
+    public String execute(CeAgentTool tool, Map<String, Object> args, EngineSession session) {
+        String toolCode = tool.getToolCode();                         // mcp.acme-oms.get_order_status
+        String serverId  = McpDiscoveredTool.extractServerId(toolCode);
+        String toolName  = McpDiscoveredTool.extractToolName(toolCode);
+        ObjectNode argsNode = mapper.valueToTree(args);
+        JsonNode result = mcpRegistry.callTool(serverId, toolName, argsNode);
+        return mapper.writeValueAsString(result);
+    }
+}
+```
+
+No `ce_agent_tool` DB row is needed for external MCP tools. The executor is invoked purely because the tool group constant matches `MCP_SERVER`.
+
+---
+
+## REST API — server management
+
+<Tabs groupId="mcp-rest">
+  <TabItem value="register" label="Register server" default>
+
+```http
+POST /api/v1/mcp/servers
+Content-Type: application/json
+
+{
+  "name": "acme-oms",
+  "transport": "STDIO",
+  "command": "node",
+  "args": ["/opt/acme/oms-mcp-server/index.js"]
+}
+```
+
+  </TabItem>
+  <TabItem value="list" label="List servers">
+
+```http
+GET /api/v1/mcp/servers
+```
+
+Returns all registered servers with their connection status and cached tool count.
+
+  </TabItem>
+  <TabItem value="tools" label="List discovered tools">
+
+```http
+GET /api/v1/mcp/servers/{serverId}/tools
+```
+
+Returns the cached `tools/list` manifest for a specific server.
+
+  </TabItem>
+  <TabItem value="delete" label="Remove server">
+
+```http
+DELETE /api/v1/mcp/servers/{serverId}
+```
+
+Stops the transport connection and removes the server and its tools from the discovery cache.
+
+  </TabItem>
+</Tabs>
+
+---
+
+## End-to-end: from user message to MCP tool result
+
+```
+User: "What is the status of order ORD-7017?"
+
+1. Pipeline resolves intent → ORDER_STATUS
+2. AgentToolStep enters planner loop
+3. AgentPlanner.plan():
+     DB tools (from ce_agent_tool)  → none scoped for ORDER_STATUS
+     MCP tools (discoveredTools())  → ["mcp.acme-oms.get_order_status", ...]
+     LLM decision: CALL_TOOL mcp.acme-oms.get_order_status {"orderId":"ORD-7017"}
+4. AgentToolRegistry routes to McpServerToolExecutor
+5. McpServerToolExecutor:
+     → serverId = "acme-oms", toolName = "get_order_status"
+     → mcpRegistry.callTool("acme-oms", "get_order_status", {"orderId":"ORD-7017"})
+     → McpClient sends tools/call over StdioMcpTransport
+     ← {"status":"SHIPPED","eta":"2026-05-07"}
+6. Result appended to context.agent.observations
+7. Planner loops → ANSWER "Your order ORD-7017 has shipped and is expected by May 7."
+8. POST_AGENT_MCP rules run
+9. ResponseResolutionStep finalizes response
+```
+
+---
+
+## Configuration — `~/.convengine/mcp-servers.json`
+
+On startup, `McpRegistry` optionally loads a static server list from `~/.convengine/mcp-servers.json`:
+
+```json
+[
+  {
+    "name": "acme-oms",
+    "transport": "STDIO",
+    "command": "node",
+    "args": ["/opt/acme/oms-mcp-server/index.js"]
+  },
+  {
+    "name": "inventory-mcp",
+    "transport": "HTTP",
+    "url": "https://tools.internal.acme.com/mcp"
+  }
+]
+```
+
+This is optional. Servers can also be registered at runtime via the REST API — useful in containerized deployments where tool servers start after the engine.
+
+---
+
+## Building a compatible MCP server (ck8t example)
+
+Any server that implements the MCP JSON-RPC 2.0 protocol works with ConvEngine's `McpRegistry`. The ck8t Builder framework (`salilvnair/ck8t`) ships a Node.js MCP server that exposes component generation, webhook ingestion, and knowledge-base tools as MCP tools — making it directly compatible.
+
+Once the ck8t server is registered:
+
+```http
+POST /api/v1/mcp/servers
+{
+  "name": "ck8t-server",
+  "transport": "STDIO",
+  "command": "node",
+  "args": ["/path/to/ck8t/mcp-server/index.js"]
+}
+```
+
+Tools like `mcp.ck8t-server.generate_component`, `mcp.ck8t-server.ingest_faq`, and `mcp.ck8t-server.trigger_webhook` appear in the planner's tool list automatically. The planner can then call them the same way it calls any other tool — with zero additional configuration.
+
+<Highlight type="tip" title="No DB entry needed">
+External MCP server tools do not require a `ce_agent_tool` row. Registration via the REST API is all that is needed for the planner to discover and invoke them.
 </Highlight>
+
+---
+
+## Read next
+
+- [Agent Tool Basics](/docs/v2/deep-dive/mcp/basics) — DB-registered Agent Tools
+- [Advanced Guide](/docs/v2/deep-dive/mcp/advanced) — planner execution order, scoping rules, guardrail semantics
+- [Semantic Query](/docs/v2/deep-dive/mcp/semantic-query) — natural-language → SQL pipeline
+- [Example 4 — Zapper Disconnect](/docs/v2/deep-dive/mcp/example4) — Semantic Query + MCP in action

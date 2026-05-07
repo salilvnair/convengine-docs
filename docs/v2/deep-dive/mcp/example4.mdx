@@ -18,7 +18,7 @@ import {
 export const exampleNodes = [
   { id: "u", data: { label: "1. User request" } },
   { id: "ir", data: { label: "2. IntentResolutionStep + RulesStep" } },
-  { id: "mp", data: { label: "3. McpPlanner" } },
+  { id: "mp", data: { label: "3. AgentPlanner" } },
   { id: "si", data: { label: "4. db.semantic.interpret" } },
   { id: "sq", data: { label: "5. db.semantic.query" } },
   { id: "pq", data: { label: "6. postgres.query" } },
@@ -52,11 +52,11 @@ export const exampleDetails = {
     tables: ["ce_intent_classifier (R)", "ce_rule (R)", "ce_audit (W)"]
   },
   mp: {
-    title: "3. McpPlanner",
+    title: "3. AgentPlanner",
     stage: "MCP_PLAN",
     summary: "Planner resolves semantic turn to CALL_TOOL with semantic chain tools.",
-    session: ["context.mcp.lifecycle.*", "MCP_ACTION", "MCP_TOOL_CODE"],
-    tables: ["ce_mcp_planner (R)", "ce_mcp_tool (R)", "ce_audit (W)"]
+    session: ["context.agent.lifecycle.*", "MCP_ACTION", "MCP_TOOL_CODE"],
+    tables: ["ce_agent_planner (R)", "ce_agent_tool (R)", "ce_audit (W)"]
   },
   si: {
     title: "4. db.semantic.interpret",
@@ -83,8 +83,8 @@ export const exampleDetails = {
     title: "7. MCP Final Answer",
     stage: "MCP_FINAL_ANSWER",
     summary: "Planner composes final answer from the raw data returned by the postgres tool observation.",
-    session: ["context.mcp.finalAnswer"],
-    tables: ["ce_mcp_planner (R)"]
+    session: ["context.agent.finalAnswer"],
+    tables: ["ce_agent_planner (R)"]
   },
   out: {
     title: "8. Assistant output",
@@ -186,8 +186,8 @@ LIMIT :__limit`}
     tables={[
       "ce_intent_classifier (R)",
       "ce_rule (R)",
-      "ce_mcp_planner (R)",
-      "ce_mcp_tool (R)",
+      "ce_agent_planner (R)",
+      "ce_agent_tool (R)",
       "ce_semantic_mapping (R)",
       "ce_semantic_query_class (R)",
       "zp_disco_request (R)",
@@ -369,10 +369,10 @@ LIMIT :__limit;
   columns={["Step", "Responsibility", "Session mutations", "Config/table dependencies"]}
   rows={[
     [
-      "McpPlanner",
+      "AgentPlanner",
       "Planner resolves semantic turn to CALL_TOOL with tool_code chain.",
-      "context.mcp.lifecycle.*, MCP_ACTION, MCP_TOOL_CODE",
-      "ce_mcp_planner (R), ce_mcp_tool (R), ce_rule (R), ce_audit (W)"
+      "context.agent.lifecycle.*, MCP_ACTION, MCP_TOOL_CODE",
+      "ce_agent_planner (R), ce_agent_tool (R), ce_rule (R), ce_audit (W)"
     ],
     [
       "db.semantic.interpret",

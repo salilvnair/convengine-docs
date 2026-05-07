@@ -16,12 +16,12 @@ This page focuses on the failure modes that still matter in the current repo, wh
 
 Compared to the early v2 line, the current framework now reduces several older classes of mistakes:
 
-- `ce_mcp_tool`, `ce_mcp_planner`, `ce_pending_action`, and `ce_verbose` are startup-validated for scope/integrity
+- `ce_agent_tool`, `ce_agent_planner`, `ce_pending_action`, and `ce_verbose` are startup-validated for scope/integrity
 - MCP scope is explicit (`ANY` / `UNKNOWN`), not ambiguous null wildcard behavior
 - `CorrectionStep` can keep confirmation/edit/retry turns in-place instead of forcing unnecessary reclassification
 - `ce_verbose` and step telemetry make degraded or skipped paths easier to detect
 - `POST_SCHEMA_EXTRACTION` and `PRE_AGENT_MCP` phases provide cleaner rule insertion points
-- `ce_mcp_planner` makes MCP prompt selection deterministic by intent/state scope instead of relying only on legacy config
+- `ce_agent_planner` makes MCP prompt selection deterministic by intent/state scope instead of relying only on legacy config
 
 Those are real upgrades, but they do not eliminate correctness risk. They mostly make bad behavior easier to prevent and easier to diagnose.
 
@@ -165,7 +165,7 @@ If a conversation looks "wrong" but did not crash, these are the fastest places 
 - `EngineSession.stepInfos` via trace output
 - `RULE_MATCH` / `RULE_APPLIED` ordering across phases
 - `ROUTING_DECISION` values set by `CorrectionStep`
-- `context.mcp.lifecycle.*` and `context.mcp.toolExecution.*`
+- `context.agent.lifecycle.*` and `context.agent.toolExecution.*`
 - `TOOL_ORCHESTRATION_*` and `MCP_*` verbose/audit events
 - `RESOLVE_RESPONSE_SELECTED` vs the final user-visible payload
 
@@ -193,7 +193,7 @@ If a conversation looks "wrong" but did not crash, these are the fastest places 
     [
       "Tool policy review",
       "Broad `ANY` scope or under-protected handlers can create silent data risk.",
-      "`ce_mcp_tool` design + consumer-side handler implementation"
+      "`ce_agent_tool` design + consumer-side handler implementation"
     ],
     [
       "Prompt-variable hygiene",

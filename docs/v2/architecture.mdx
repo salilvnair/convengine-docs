@@ -3,59 +3,322 @@ title: Architecture
 sidebar_position: 2
 ---
 
-import { FlowStep, Highlight, CodeBlockToggle, FileRef, MethodRef } from "@site/src/components/convengine";
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import { FlowStep, Highlight, DbTable, CodeBlockToggle, MethodRef, FileRef } from "@site/src/components/convengine";
 
-# Architecture
+# ConvEngine — Architecture
 
-## Layers
+<div className="ce-schema ce-intro-box">
+ConvEngine is a **deterministic, intent-driven Conversational Intelligence Platform** built for enterprise-grade AI products. It is not a chatbot framework. It is a composable, pipeline-based runtime that turns every user turn into a structured intelligence event — resolved, routed, guarded, actioned, and audited with full observability.
+</div>
 
-### API + Transport Layer
-- <MethodRef>ConversationController</MethodRef>
-- request ingress + validation + correlation ids
-- SSE / STOMP event transport for audit streams
+---
 
-### Runtime Pipeline Layer
-- <MethodRef>DefaultConversationalEngine</MethodRef>
-- <MethodRef>EnginePipelineFactory</MethodRef> (DAG sort + wrappers + timing + step hooks)
-- <MethodRef>EngineSession</MethodRef> (per-turn mutable state)
+## The Intelligence Fabric
 
-### Decision + Control Layer
-- dialogue act: <MethodRef>DialogueActStep</MethodRef>
-- policy: <MethodRef>InteractionPolicyStep</MethodRef>
-- correction routing: <MethodRef>CorrectionStep</MethodRef>
-- pending action lifecycle: <MethodRef>ActionLifecycleStep</MethodRef>, <MethodRef>DisambiguationStep</MethodRef>, <MethodRef>PendingActionStep</MethodRef>
-- guard + transition validation: <MethodRef>GuardrailStep</MethodRef>, <MethodRef>StateGraphStep</MethodRef>
-- core intent/schema/rules/response path
+At its core, ConvEngine operates as a **multi-layer intelligence fabric**. Every user message passes through a sequence of specialized reasoning agents — each responsible for a single cognitive concern — before a response is emitted. No layer bleeds into another. No concern is handled ad hoc. The result is a system that is predictable, testable, and incrementally extensible without touching core engine code.
 
-### Tooling Layer
-- <MethodRef>ToolOrchestrationStep</MethodRef> (unified tool request/execute/result contract)
-- <MethodRef>McpToolStep</MethodRef> (planner loop + `CALL_TOOL` / `ANSWER`)
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          ConvEngine Runtime                             │
+│                                                                         │
+│  ┌───────────────────┐   ┌──────────────────────┐   ┌───────────────┐  │
+│  │  Dialogue          │   │  Intent Resolution   │   │  Rules &      │  │
+│  │  Intelligence      │ → │  & Schema Extraction │ → │  State Graph  │  │
+│  │  Layer            │   │  Layer               │   │  Layer        │  │
+│  └───────────────────┘   └──────────────────────┘   └───────┬───────┘  │
+│                                                              ↓           │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │                    Agent Execution Layer                          │   │
+│  │                                                                   │   │
+│  │   ┌─────────────────────────────┐  ┌──────────────────────────┐  │   │
+│  │   │       Agent Planner         │  │  Direct Tool Orchestrator │  │   │
+│  │   │  (ReAct planning loop)      │  │  (deterministic 1-shot)   │  │   │
+│  │   │                             │  └──────────────────────────┘  │   │
+│  │   │  ┌──────────┐ ┌──────────┐  │                                │   │
+│  │   │  │ DB Agent │ │ MCP Srv  │  │  Executor Registry:            │   │
+│  │   │  │  Tools   │ │  Tools   │  │  DB · HTTP · Workflow ·        │   │
+│  │   │  │(ce_agent │ │(runtime  │  │  Semantic · Document ·         │   │
+│  │   │  │  _tool)  │ │discovery)│  │  Calculator · Files ·          │   │
+│  │   │  └──────────┘ └──────────┘  │  Notification · MCP_SERVER     │   │
+│  │   └─────────────────────────────┘                                │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ┌──────────────────┐   ┌─────────────────────┐   ┌─────────────────┐  │
+│  │  Memory &         │   │  Response Resolution │   │  Audit &        │  │
+│  │  Feedback Layer  │   │  Layer               │   │  Observability  │  │
+│  └──────────────────┘   └─────────────────────┘   └─────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
-### Persistence + Audit Layer
-- JPA repositories on <FileRef>ce_*</FileRef>
-- <FileRef>ce_conversation</FileRef>, <FileRef>ce_audit</FileRef>, <FileRef>ce_memory</FileRef> write path
+---
 
-## Request Path (high-level)
+## Layer-by-layer breakdown
 
-<FlowStep step="1" title="Controller receives request">
-Builds <MethodRef>EngineContext</MethodRef> from <MethodRef>conversationId</MethodRef>, <MethodRef>message</MethodRef>, <MethodRef>inputParams</MethodRef>, optional <MethodRef>reset</MethodRef> flag.
+### Layer 1 — Dialogue Intelligence
+
+Before any intent is resolved, ConvEngine characterizes the *nature* of the user's turn. The **Dialogue Act Classifier** determines whether the input is an assertion, a query, a confirmation, a correction, a rejection, or a greeting. This act classification feeds directly into the **Interaction Policy Engine**, which governs what the system is authorized to do on this turn.
+
+The **Correction Router** handles mid-flow edits — detecting when the user is amending a prior input rather than issuing a new request — and surgically re-routes the pipeline without resetting conversation state. The **Pending Action Lifecycle Manager** checks for any suspended or async operations awaiting resolution before the intent layer is even consulted.
+
+This layer ensures the engine never confuses *"yes, proceed"* with *"yes, that's my name"* — a distinction that naive intent-only systems consistently get wrong.
+
+### Layer 2 — Intent Resolution and Schema Extraction
+
+The **Dialogue Intent Resolver** maps the user's natural-language input to a canonical intent code registered in `ce_intent`. Resolution is LLM-backed with semantic affinity across multi-turn exchanges — the resolver tracks conversational continuity, so a follow-up question is correctly attributed to the parent intent rather than treated as a new request.
+
+The **Schema Extraction Engine** runs slot-filling against the resolved intent's schema definition. Required slots that are missing trigger the **Disambiguation Arbiter**, which generates targeted clarification prompts without breaking conversation flow. Slots that are ambiguous are flagged for explicit user confirmation before the pipeline proceeds.
+
+### Layer 3 — Rules and State Graph
+
+Every resolved intent-state pair is evaluated against the **Phase-gated Rules Engine** (`ce_rule`). Rules are expressed as JSONPath match patterns over the full engine context — enabling conditional state transitions, escalations, guardrail overrides, and response injections without code changes.
+
+The **State Graph Validator** (`StateGraphStep`) enforces legal state transitions. No turn can move to a state that isn't reachable from the current state in the registered state graph. This is the engine's primary mechanism for enforcing business process integrity — not application code.
+
+Rules execute at four lifecycle phases:
+- `PRE_RESPONSE_RESOLUTION` — before the final response is selected
+- `POST_AGENT_INTENT` — immediately after intent resolution
+- `POST_AGENT_MCP` — after the Agent Planner loop concludes
+- `POST_TOOL_EXECUTION` — after a direct single-tool execution
+
+### Layer 4 — Agent Execution
+
+This is where ConvEngine's capabilities differentiate from conventional dialogue systems.
+
+#### Agent Planner (ReAct-style)
+
+The **Agent Planner** is a full ReAct-pattern planning agent embedded inside the pipeline. At plan time it receives:
+
+- the resolved intent and current dialogue state
+- every DB-registered Agent Tool scoped to this intent/state
+- every tool currently advertised by connected external MCP servers (via runtime discovery)
+- all prior turn observations accumulated in `context.agent.observations`
+
+The planner produces either a `CALL_TOOL` decision (tool code + arguments) or an `ANSWER` decision (synthesized final text). Tool results are appended as structured observations. The loop continues until `ANSWER` is reached or the configurable loop-guard limit is hit.
+
+The planner is **scope-aware**: it only sees tools that are authorized for the current intent and state. A tool scoped to `LOAN_APPLICATION / ELIGIBILITY_GATE` is invisible when the intent is `ORDER_STATUS`. This is not filtering in application code — it is enforced at the registry layer.
+
+#### Agent Tool Registry
+
+The **Agent Tool Registry** (`ce_agent_tool`) is ConvEngine's own DB-driven capability catalog. Each entry represents a callable tool with:
+- a typed executor (DB, HTTP_API, WORKFLOW_ACTION, DOCUMENT_RETRIEVAL, CALCULATOR_TRANSFORM, NOTIFICATION, FILES, MCP_SERVER)
+- strict intent/state scope
+- a planner-visible description used by the LLM to select it
+
+Adding a new capability to ConvEngine means adding a row to `ce_agent_tool` and, if needed, implementing an `AgentToolExecutor`. No engine code changes.
+
+#### MCP Server Registry (Real Model Context Protocol)
+
+The **MCP Server Registry** (`McpRegistry`) manages live connections to external tool servers implementing the [Model Context Protocol](https://spec.modelcontextprotocol.io) (JSON-RPC 2.0, protocol version `2024-11-05`). Supported transports: STDIO subprocess, HTTP, and Server-Sent Events.
+
+When an external MCP server is registered, its tool manifest is fetched via `tools/list` and cached. On every planning turn, `McpRegistry.discoveredTools()` returns the live tool list and the planner merges it with DB-registered Agent Tools. The LLM sees one unified tool space. `CALL_TOOL` is indistinguishable whether it targets an internal DB tool or an external MCP server.
+
+**No DB entry. No code. No engine restart.** Register a server via the REST API and its tools appear in the next turn.
+
+#### SQL Execution Layer (Guarded)
+
+DB-type Agent Tools run through a three-stage guarded execution path:
+1. **Preflight** — SQL is validated against the query planner before execution; structural errors are auto-repaired
+2. **Guardrail** — write operations are blocked unconditionally; custom function allow/block rules in `ce_agent_sql_guardrail`
+3. **Interceptor** — consumer-provided SPI hook for SQL inspection and transformation before execution
+
+#### Semantic Query Pipeline
+
+The **Semantic Query Pipeline** allows the Agent Planner to answer natural-language data questions without pre-authored SQL templates. The pipeline runs inside the planner loop:
+
+`db.semantic.interpret` → `db.semantic.query` → `postgres.query`
+
+Business-field-to-column mappings live in `ce_semantic_mapping`. Query class contracts and defaults live in `ce_semantic_query_class`. Failures and corrections are recorded in `ce_semantic_query_failures`, creating a self-improving execution history.
+
+### Layer 5 — Memory, Feedback, and Adaptive Learning
+
+The **Conversation Memory Store** maintains per-session state across turns — observations, state transitions, prior tool results — giving the planner full situational awareness without manual history management by the consumer.
+
+The **Adaptive Feedback Loop** captures explicit user feedback on tool results (`ce_agent_feedback`). Thumbs-up/down signals are structured data — not sentiment scores — and can be used to retrain planner prompts, adjust guardrail thresholds, and tune semantic mappings over time.
+
+The **Query Knowledge Base** (`ce_agent_query_knowledge`) stores reusable, embedding-indexed query patterns. Semantic similarity search over this knowledge base accelerates interpretation for previously-seen query shapes and reduces redundant LLM calls.
+
+### Layer 6 — Response Resolution and Audit
+
+The **Response Resolution Engine** is the final authority on what is returned to the caller. It evaluates `ce_response` configuration, interpolates Thymeleaf/SpEL templates against the full engine context, and selects the correct response shape (TEXT, JSON, SSE event, DERIVED from `context.agent.finalAnswer`).
+
+Every turn produces a complete, structured audit trail in `ce_audit`. Every state transition, tool call, guardrail decision, and rule evaluation is recorded — not as logs, but as structured events queryable over time.
+
+---
+
+## Full turn flow
+
+<FlowStep step="1" title="Request ingress">
+`ConversationController` receives the user message. An `EngineContext` is constructed with conversation ID, raw message, input parameters, and an optional reset flag. A correlation ID is assigned for full-turn tracing.
 </FlowStep>
 
-<FlowStep step="2" title="Engine opens session">
-<MethodRef>EngineSessionFactory</MethodRef> creates session and history provider injects last turns.
+<FlowStep step="2" title="Session open">
+`EngineSessionFactory` opens a mutable `EngineSession`. The history provider injects the last N conversation turns. The session carries all mutable state for this turn — intent, schema, observations, lifecycle metadata.
 </FlowStep>
 
-<FlowStep step="3" title="Control steps run">
-Dialogue act + interaction policy + correction routing + pending-action lifecycle decide whether to execute task, clarify, confirm, patch, or continue standard intent flow.
+<FlowStep step="3" title="Dialogue Intelligence">
+`DialogueActStep` classifies the turn's dialogue act. `InteractionPolicyStep` evaluates the allowed actions for this act and state. `CorrectionStep` detects and routes mid-flow edits. `ActionLifecycleStep` and `PendingActionStep` resolve any suspended async operations.
 </FlowStep>
 
-<FlowStep step="4" title="Core flow resolves output">
-Intent/schema/rules/response steps produce deterministic state transition + assistant payload.
+<FlowStep step="4" title="Intent and Schema">
+`IntentResolutionStep` resolves the canonical intent. `SchemaExtractionStep` fills slots. `DisambiguationStep` triggers clarification if slots are missing or ambiguous.
 </FlowStep>
 
-<FlowStep step="5" title="Persist + return result">
-Final payload is persisted and returned as TEXT/JSON response, with full audit trail.
+<FlowStep step="5" title="Guardrail and State Validation">
+`GuardrailStep` evaluates pre-execution guardrail rules. `StateGraphStep` validates that the intended next state is reachable from the current state.
 </FlowStep>
+
+<FlowStep step="6" title="Agent Execution">
+`AgentToolStep` runs the ReAct planning loop (or `ToolOrchestrationStep` for direct single-tool execution). The Agent Planner queries DB tools + MCP discovered tools, issues `CALL_TOOL` decisions, accumulates observations, and terminates with `ANSWER`.
+</FlowStep>
+
+<FlowStep step="7" title="Phase-gated Rules">
+`RulesStep` evaluates `POST_AGENT_MCP` or `POST_TOOL_EXECUTION` rules, executing any conditional state transitions, escalations, or response overrides.
+</FlowStep>
+
+<FlowStep step="8" title="Memory and Audit">
+`MemoryStep` persists the turn's observations and state transitions. The audit write path records the complete structured event.
+</FlowStep>
+
+<FlowStep step="9" title="Response Resolution">
+`ResponseResolutionStep` selects and renders the final response payload. `PRE_RESPONSE_RESOLUTION` rules run immediately before. The resolved payload is returned to the caller.
+</FlowStep>
+
+---
+
+## Extensibility — adding capabilities without touching the engine
+
+ConvEngine is designed so that new capabilities are configuration and implementation, not engine modification.
+
+<DbTable
+  title="Extensibility surface"
+  columns={["What you want to add", "How", "Code required"]}
+  rows={[
+    ["New Agent Tool (DB query, HTTP call, workflow)", "Add row to ce_agent_tool, implement AgentToolExecutor if new group", "AgentToolExecutor implementation (optional if group exists)"],
+    ["New external tool server", "POST /api/v1/mcp/servers — any MCP-compatible server", "Zero — tools are discovered at runtime"],
+    ["New business rule or state transition", "Insert row in ce_rule with JSONPath match pattern", "Zero"],
+    ["New dialogue guardrail", "Insert row in ce_agent_sql_guardrail or extend GuardrailStep config", "Zero"],
+    ["Custom SQL interceptor", "Implement PostgresQueryInterceptor SPI", "One Spring @Component"],
+    ["Custom pipeline step", "Implement EngineStep, declare @MustRunBefore / @MustRunAfter", "One Spring @Component"],
+    ["Custom response template", "Insert/update ce_response and ce_prompt_template rows", "Zero"],
+    ["Custom planner prompt per intent/state", "Insert ce_agent_planner row for the target intent_code + state_code", "Zero"],
+    ["Feedback-driven retraining", "Read ce_agent_feedback, update planner prompts or semantic mappings", "Consumer-side automation"],
+  ]}
+/>
+
+---
+
+## ck8t Integration — external MCP server and knowledge ingestion agent
+
+[ck8t](https://github.com/salilvnair/ck8t) is a Builder Studio framework that ships its own MCP server, exposing component generation, webhook management, and knowledge-base ingestion tools as first-class MCP tools.
+
+Registering ck8t with ConvEngine's MCP Server Registry is a single API call:
+
+```http
+POST /api/v1/mcp/servers
+{
+  "name": "ck8t-server",
+  "transport": "STDIO",
+  "command": "node",
+  "args": ["/path/to/ck8t/mcp-server/index.js"]
+}
+```
+
+Once registered, tools like `mcp.ck8t-server.generate_component` and `mcp.ck8t-server.ingest_knowledge` appear in the Agent Planner's tool list immediately. The planner can call them the same way it calls any DB-registered Agent Tool.
+
+### ck8t as a Knowledge Ingestion Agent
+
+ck8t exposes webhook endpoints that act as a **live knowledge ingestion pipeline** into ConvEngine's Query Knowledge Base. This enables a powerful pattern: an autonomous agent that watches external sources and continuously enriches the engine's knowledge without human intervention.
+
+The ingestion flow:
+
+```
+External sources (Jira, Confluence, GitHub, user stories, live docs)
+        ↓
+ck8t webhook listener (mcp.ck8t-server.trigger_webhook)
+        ↓
+ck8t ingestion agent: extracts, chunks, embeds content
+        ↓
+mcp.ck8t-server.ingest_knowledge → writes to ce_agent_query_knowledge
+        ↓
+SemanticEmbeddingService indexes the new knowledge
+        ↓
+AgentPlanner's Semantic Query pipeline finds it on next relevant turn
+```
+
+This means the FAQ knowledge base, for example, is not a static table that an admin manually maintains. It is a **living knowledge fabric** that grows as product documentation, user stories, support tickets, and code comments are written — automatically, continuously, without human curation.
+
+---
+
+## The FAQ Knowledge Base — a living intelligence system
+
+The FAQ conversational experience illustrates how ConvEngine's layers combine into something significantly more capable than a static Q&A lookup.
+
+### What exists today
+
+- `ce_agent_query_knowledge` stores FAQ entries with embedding vectors
+- The Agent Planner selects `document.faq.search` (DOCUMENT_RETRIEVAL tool) for `PRODUCT_FAQ` intent
+- Semantic similarity search retrieves the most relevant knowledge entries
+- The planner synthesizes a grounded answer from retrieved context
+- User feedback (`ce_agent_feedback`, thumbs-up/down) is recorded per answer
+
+### What the Adaptive Learning Loop adds
+
+The feedback stored in `ce_agent_feedback` is not just a rating. It is structured, turn-correlated data: which query triggered which tool, which knowledge entry was returned, and whether the user found it useful. This data powers:
+
+- **Retrieval reranking** — queries that produced thumbs-down are scored lower in future similarity searches for similar inputs
+- **Planner prompt tuning** — high-confidence thumbs-up signals can be promoted to the `ce_agent_planner` prompt as few-shot examples
+- **Knowledge gap detection** — turns where no knowledge entry scored above a confidence threshold, and the user escalated, identify gaps to fill
+
+### What ck8t adds — the Autonomous Knowledge Expansion Agent
+
+Beyond the adaptive feedback loop, ck8t enables a fully autonomous knowledge expansion cycle:
+
+```
+Product team publishes a new feature doc in Confluence
+        ↓
+ck8t webhook fires (Confluence → ck8t listener)
+        ↓
+ck8t extraction agent: chunks the doc, generates Q&A pairs using LLM
+        ↓
+mcp.ck8t-server.ingest_faq → inserts rows into ce_agent_query_knowledge
+        ↓
+New FAQ entries are immediately available to the Semantic Query pipeline
+        ↓
+Next user asking about the new feature gets a grounded, cited answer
+        ↓
+Thumbs-up feedback from users reinforces the new entries
+```
+
+The same pattern applies to:
+- **GitHub PRs and READMEs** — code-level documentation ingested as technical FAQ entries
+- **Jira user stories** — acceptance criteria ingested as product behavior knowledge
+- **Support ticket resolutions** — resolved tickets ingested as edge-case FAQ entries
+- **Live API docs** — OpenAPI specs ingested as tool capability knowledge
+
+The knowledge base is not a database table. It is a **continuously learning intelligence layer** that reflects the current state of your product, documentation, and user behavior — automatically.
+
+---
+
+## Deployment model
+
+ConvEngine ships as a Spring Boot library dependency. The consumer application:
+
+1. Adds the ConvEngine dependency to `pom.xml` / `build.gradle`
+2. Provides a `DataSource` for the CE schema tables
+3. Configures `convengine.*` properties (or `convengine.mcp.*` for agent config)
+4. Exposes the engine's REST API via `ConversationController` or wraps `DefaultConversationalEngine` directly
+
+No separate process. No sidecar. No infrastructure beyond the host application's database.
+
+External MCP servers (ck8t, OMS, inventory systems, analytics engines) run as separate processes or remote services and are registered at runtime. The engine does not restart when servers are added or removed — tool discovery is live on every planning turn.
+
+<Highlight type="info" title="Zero-restart extensibility">
+Register a new MCP server at 2pm. The Agent Planner sees its tools at 2:00:01pm on the next user turn. No deployment. No migration. No configuration reload.
+</Highlight>
+
+---
 
 ## Code references
 
@@ -79,6 +342,31 @@ public EngineResult process(EngineContext engineContext) {
 </CodeBlockToggle>
 
 <CodeBlockToggle
+  title="Agent Planner — unified tool list (DB + MCP)"
+  language="java"
+  packagePath="com.github.salilvnair.convengine.engine.agent"
+  filePath="src/main/java/com/github/salilvnair/convengine/engine/agent/AgentPlanner.java"
+>
+
+```java
+// DB-registered Agent Tools (scoped to intent + state)
+List<AgentToolView> toolViews = buildDbToolViews(dbTools);
+
+// Runtime-discovered MCP Server tools (no DB entry needed)
+if (mcpRegistry != null) {
+    mcpRegistry.discoveredTools().forEach(dt ->
+        toolViews.add(new AgentToolView(
+            dt.toolCode(), dt.description(), AgentConstants.TOOL_GROUP_MCP_SERVER))
+    );
+}
+
+// LLM sees one unified tool space — CALL_TOOL works for either
+AgentPlan plan = llm.plan(toolViews, observations, userMessage);
+```
+
+</CodeBlockToggle>
+
+<CodeBlockToggle
   title="Pipeline execution loop"
   language="java"
   packagePath="com.github.salilvnair.convengine.engine.pipeline"
@@ -96,14 +384,10 @@ for (EngineStep step : steps) {
 
 </CodeBlockToggle>
 
-:::tip Intervention point
-You can intercept any step via <MethodRef>EngineStepHook</MethodRef> (<MethodRef>beforeStep</MethodRef>, <MethodRef>afterStep</MethodRef>, <MethodRef>onStepError</MethodRef>) without forking the engine.
-:::
-
-<Highlight type="info" title="Control phases">
-Rules execute by phase: <MethodRef>PRE_RESPONSE_RESOLUTION</MethodRef>, <MethodRef>POST_AGENT_INTENT</MethodRef>, <MethodRef>POST_SCHEMA_EXTRACTION</MethodRef>, <MethodRef>PRE_AGENT_MCP</MethodRef>, <MethodRef>POST_AGENT_MCP</MethodRef>, and <MethodRef>POST_TOOL_EXECUTION</MethodRef>.
+<Highlight type="tip" title="Intervention without forking">
+Any step can be intercepted via `EngineStepHook` (`beforeStep`, `afterStep`, `onStepError`) without modifying engine code. Consumer hooks are Spring `@Component` implementations — the pipeline discovers and applies them automatically.
 </Highlight>
 
-<Highlight type="warning" title="Deterministic boundary">
-Keep business transitions in <FileRef>ce_rule</FileRef> and state graph config, not hardcoded in steps, so behavior remains data-driven and auditable.
+<Highlight type="warning" title="Keep business logic in data, not code">
+State transitions, guardrails, response selection, and tool scoping should live in `ce_rule`, `ce_agent_tool`, `ce_response`, and `ce_agent_planner` rows — not in application code. This is what makes the system auditable, rollback-safe, and testable without deployments.
 </Highlight>

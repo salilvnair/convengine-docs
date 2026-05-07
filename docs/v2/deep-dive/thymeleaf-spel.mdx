@@ -70,7 +70,7 @@ ConvEngine uses this so templates can read values, branch on conditions, and app
     ["Boolean check", "[[${inputParams.awaiting_confirmation == true}]]", "Evaluates a true/false condition."],
     ["Ternary", "[[${state == 'CONFIRMATION' ? 'Please confirm.' : 'Continuing.'}]]", "Chooses one of two strings based on a condition."],
     ["Null/default fallback", "[[${context.customerId != null ? context.customerId : 'UNKNOWN_CUSTOMER'}]]", "Supplies a fallback value when the real value is absent."],
-    ["Logical operators", "[[${context.mcp != null && context.mcp.finalAnswer != null ? context.mcp.finalAnswer : 'Pending'}]]", "Combines multiple checks before rendering."]
+    ["Logical operators", "[[${context.mcp != null && context.agent.finalAnswer != null ? context.agent.finalAnswer : 'Pending'}]]", "Combines multiple checks before rendering."]
   ]}
 />
 
@@ -137,7 +137,7 @@ You can use SpEL-backed Thymeleaf expressions for simple branching and fallbacks
 ```text
 [[\${context.customerId != null ? context.customerId : 'UNKNOWN_CUSTOMER'}]]
 [[\${inputParams.correction_applied == true ? 'Updated value captured.' : 'No correction applied.'}]]
-[[\${context.mcp != null && context.mcp.finalAnswer != null ? context.mcp.finalAnswer : 'Processing is still in progress.'}]]
+[[\${context.mcp != null && context.agent.finalAnswer != null ? context.agent.finalAnswer : 'Processing is still in progress.'}]]
 ```
 
 </CodeBlockToggle>

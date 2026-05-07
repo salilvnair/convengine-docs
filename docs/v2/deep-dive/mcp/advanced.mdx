@@ -41,20 +41,20 @@ Compatibility note: legacy values (`PIPELINE_RULES`, `AGENT_POST_INTENT`, `AGENT
   title="MCP execution branches"
   columns={["Branch", "Entry point", "What it does", "Key guardrails"]}
   rows={[
-    ["Planner MCP", "McpToolStep", "Runs planner loop (`CALL_TOOL` / `ANSWER`) and accumulates `context.mcp.observations`.", "Next-tool guardrail, scoped `ce_mcp_tool`, scoped `ce_mcp_planner`."],
-    ["Direct tool", "ToolOrchestrationStep", "Executes exactly one `tool_request` and writes `context.mcp.toolExecution`.", "Scoped tool lookup, `POST_TOOL_EXECUTION` rules."],
-    ["Semantic query", "McpToolStep planner branch", "Runs semantic interpret -> query -> SQL execution chain inside planner loop.", "`db.semantic.interpret` must resolve canonical intent before `db.semantic.query`; SQL remains read-only."]
+    ["Planner MCP", "AgentToolStep", "Runs planner loop (`CALL_TOOL` / `ANSWER`) and accumulates `context.agent.observations`.", "Next-tool guardrail, scoped `ce_agent_tool`, scoped `ce_agent_planner`."],
+    ["Direct tool", "ToolOrchestrationStep", "Executes exactly one `tool_request` and writes `context.agent.toolExecution`.", "Scoped tool lookup, `POST_TOOL_EXECUTION` rules."],
+    ["Semantic query", "AgentToolStep planner branch", "Runs semantic interpret -> query -> SQL execution chain inside planner loop.", "`db.semantic.interpret` must resolve canonical intent before `db.semantic.query`; SQL remains read-only."]
   ]}
 />
 
 ## Exact planner MCP order (current)
 
 1. Intent and state resolve through the normal pipeline.
-2. `McpToolStep` enters the planner loop.
-3. `McpPlanner` returns `CALL_TOOL` or `ANSWER`.
-4. For `CALL_TOOL`, the selected tool runs and a new row is appended to `context.mcp.observations`.
+2. `AgentToolStep` enters the planner loop.
+3. `AgentPlanner` returns `CALL_TOOL` or `ANSWER`.
+4. For `CALL_TOOL`, the selected tool runs and a new row is appended to `context.agent.observations`.
 5. The planner loops again until it returns `ANSWER`.
-6. `context.mcp.finalAnswer` is written.
+6. `context.agent.finalAnswer` is written.
 7. `POST_AGENT_MCP` rules run.
 8. `PRE_RESPONSE_RESOLUTION` rules run.
 9. `ResponseResolutionStep` still decides the final transport payload.
@@ -68,11 +68,11 @@ For the Semantic Query branch, the same planner loop is used, but the tool order
 
 ## Tool execution paths
 
-### Planner MCP path (`McpToolStep`)
+### Planner MCP path (`AgentToolStep`)
 
 1. Planner returns `CALL_TOOL` or `ANSWER`.
-2. Tool results are appended to `context.mcp.observations`.
-3. For `ANSWER`, final text is written to `context.mcp.finalAnswer`.
+2. Tool results are appended to `context.agent.observations`.
+3. For `ANSWER`, final text is written to `context.agent.finalAnswer`.
 4. Rules run in phase `POST_AGENT_MCP`.
 5. Response resolution runs after rule transitions.
 
@@ -80,7 +80,7 @@ For the Semantic Query branch, the same planner loop is used, but the tool order
 
 1. Request contains `tool_request`.
 2. Exactly one tool executes.
-3. Result stored in `inputParams.tool_result` and `context.mcp.toolExecution`.
+3. Result stored in `inputParams.tool_result` and `context.agent.toolExecution`.
 4. Rules run in phase `POST_TOOL_EXECUTION`.
 5. Response resolution runs with updated state/context.
 
@@ -106,14 +106,14 @@ Why it matters:
 
 When `MCP_STATUS=GUARDRAIL_BLOCKED_NEXT_TOOL`:
 
-1. `McpToolStep` writes fallback text (`McpConstants.FALLBACK_GUARDRAIL_BLOCKED`) to `context.mcp.finalAnswer`.
+1. `AgentToolStep` writes fallback text (`McpConstants.FALLBACK_GUARDRAIL_BLOCKED`) to `context.agent.finalAnswer`.
 2. Rules in `POST_AGENT_MCP` still execute.
-3. `ce_response` remains the final response authority (commonly `DERIVED` using `context.mcp.finalAnswer`).
+3. `ce_response` remains the final response authority (commonly `DERIVED` using `context.agent.finalAnswer`).
 
 For the Semantic Query path, there is one additional hard stop:
 
 1. if the planner proposes `db.semantic.query` before a successful `db.semantic.interpret`
-2. `McpToolStep` blocks execution with semantic validation guardrail reason
+2. `AgentToolStep` blocks execution with semantic validation guardrail reason
 3. audit and response resolution still continue through the normal MCP lifecycle
 
 ## Read-only DB behavior
@@ -124,7 +124,7 @@ All MCP DB execution is now enforced as read-only.
 - Semantic Query query templates are guarded
 - statements such as `INSERT`, `UPDATE`, `DELETE`, `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `MERGE`, and `CALL` are blocked
 - `SELECT INTO`, `FOR UPDATE`, and multi-statement SQL are blocked
-- `ce_mcp_sql_guardrail` can extend function allow/block rules without making the runtime writable
+- `ce_agent_sql_guardrail` can extend function allow/block rules without making the runtime writable
 
 For `postgres.query`, an interceptor SPI runs before guardrail + execution:
 
@@ -134,7 +134,7 @@ For `postgres.query`, an interceptor SPI runs before guardrail + execution:
 
 ## MCP metadata model for rules
 
-`context.mcp.lifecycle`:
+`context.agent.lifecycle`:
 
 - `phase`, `status`, `outcome`, `finished`
 - `blocked`, `error`, `errorMessage`
@@ -144,7 +144,7 @@ For `postgres.query`, an interceptor SPI runs before guardrail + execution:
 - `toolExecutionAbrupted` (true when loop stops due to max-loop guard without final answer)
 - `toolExecutionAbruptionLimit` (configured loop guard limit)
 
-`context.mcp.toolExecution`:
+`context.agent.toolExecution`:
 
 - `phase`, `status`, `outcome`, `finished`
 - `error`, `scopeMismatch`, `toolExecuted`
@@ -153,10 +153,10 @@ For `postgres.query`, an interceptor SPI runs before guardrail + execution:
 ## JSON_PATH patterns you can use in `ce_rule.match_pattern`
 
 ```text
-$[?(@.context.mcp.lifecycle.finished == true && @.context.mcp.lifecycle.outcome == 'BLOCKED')]
-$[?(@.context.mcp.lifecycle.error == true)]
-$[?(@.context.mcp.toolExecution.phase == 'POST_TOOL_EXECUTION' && @.context.mcp.toolExecution.status == 'SUCCESS')]
-$[?(@.context.mcp.toolExecution.scopeMismatch == true)]
+$[?(@.context.agent.lifecycle.finished == true && @.context.agent.lifecycle.outcome == 'BLOCKED')]
+$[?(@.context.agent.lifecycle.error == true)]
+$[?(@.context.agent.toolExecution.phase == 'POST_TOOL_EXECUTION' && @.context.agent.toolExecution.status == 'SUCCESS')]
+$[?(@.context.agent.toolExecution.scopeMismatch == true)]
 ```
 
 ## Direct tool example (`POST_TOOL_EXECUTION`)
@@ -177,11 +177,11 @@ Execution:
 
 - `ToolOrchestrationStep` executes one tool.
 - writes `tool_result` + `tool_status=SUCCESS`
-- writes `context.mcp.toolExecution.*`
+- writes `context.agent.toolExecution.*`
 - executes `POST_TOOL_EXECUTION` rules
 - example: a rule sets state to `ORDER_SUBMITTED_DIAGNOSIS` when tool status is submitted
 
-## `ce_mcp_tool` and `ce_mcp_planner` scoping rules
+## `ce_agent_tool` and `ce_agent_planner` scoping rules
 
 `intent_code` and `state_code` are mandatory (no null/blank scope).
 
@@ -192,14 +192,14 @@ Allowed values:
 
 Invalid scope rows are blocked at startup by static scope validation.
 
-## Planner prompt source (`ce_mcp_planner`)
+## Planner prompt source (`ce_agent_planner`)
 
 Planner prompt selection:
 
 1. exact `intent_code + state_code`
 2. exact `intent_code + ANY`
 3. global `ANY + ANY`
-4. legacy fallback (`ce_config` `McpPlanner` keys) if planner rows are unavailable
+4. legacy fallback (`ce_config` `AgentPlanner` keys) if planner rows are unavailable
 
 ## SQL snippets
 
@@ -207,7 +207,7 @@ Planner prompt selection:
   <TabItem value="planner" label="Planner Rows" default>
 
 ```sql
-INSERT INTO ce_mcp_planner (planner_id, intent_code, state_code, system_prompt, user_prompt, enabled)
+INSERT INTO ce_agent_planner (planner_id, intent_code, state_code, system_prompt, user_prompt, enabled)
 VALUES
 (1001, 'ANY', 'ANY', '...', '...', true),
 (1002, 'LOAN_APPLICATION', 'ELIGIBILITY_GATE', '...', '...', true);
@@ -217,7 +217,7 @@ VALUES
   <TabItem value="tool" label="Tool Rows">
 
 ```sql
-INSERT INTO ce_mcp_tool (tool_id, tool_code, tool_group, intent_code, state_code, enabled, description)
+INSERT INTO ce_agent_tool (tool_id, tool_code, tool_group, intent_code, state_code, enabled, description)
 VALUES
 (9001, 'db.semantic.interpret', 'DB', 'ANY', 'ANY', true, 'Semantic interpret'),
 (9002, 'db.semantic.query', 'DB', 'ANY', 'ANY', true, 'Semantic SQL generator'),
@@ -228,7 +228,7 @@ VALUES
   <TabItem value="guard" label="SQL Guardrail Rows">
 
 ```sql
-INSERT INTO ce_mcp_sql_guardrail (rule_type, match_value, enabled, description)
+INSERT INTO ce_agent_sql_guardrail (rule_type, match_value, enabled, description)
 VALUES
 ('BLOCK_FUNCTION', 'pg_sleep', true, 'Block sleep functions in MCP DB paths'),
 ('ALLOW_FUNCTION', 'fetch_inventory_status', true, 'Allow safe inventory lookup function');
@@ -238,9 +238,55 @@ VALUES
 </Tabs>
 
 <Highlight type="info" title="Recommended response pattern">
-For MCP chains, keep final user text in `ce_response`/`ce_prompt_template` and treat `context.mcp.finalAnswer` as a derived source, not the final transport payload.
+For MCP chains, keep final user text in `ce_response`/`ce_prompt_template` and treat `context.agent.finalAnswer` as a derived source, not the final transport payload.
 </Highlight>
 
 <Highlight type="tip" title="Where the detailed examples live">
 Use [Example 3](/docs/v2/deep-dive/mcp/example3) for the full confirmation-first flow and [Example 4 - Zapper Disconnect](/docs/v2/deep-dive/mcp/example4) for the guarded Semantic Query path.
 </Highlight>
+
+## Real MCP Server integration
+
+ConvEngine supports external MCP servers (Model Context Protocol, JSON-RPC 2.0) alongside Agent Tools. The two systems are unified in the planner's tool list.
+
+### How it works
+
+`McpRegistry` manages connections to external MCP servers. On startup it loads server configs from `~/.convengine/mcp-servers.json`. When a server is registered, its tool manifest is fetched via `tools/list` and cached.
+
+`AgentPlanner` calls `McpRegistry.discoveredTools()` at plan time and merges the result with DB-registered Agent Tools before passing the full list to the LLM. The LLM picks a tool — `CALL_TOOL` works identically for Agent Tools and MCP Server tools.
+
+When the selected tool is an MCP Server tool, `McpServerToolExecutor` handles it:
+1. Parses the tool code: `mcp.{serverId}.{toolName}`
+2. Calls `McpRegistry.callTool(serverId, toolName, args)`
+3. Returns the result as an `AgentObservation`
+
+### Supported transports
+
+| Transport | Config field | When to use |
+|---|---|---|
+| `STDIO` | `command`, `args`, `env` | Local process (Python/Node MCP servers) |
+| `HTTP` | `url`, `headers` | Remote HTTP endpoint |
+| `SSE` | `url`, `headers` | Server-Sent Events streaming |
+
+### Register a server
+
+```http
+POST /api/v1/mcp/servers
+{
+  "name": "ck8t-server",
+  "transport": "STDIO",
+  "command": "node",
+  "args": ["/path/to/ck8t/server.js"]
+}
+```
+
+Once registered, tools from that server appear in `AgentPlanner`'s tool list on the next turn. Tool code example: `mcp.ck8t-server.generate_component`.
+
+### Tool group
+
+External MCP tools run under tool group `MCP_SERVER`. No `ce_agent_tool` row is needed.
+
+```
+AgentConstants.TOOL_GROUP_MCP_SERVER = "MCP_SERVER"
+McpServerToolExecutor implements AgentToolExecutor
+```

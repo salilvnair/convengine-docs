@@ -12,7 +12,7 @@ The current v2 docs are aligned to the active repo state and the current release
 That includes newer v2 additions such as:
 
 - `CorrectionStep`
-- `ce_mcp_planner`
+- `ce_agent_planner`
 - `ce_verbose`
 - extra rule phases like `POST_SCHEMA_EXTRACTION` and `PRE_AGENT_MCP`
 - shared Thymeleaf-backed prompt rendering
@@ -78,8 +78,8 @@ Most consumer behavior should be driven through configuration and data:
 - `ce_rule`
 - `ce_response`
 - `ce_pending_action`
-- `ce_mcp_tool`
-- `ce_mcp_planner`
+- `ce_agent_tool`
+- `ce_agent_planner`
 - `ce_verbose`
 - `convengine.flow.*`
 - `convengine.mcp.*`
@@ -91,7 +91,7 @@ Custom Java should be reserved for:
 - task execution
 - app-specific transformers and policy hooks
 
-## Do `ce_mcp_tool.intent_code` and `state_code` still support null wildcard behavior?
+## Do `ce_agent_tool.intent_code` and `state_code` still support null wildcard behavior?
 
 No.
 
@@ -104,11 +104,11 @@ Current behavior:
 - valid values are exact scope, `ANY`, or `UNKNOWN`
 - invalid scope rows are blocked by startup validation
 
-The same explicit-scope model also applies to `ce_mcp_planner`.
+The same explicit-scope model also applies to `ce_agent_planner`.
 
-## What is `ce_mcp_planner` for?
+## What is `ce_agent_planner` for?
 
-`ce_mcp_planner` is the scoped planner prompt source for MCP.
+`ce_agent_planner` is the scoped planner prompt source for MCP.
 
 It lets the framework choose planner prompts by intent/state rather than relying only on legacy config keys.
 
@@ -119,7 +119,7 @@ Current fallback order is:
 3. `ANY + ANY`
 4. legacy fallback config when planner rows are unavailable
 
-## What is the difference between `ToolOrchestrationStep` and `McpToolStep`?
+## What is the difference between `ToolOrchestrationStep` and `AgentToolStep`?
 
 They are different execution models.
 
@@ -127,15 +127,15 @@ They are different execution models.
 
 - executes exactly one requested tool
 - works from `tool_request`
-- writes `tool_result`, `tool_status`, and `context.mcp.toolExecution.*`
+- writes `tool_result`, `tool_status`, and `context.agent.toolExecution.*`
 - runs `POST_TOOL_EXECUTION` rules
 
-`McpToolStep`:
+`AgentToolStep`:
 
 - runs planner-driven MCP loops
 - can call multiple tools across a bounded loop
-- stores planner observations in `context.mcp.observations`
-- stores planner answer in `context.mcp.finalAnswer`
+- stores planner observations in `context.agent.observations`
+- stores planner answer in `context.agent.finalAnswer`
 - runs `PRE_AGENT_MCP` and `POST_AGENT_MCP` rule paths
 
 ## When should I use `ANY` scope?

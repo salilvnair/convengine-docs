@@ -95,7 +95,7 @@ Before you test any conversation flow, create the `ce_*` tables and seed the con
 INSERT INTO ce_config(config_id, config_type, config_key, config_value, enabled) VALUES
 (1, 'AgentIntentResolver', 'MIN_CONFIDENCE', '0.55', true),
 (2, 'AgentIntentResolver', 'COLLISION_GAP_THRESHOLD', '0.2', true),
-(8, 'McpPlanner', 'SYSTEM_PROMPT', 'You are an MCP planning agent inside ConvEngine...', true),
+(8, 'AgentPlanner', 'SYSTEM_PROMPT', 'You are an MCP planning agent inside ConvEngine...', true),
 (11, 'DialogueActStep', 'SYSTEM_PROMPT', 'You are a dialogue-act classifier...', true),
 (17, 'DialogueActStep', 'REGEX_AFFIRM', '^(\\s)*(yes|yep|yeah|ok|okay|sure|go ahead)(\\s)*$', true);
 ```

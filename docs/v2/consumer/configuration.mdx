@@ -460,12 +460,12 @@ There is no config key for this SPI; override by providing your own interceptor 
 public class TenantSqlInterceptor implements PostgresQueryInterceptor {
 
   @Override
-  public boolean supports(CeMcpTool tool, EngineSession session, Map<String, Object> args) {
+  public boolean supports(CeAgentTool tool, EngineSession session, Map<String, Object> args) {
     return tool != null && "postgres.query".equalsIgnoreCase(tool.getToolCode());
   }
 
   @Override
-  public String intercept(String sql, CeMcpTool tool, EngineSession session, Map<String, Object> args) {
+  public String intercept(String sql, CeAgentTool tool, EngineSession session, Map<String, Object> args) {
     // Example: enforce fully-qualified schema or org SQL conventions
     if (sql == null) return null;
     return sql.replace(" FROM zp_", " FROM v2.zp_")

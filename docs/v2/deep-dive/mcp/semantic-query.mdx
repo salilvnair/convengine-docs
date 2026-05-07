@@ -22,11 +22,11 @@ export const semanticQueryTrace = [
   { name: "Conversation API", description: "ConversationController POST /message receives the user request and creates the EngineContext." },
   { name: "Engine Boot", description: "DefaultConversationalEngine opens a new EngineSession and delegates to the Pipeline." },
   { name: "Intent Resolution", description: "IntentResolutionStep classifies the request as SEMANTIC_QUERY and rules route it to ANALYZE state." },
-  { name: "McpPlanner Allocation", description: "McpPlanner determines that semantic tools are required to fulfill the turn and suspends normal dialog." },
+  { name: "AgentPlanner Allocation", description: "AgentPlanner determines that semantic tools are required to fulfill the turn and suspends normal dialog." },
   { name: "db.semantic.interpret (Agent 1)", description: "DbSemanticInterpretToolHandler creates CanonicalIntent from DB semantic model tables (`ce_semantic_*`) rules." },
   { name: "db.semantic.query (Agent 2)", description: "DbSemanticQueryToolHandler compiles read-only parameterized SQL and runs safety validations." },
   { name: "Postgres Execution", description: "The safe SQL string executes on the physical database yielding data rows." },
-  { name: "Synthesis & Output", description: "McpPlanner consumes the data observation and generates the final assistant response payload." }
+  { name: "Synthesis & Output", description: "AgentPlanner consumes the data observation and generates the final assistant response payload." }
 ];
 
 # MCP Semantic Query (`db.semantic.*`)
@@ -346,11 +346,11 @@ This is where pipeline stages start advancing: intent resolution, rules, planner
   />
   <TraceChatBubble
     role="assistant"
-    name="McpPlanner"
+    name="AgentPlanner"
     intent="SEMANTIC_QUERY"
     state="MCP_PLAN"
     message="Planner chooses chained tools: db.semantic.interpret -> db.semantic.query -> postgres.query"
-    tables={["ce_mcp_planner (R)", "ce_mcp_tool (R)", "ce_audit (W)"]}
+    tables={["ce_agent_planner (R)", "ce_agent_tool (R)", "ce_audit (W)"]}
   />
 </ChatContainer>
 
@@ -507,7 +507,7 @@ LIMIT :limit`}
   />
   <TraceChatBubble
     role="assistant"
-    name="McpPlanner -> ResponseResolution"
+    name="AgentPlanner -> ResponseResolution"
     intent="SEMANTIC_QUERY"
     state="COMPLETED"
     message="Found 7 failed disconnect requests for DON9001 in the last 24 hours. Latest failure at 2026-03-13 10:12 UTC."

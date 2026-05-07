@@ -67,7 +67,7 @@ export const loanExampleDetails = {
   r2: {
     title: "Post-MCP transition",
     stage: "POST_AGENT_MCP",
-    summary: "After planner ANSWER, POST_AGENT_MCP rule checks context.mcp.finalAnswer and moves state from ELIGIBILITY_GATE to COMPLETED.",
+    summary: "After planner ANSWER, POST_AGENT_MCP rule checks context.agent.finalAnswer and moves state from ELIGIBILITY_GATE to COMPLETED.",
     session: ["state=COMPLETED"],
     tables: ["ce_rule (R)", "ce_audit (W)"]
   },
@@ -76,12 +76,12 @@ export const loanExampleDetails = {
     stage: "MCP_PLAN_LLM_OUTPUT",
     summary: "Planner decides first check must be credit rating.",
     session: ["CALL_TOOL loan.credit.rating.check"],
-    tables: ["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]
+    tables: ["ce_agent_tool (R)", "ce_agent_planner (R)", "ce_audit (W)"]
   },
   t1: {
     title: "loan.credit.rating.check",
     stage: "MCP_TOOL_RESULT",
-    summary: "Mapped rating response appended to context.mcp.observations.",
+    summary: "Mapped rating response appended to context.agent.observations.",
     session: ["observation[0]=rating"],
     tables: ["ce_audit (W)"]
   },
@@ -90,7 +90,7 @@ export const loanExampleDetails = {
     stage: "MCP_PLAN_LLM_OUTPUT",
     summary: "If rating > 750 planner proceeds to fraud check.",
     session: ["CALL_TOOL loan.credit.fraud.check"],
-    tables: ["ce_mcp_planner (R)", "ce_audit (W)"]
+    tables: ["ce_agent_planner (R)", "ce_audit (W)"]
   },
   t2: {
     title: "loan.credit.fraud.check",
@@ -104,7 +104,7 @@ export const loanExampleDetails = {
     stage: "MCP_PLAN_LLM_OUTPUT",
     summary: "If fraud false planner asks debt/credit summary.",
     session: ["CALL_TOOL loan.debt.credit.summary"],
-    tables: ["ce_mcp_planner (R)", "ce_audit (W)"]
+    tables: ["ce_agent_planner (R)", "ce_audit (W)"]
   },
   t3: {
     title: "loan.debt.credit.summary",
@@ -118,7 +118,7 @@ export const loanExampleDetails = {
     stage: "MCP_PLAN_LLM_OUTPUT",
     summary: "If affordability passes, planner triggers submit API.",
     session: ["CALL_TOOL loan.application.submit"],
-    tables: ["ce_mcp_planner (R)", "ce_audit (W)"]
+    tables: ["ce_agent_planner (R)", "ce_audit (W)"]
   },
   t4: {
     title: "loan.application.submit",
@@ -130,7 +130,7 @@ export const loanExampleDetails = {
   m5: {
     title: "MCP ANSWER",
     stage: "MCP_FINAL_ANSWER",
-    summary: "Planner synthesizes final decision and stores context.mcp.finalAnswer.",
+    summary: "Planner synthesizes final decision and stores context.agent.finalAnswer.",
     session: ["mcp_final_answer set", "mcp_status=ANSWER"],
     tables: ["ce_audit (W)"]
   },
@@ -204,8 +204,8 @@ These seed files include all required DML:
 - `ce_prompt_template`
 - `ce_response`
 - `ce_rule`
-- `ce_mcp_tool` (with `intent_code` + `state_code`)
-- `ce_mcp_planner` scoped prompt rows (default + LOAN_APPLICATION/ELIGIBILITY_GATE)
+- `ce_agent_tool` (with `intent_code` + `state_code`)
+- `ce_agent_planner` scoped prompt rows (default + LOAN_APPLICATION/ELIGIBILITY_GATE)
 
 ## Required rule/response rows for this flow
 
@@ -221,22 +221,22 @@ VALUES
 -- 2) After MCP planner returns ANSWER, close state for final response mapping
 INSERT INTO ce_rule (intent_code, state_code, rule_type, match_pattern, action, action_value, phase, priority, enabled, description)
 VALUES
-('LOAN_APPLICATION', 'ELIGIBILITY_GATE', 'JSON_PATH', '$[?(@.context.mcp.finalAnswer != null && @.context.mcp.finalAnswer != '''')]', 'SET_STATE', 'COMPLETED', 'POST_AGENT_MCP', 30, true,
- 'Move loan flow to COMPLETED only when context.mcp.finalAnswer exists.');
+('LOAN_APPLICATION', 'ELIGIBILITY_GATE', 'JSON_PATH', '$[?(@.context.agent.finalAnswer != null && @.context.agent.finalAnswer != '''')]', 'SET_STATE', 'COMPLETED', 'POST_AGENT_MCP', 30, true,
+ 'Move loan flow to COMPLETED only when context.agent.finalAnswer exists.');
 
 -- 3) Final response row should target COMPLETED and derive from MCP context
 INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled, description)
 VALUES
 ('LOAN_APPLICATION', 'COMPLETED', 'TEXT', 'DERIVED',
- 'Use context.mcp.finalAnswer as primary summary. Validate with context.mcp.observations (rating/fraud/debt/submit). Do not invent values.',
+ 'Use context.agent.finalAnswer as primary summary. Validate with context.agent.observations (rating/fraud/debt/submit). Do not invent values.',
  20, true, 'Loan decision derived from MCP outputs.');
 
--- 4) Prompt template should explicitly read context.mcp.*
+-- 4) Prompt template should explicitly read context.agent.*
 INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, interaction_mode, interaction_contract, enabled)
 VALUES
 ('LOAN_APPLICATION', 'COMPLETED', 'TEXT',
  'You are a precise loan workflow summarizer. Use only MCP evidence from context JSON.',
- 'Context JSON:\n{{context}}\n\nRead context.mcp.observations and context.mcp.finalAnswer. Return a concise final loan decision.',
+ 'Context JSON:\n{{context}}\n\nRead context.agent.observations and context.agent.finalAnswer. Return a concise final loan decision.',
  'FINAL',
  '{"allows":["reset"],"expects":[]}',
  true);
@@ -313,8 +313,8 @@ For SQLite run:
         ]
       }
     }}
-    tables={["ce_mcp_tool (R)", "ce_mcp_planner (R)", "ce_audit (W)"]}
-    info={["Planner decides each next tool from previous observation.", "Observations are persisted in context.mcp.observations."]}
+    tables={["ce_agent_tool (R)", "ce_agent_planner (R)", "ce_audit (W)"]}
+    info={["Planner decides each next tool from previous observation.", "Observations are persisted in context.agent.observations."]}
   />
   <TraceChatBubble
     role="assistant"
@@ -337,9 +337,9 @@ For SQLite run:
   columns={["Phase", "What happens", "Tables touched", "Output"]}
   rows={[
     ["Schema + state", "Extract fields and switch to ELIGIBILITY_GATE.", "ce_output_schema(R), ce_rule(R), ce_audit(W)", "context fields + state"],
-    ["Post-MCP transition", "POST_AGENT_MCP rule moves state to COMPLETED only when context.mcp.finalAnswer is present.", "ce_rule(R), ce_audit(W)", "state=COMPLETED"],
-    ["MCP tool chain", "Rating, fraud, debt, submit executed conditionally.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "context.mcp.observations[]"],
-    ["MCP final answer", "Planner writes final decision text.", "ce_audit(W)", "context.mcp.finalAnswer"],
+    ["Post-MCP transition", "POST_AGENT_MCP rule moves state to COMPLETED only when context.agent.finalAnswer is present.", "ce_rule(R), ce_audit(W)", "state=COMPLETED"],
+    ["MCP tool chain", "Rating, fraud, debt, submit executed conditionally.", "ce_agent_tool(R), ce_agent_planner(R), ce_audit(W)", "context.agent.observations[]"],
+    ["MCP final answer", "Planner writes final decision text.", "ce_audit(W)", "context.agent.finalAnswer"],
     ["Response resolution", "DERIVED TEXT generated for user.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant payload"],
   ]}
 />
@@ -430,14 +430,14 @@ The latency reflects mock delays (`responseDelayInMillis`) configured in [mockey
 
 For this example, the final assistant text is not hardcoded. It is derived from MCP evidence in runtime context:
 
-1. `McpToolStep` starts and clears stale `context.mcp.finalAnswer` and `context.mcp.observations`.
-2. Every successful tool call appends one entry into `context.mcp.observations`:
+1. `AgentToolStep` starts and clears stale `context.agent.finalAnswer` and `context.agent.observations`.
+2. Every successful tool call appends one entry into `context.agent.observations`:
    - `toolCode`
    - `json` (stringified mapped payload)
-3. When planner returns `ANSWER`, `McpToolStep` writes:
-   - `context.mcp.finalAnswer`
+3. When planner returns `ANSWER`, `AgentToolStep` writes:
+   - `context.agent.finalAnswer`
    - input param `mcp_final_answer`
-4. In the confirmation-first pattern, `POST_SCHEMA_EXTRACTION` can move the flow to `CONFIRMATION`, `PRE_AGENT_MCP` can move `CONFIRMATION -> PROCESS_APPLICATION`, and `POST_AGENT_MCP` can set `COMPLETED` when `context.mcp.finalAnswer` is present.
+4. In the confirmation-first pattern, `POST_SCHEMA_EXTRACTION` can move the flow to `CONFIRMATION`, `PRE_AGENT_MCP` can move `CONFIRMATION -> PROCESS_APPLICATION`, and `POST_AGENT_MCP` can set `COMPLETED` when `context.agent.finalAnswer` is present.
 5. `ResponseResolutionStep` selects `ce_response` for:
    - `intent_code=LOAN_APPLICATION`
    - `state_code=COMPLETED`
@@ -450,13 +450,13 @@ For this example, the final assistant text is not hardcoded. It is derived from 
 8. LLM produces final summary text. Engine audits `RESOLVE_RESPONSE_LLM_OUTPUT` and `ASSISTANT_OUTPUT`, then persists conversation.
 
 <Highlight type="info" title="Practical implication">
-In this setup, the response LLM is grounded by two things together: `derivation_hint` policy from `ce_response` and MCP evidence from `context.mcp.*`. That is why the final answer reflects rating/fraud/debt/applicationId consistently.
+In this setup, the response LLM is grounded by two things together: `derivation_hint` policy from `ce_response` and MCP evidence from `context.agent.*`. That is why the final answer reflects rating/fraud/debt/applicationId consistently.
 </Highlight>
 
 The provided Example 2 seed now makes this explicit in SQL as well:
 
-- `ce_prompt_template.user_prompt` explicitly instructs reading `context.mcp.observations` and `context.mcp.finalAnswer`
-- `ce_response.derivation_hint` explicitly references `context.mcp.*`
+- `ce_prompt_template.user_prompt` explicitly instructs reading `context.agent.observations` and `context.agent.finalAnswer`
+- `ce_response.derivation_hint` explicitly references `context.agent.*`
 
 ## E2E Turn-by-Turn (Tab View)
 
@@ -469,15 +469,15 @@ The provided Example 2 seed now makes this explicit in SQL as well:
   rows={[
     ["Schema extraction", "customerId/requestedAmount/tenure extracted.", "ce_output_schema(R), ce_prompt_template(R), ce_audit(W)", "context fields set"],
     ["State rule", "loan flow can move ELIGIBILITY_GATE -> CONFIRMATION after schema extraction, then PRE_AGENT_MCP moves CONFIRMATION -> PROCESS_APPLICATION before MCP.", "ce_rule(R), ce_audit(W)", "state confirmation gate before MCP"],
-    ["MCP #1", "Need credit rating first.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL rating"],
+    ["MCP #1", "Need credit rating first.", "ce_agent_tool(R), ce_agent_planner(R), ce_audit(W)", "CALL_TOOL rating"],
     ["Tool #1", "Rating available and > 750.", "ce_audit(W)", "obs[0]=creditRating"],
-    ["MCP #2", "Proceed to fraud check.", "ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL fraud"],
+    ["MCP #2", "Proceed to fraud check.", "ce_agent_planner(R), ce_audit(W)", "CALL_TOOL fraud"],
     ["Tool #2", "Fraud clear.", "ce_audit(W)", "obs[1]=flagged:false"],
-    ["MCP #3", "Need affordability metrics.", "ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL debt summary"],
+    ["MCP #3", "Need affordability metrics.", "ce_agent_planner(R), ce_audit(W)", "CALL_TOOL debt summary"],
     ["Tool #3", "DTI acceptable and credit sufficient.", "ce_audit(W)", "obs[2]=dti/availableCredit"],
-    ["MCP #4", "Submit application now.", "ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL submit"],
+    ["MCP #4", "Submit application now.", "ce_agent_planner(R), ce_audit(W)", "CALL_TOOL submit"],
     ["Tool #4", "Submission succeeded.", "ce_audit(W)", "obs[3]=applicationId/status"],
-    ["MCP ANSWER", "Enough evidence for final decision.", "ce_audit(W)", "context.mcp.finalAnswer"],
+    ["MCP ANSWER", "Enough evidence for final decision.", "ce_audit(W)", "context.agent.finalAnswer"],
     ["ResponseResolutionStep", "Generate final user-facing summary.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant text payload"]
   ]}
 />
@@ -490,9 +490,9 @@ The provided Example 2 seed now makes this explicit in SQL as well:
   title="Early-stop branch: low credit score"
   columns={["Loop/Step", "LLM deduction", "Tables touched", "Produced state/data"]}
   rows={[
-    ["MCP #1", "Call rating check.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "CALL_TOOL rating"],
+    ["MCP #1", "Call rating check.", "ce_agent_tool(R), ce_agent_planner(R), ce_audit(W)", "CALL_TOOL rating"],
     ["Tool #1", "creditRating <= 750.", "ce_audit(W)", "obs[0]=low rating"],
-    ["MCP ANSWER", "Stop chain; reject without fraud/debt/submit.", "ce_mcp_planner(R), ce_audit(W)", "context.mcp.finalAnswer (rejection)"],
+    ["MCP ANSWER", "Stop chain; reject without fraud/debt/submit.", "ce_agent_planner(R), ce_audit(W)", "context.agent.finalAnswer (rejection)"],
     ["ResponseResolutionStep", "Render low-score rejection summary.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant text payload"]
   ]}
 />
@@ -505,9 +505,9 @@ The provided Example 2 seed now makes this explicit in SQL as well:
   title="Branch: fraud hit after good rating"
   columns={["Loop/Step", "LLM deduction", "Tables touched", "Produced state/data"]}
   rows={[
-    ["MCP #1 + Tool #1", "Rating is high enough to continue.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "obs[0]=rating"],
-    ["MCP #2 + Tool #2", "Fraud flagged=true.", "ce_mcp_planner(R), ce_audit(W)", "obs[1]=fraud flagged"],
-    ["MCP ANSWER", "Stop chain immediately; reject.", "ce_mcp_planner(R), ce_audit(W)", "context.mcp.finalAnswer (fraud rejection)"],
+    ["MCP #1 + Tool #1", "Rating is high enough to continue.", "ce_agent_tool(R), ce_agent_planner(R), ce_audit(W)", "obs[0]=rating"],
+    ["MCP #2 + Tool #2", "Fraud flagged=true.", "ce_agent_planner(R), ce_audit(W)", "obs[1]=fraud flagged"],
+    ["MCP ANSWER", "Stop chain immediately; reject.", "ce_agent_planner(R), ce_audit(W)", "context.agent.finalAnswer (fraud rejection)"],
     ["ResponseResolutionStep", "Produce fraud-specific final text.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant text payload"]
   ]}
 />
@@ -520,10 +520,10 @@ The provided Example 2 seed now makes this explicit in SQL as well:
   title="Branch: affordability fails after fraud clears"
   columns={["Loop/Step", "LLM deduction", "Tables touched", "Produced state/data"]}
   rows={[
-    ["MCP #1 + Tool #1", "Rating allows continuation.", "ce_mcp_tool(R), ce_mcp_planner(R), ce_audit(W)", "obs[0]=rating"],
-    ["MCP #2 + Tool #2", "Fraud clear.", "ce_mcp_planner(R), ce_audit(W)", "obs[1]=fraud false"],
-    ["MCP #3 + Tool #3", "DTI too high or available credit too low.", "ce_mcp_planner(R), ce_audit(W)", "obs[2]=poor affordability"],
-    ["MCP ANSWER", "Reject or mark manual review; skip submit.", "ce_mcp_planner(R), ce_audit(W)", "context.mcp.finalAnswer"],
+    ["MCP #1 + Tool #1", "Rating allows continuation.", "ce_agent_tool(R), ce_agent_planner(R), ce_audit(W)", "obs[0]=rating"],
+    ["MCP #2 + Tool #2", "Fraud clear.", "ce_agent_planner(R), ce_audit(W)", "obs[1]=fraud false"],
+    ["MCP #3 + Tool #3", "DTI too high or available credit too low.", "ce_agent_planner(R), ce_audit(W)", "obs[2]=poor affordability"],
+    ["MCP ANSWER", "Reject or mark manual review; skip submit.", "ce_agent_planner(R), ce_audit(W)", "context.agent.finalAnswer"],
     ["ResponseResolutionStep", "Generate debt/affordability explanation.", "ce_response(R), ce_prompt_template(R), ce_audit(W)", "assistant text payload"]
   ]}
 />
@@ -558,7 +558,7 @@ The provided Example 2 seed now makes this explicit in SQL as well:
 
 ## Notes on state and scope
 
-`ce_mcp_tool` rows in example2 are scoped as:
+`ce_agent_tool` rows in example2 are scoped as:
 
 - `intent_code = LOAN_APPLICATION`
 - `state_code = ELIGIBILITY_GATE`
@@ -570,7 +570,7 @@ This ensures tools are visible only in the loan decision state.
 - Tool not resolved:
   - verify `tool_code` in DB matches handler `toolCode()` exactly
 - No tool call in planner path:
-  - check `McpPlanner` prompt rows in `ce_mcp_planner`
+  - check `AgentPlanner` prompt rows in `ce_agent_planner`
   - confirm active intent is `LOAN_APPLICATION`
 - Timeouts/retries unexpected:
   - inspect handler-specific `HttpApiExecutionPolicy`

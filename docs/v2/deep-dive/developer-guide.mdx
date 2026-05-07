@@ -27,7 +27,7 @@ export const v2ExtNodes = [
   { id: "s16", data: { label: "16. AddContainerDataStep" } },
   { id: "s17", data: { label: "17. PendingActionStep" } },
   { id: "s18", data: { label: "18. ToolOrchestrationStep" } },
-  { id: "s19", data: { label: "19. McpToolStep" } },
+  { id: "s19", data: { label: "19. AgentToolStep" } },
   { id: "s20", data: { label: "20. SchemaExtractionStep" } },
   { id: "s21", data: { label: "21. AutoAdvanceStep" } },
   { id: "s22", data: { label: "22. RulesStep" } },
@@ -85,8 +85,8 @@ export const v2ExtDetails = {
   s15: { title: "FallbackIntentStateStep", file: "engine/steps/FallbackIntentStateStep.java", method: "execute(...)", stage: "FALLBACK", summary: "Fills missing intent/state defaults.", session: ["intent/state fallback"], tables: ["none"] },
   s16: { title: "AddContainerDataStep", file: "engine/steps/AddContainerDataStep.java", method: "execute(...)", stage: "CONTAINER_DATA", summary: "Injects container-configured data into runtime context.", session: ["container data merged"], tables: ["ce_container_config"] },
   s17: { title: "PendingActionStep", file: "engine/steps/PendingActionStep.java", method: "execute(...)", stage: "PENDING_ACTION", summary: "Executes or rejects pending actions via CeTaskExecutor.", session: ["pending action result"], tables: ["ce_pending_action", "ce_audit"] },
-  s18: { title: "ToolOrchestrationStep", file: "engine/steps/ToolOrchestrationStep.java", method: "execute(...)", stage: "DIRECT_TOOL", summary: "Runs the direct request-driven tool path.", session: ["tool_result", "context.mcp.toolExecution"], tables: ["ce_mcp_tool", "ce_mcp_db_tool", "ce_audit"] },
-  s19: { title: "McpToolStep", file: "engine/steps/McpToolStep.java", method: "execute(...)", stage: "MCP", summary: "Runs the planner-driven MCP loop and semantic query runtime tool chain when needed.", session: ["context.mcp.*"], tables: ["ce_mcp_tool", "ce_mcp_planner", "ce_audit"] },
+  s18: { title: "ToolOrchestrationStep", file: "engine/steps/ToolOrchestrationStep.java", method: "execute(...)", stage: "DIRECT_TOOL", summary: "Runs the direct request-driven tool path.", session: ["tool_result", "context.agent.toolExecution"], tables: ["ce_agent_tool", "ce_agent_db_tool", "ce_audit"] },
+  s19: { title: "AgentToolStep", file: "engine/steps/AgentToolStep.java", method: "execute(...)", stage: "MCP", summary: "Runs the planner-driven MCP loop and semantic query runtime tool chain when needed.", session: ["context.agent.*"], tables: ["ce_agent_tool", "ce_agent_planner", "ce_audit"] },
   s20: { title: "SchemaExtractionStep", file: "engine/steps/SchemaExtractionStep.java", method: "execute(...)", stage: "SCHEMA", summary: "Performs structured extraction against ce_output_schema.", session: ["schema facts"], tables: ["ce_output_schema", "ce_prompt_template", "ce_audit"] },
   s21: { title: "AutoAdvanceStep", file: "engine/steps/AutoAdvanceStep.java", method: "execute(...)", stage: "AUTO_ADVANCE", summary: "Computes schema facts used for downstream transitions.", session: ["schemaComplete", "hasAny"], tables: ["none"] },
   s22: { title: "RulesStep", file: "engine/steps/RulesStep.java", method: "execute(...)", stage: "RULES", summary: "Runs phase-scoped rule evaluation and actions.", session: ["intent/state/input params may mutate"], tables: ["ce_rule", "ce_audit"] },
@@ -121,7 +121,7 @@ This guide reflects the active v2 line through the later additions from `2.0.6` 
 1. Define `ce_intent`, `ce_intent_classifier`, `ce_prompt_template`, `ce_response`, and `ce_rule`.
 2. Add `ce_output_schema` if the flow needs structured collection or correction.
 3. Add `ce_pending_action` only if the flow needs explicit confirm-before-run behavior.
-4. Add `ce_mcp_tool` and `ce_mcp_planner` only after the base conversational path is deterministic.
+4. Add `ce_agent_tool` and `ce_agent_planner` only after the base conversational path is deterministic.
 5. Add `ce_verbose` early enough that QA and operators can see runtime progress.
 6. Configure `convengine.flow.*`, `convengine.audit.*`, and the MCP namespaces in YAML.
 7. Replay test and audit-trace test before production rollout.
@@ -253,7 +253,7 @@ Related Semantic Query docs:
 - **Fallbacks**: Every reachable state should still resolve a valid `ce_response` path.
 - **Phase Targeting**: Split state changes across the actual runtime phases instead of overloading one rule row.
 - **Prompt Contracts**: Define `interaction_mode` and `interaction_contract` intentionally so `CorrectionStep` behaves predictably.
-- **Scope Discipline**: Keep `ce_mcp_tool` and `ce_mcp_planner` scoped by real intent/state whenever possible.
+- **Scope Discipline**: Keep `ce_agent_tool` and `ce_agent_planner` scoped by real intent/state whenever possible.
 - **Guardrails**: Monitor `ce_audit` for guardrail and MCP blocked branches.
 - **Semantic discipline**: If Semantic Query is enabled, validate allowlists/mappings and test unsupported + clarification paths before rollout.
 - **State Graph**: Enable strict transition validation before promoting a new flow to production.

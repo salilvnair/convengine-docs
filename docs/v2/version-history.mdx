@@ -137,12 +137,12 @@ sidebar_position: 30
   - intent lifecycle (`AgentIntentResolver`)
   - rule lifecycle (`RulesStep`, `RuleActionResolverFactory`)
   - response/output resolver selection (`ResponseTypeResolverFactory`, `OutputFormatResolverFactory`)
-  - tool + MCP lifecycle (`ToolOrchestrationStep`, `McpToolStep`)
+  - tool + MCP lifecycle (`ToolOrchestrationStep`, `AgentToolStep`)
   - response resolution (`ResponseResolutionStep`)
 - MCP schema completeness hardening:
   - new stage `MCP_SKIPPED_SCHEMA_INCOMPLETE`
   - new status `STATUS_SKIPPED_SCHEMA_INCOMPLETE`
-  - `McpToolStep` now skips MCP execution when schema-required fields are missing and writes lifecycle metadata deterministically.
+  - `AgentToolStep` now skips MCP execution when schema-required fields are missing and writes lifecycle metadata deterministically.
 
 ## 2.0.7
 
@@ -157,22 +157,22 @@ sidebar_position: 30
 - HTTP policy support in framework invoker:
   - timeout, retry/backoff, in-memory circuit breaker, auth providers, response mapping.
 - MCP planner scoping table:
-  - `ce_mcp_planner` with intent/state scoped prompt selection.
+  - `ce_agent_planner` with intent/state scoped prompt selection.
   - seed support added for Postgres/SQLite planner rows.
 - MCP context metadata model for rule branching:
-  - `context.mcp.lifecycle.*`
-  - `context.mcp.toolExecution.*`
+  - `context.agent.lifecycle.*`
+  - `context.agent.toolExecution.*`
   - enables deterministic `ce_rule.match_pattern` JSON_PATH checks.
 - Guardrail behavior clarity:
-  - when planner proposes blocked next tool, fallback answer is written to `context.mcp.finalAnswer`.
+  - when planner proposes blocked next tool, fallback answer is written to `context.agent.finalAnswer`.
   - `POST_AGENT_MCP` rules still run, then normal response resolution.
 - MCP guardrail + determinism upgrades:
   - planner output is validated against allowed-next-tool policy before execution.
   - blocked decisions emit deterministic lifecycle metadata for rule branching.
 - Tool execution observability upgrade:
-  - direct tool mode writes rich metadata into `context.mcp.toolExecution.*` including `toolCode`, `toolGroup`, status/outcome, scope mismatch flags, and tool row metadata.
+  - direct tool mode writes rich metadata into `context.agent.toolExecution.*` including `toolCode`, `toolGroup`, status/outcome, scope mismatch flags, and tool row metadata.
 - Scope consistency hardening in static config:
-  - `ce_mcp_tool` / `ce_mcp_planner` scope values are validated at load/startup (`intent_code`, `state_code`) against allowed forms (`ANY`, `UNKNOWN`, configured values).
+  - `ce_agent_tool` / `ce_agent_planner` scope values are validated at load/startup (`intent_code`, `state_code`) against allowed forms (`ANY`, `UNKNOWN`, configured values).
   - invalid scope rows fail fast to prevent cross-intent tool leakage.
 - `ce_intent_classifier` enhancement:
   - `state_code` support (default `UNKNOWN`) so classifier can set state directly without extra transition rules.
@@ -198,7 +198,7 @@ sidebar_position: 30
 
 Introduces massive execution path optimizations targeting latency removal, background history persistence, and static framework component caching.
 
-- **Static Configurations Cache Loader**: All static framework properties (`ce_intent`, `ce_rule`, `ce_mcp_tool`, etc.) are pre-loaded entirely into memory on JVM live via `StaticTableCachePreloader`, dropping complex query I/O across `RulesStep` and `InteractionPolicyStep` to sub-millisecond evaluate times.
+- **Static Configurations Cache Loader**: All static framework properties (`ce_intent`, `ce_rule`, `ce_agent_tool`, etc.) are pre-loaded entirely into memory on JVM live via `StaticTableCachePreloader`, dropping complex query I/O across `RulesStep` and `InteractionPolicyStep` to sub-millisecond evaluate times.
 - **Cache Eviction API**: Deployed `/api/v1/cache/refresh` endpoint natively inside `ConvEngineCacheController` to allow database administrators to immediately flush and reload RAM without bouncing the application. 
 - **Async LLM Call Logging**: Integrated `@Async` onto `LlmCallLogPersistenceService`. Lengthy physical HTTP prompts/completions are recorded in background threads preserving microsecond user-facing SLA times.
 - **History DDL Revolution**: Hard-deprecated noisy legacy `role` & `stage` `ce_conversation_history` table arrays. Decoupled history updates away from the core `DbAuditService` pipeline loop entirely, deploying an explicit `user_input` + `assistant_output` monolithic string format that tracks asynchronously inside the final `PipelineEndGuardStep`.
@@ -277,9 +277,9 @@ Major runtime engine evolution focused on production-grade turn control, tool or
 - **`InteractionPolicyStep` & `InteractionPolicyDecision`**: The primary "brain" of the v2 matrix routing implementation. This step evaluates the `DialogueAct` alongside the current discrete `SessionState`. For instance, if a pending action is marked `IN_PROGRESS` in memory, and the new turn evaluates to the act `AFFIRM`, it makes an instantaneous deterministic policy decision `EXECUTE_PENDING_ACTION`. If it evaluates to `NEGATE`, it selects `REJECT_PENDING_ACTION`. If it's `QUESTION`, it evaluates to `FILL_PENDING_SLOT`. This massive enhancement completely bypasses stochastic LLM generative behaviors for discrete boolean pathing.
 
 ### 3. Strict MCP Tool Management and Orchestration Scoping
-- **`CeMcpTool` Scope Isolation**: The `intent_code` and `state_code` columns were physically integrated into the `ce_mcp_tool` table architecture to formally mandate extreme compartmentalization of tool access limits. Tools are strictly bound to domains and are no longer assumed "global by default."
-- **`McpToolRepository` Refactoring**: Updated JPQL definitions in the repository (`findEnabledByIntentAndState`, `findByToolCodeEnabledAndIntentAndState`) leveraging the Spring Data `@Param` annotation to guarantee tools are flawlessly filtered. The internal `McpPlanner` is logically isolated from discovering tools sitting externally to the current active conversational domain intent scope.
-- **`McpToolRegistry` Improvements**: A hardened centralized registry mechanism uniquely responsible for standardizing `tool_group` domains and resolving perfectly legal tools for a given conversation cycle loop, mathematically preventing hallucinations where an LLM invokes an unbound tool.
+- **`CeAgentTool` Scope Isolation**: The `intent_code` and `state_code` columns were physically integrated into the `ce_agent_tool` table architecture to formally mandate extreme compartmentalization of tool access limits. Tools are strictly bound to domains and are no longer assumed "global by default."
+- **`AgentToolRepository` Refactoring**: Updated JPQL definitions in the repository (`findEnabledByIntentAndState`, `findByToolCodeEnabledAndIntentAndState`) leveraging the Spring Data `@Param` annotation to guarantee tools are flawlessly filtered. The internal `AgentPlanner` is logically isolated from discovering tools sitting externally to the current active conversational domain intent scope.
+- **`AgentToolRegistry` Improvements**: A hardened centralized registry mechanism uniquely responsible for standardizing `tool_group` domains and resolving perfectly legal tools for a given conversation cycle loop, mathematically preventing hallucinations where an LLM invokes an unbound tool.
 - **`McpToolExecutor` Interface Expansion**: Designed a formalized executor functional contract natively implemented by a vast array of specialized business adapters for standardized output structures.
 - **New Executor Adapter Implementations**: Delivered fully mocked execution wrappers capable of expanding to live implementations:
   - `McpDbToolExecutor`: For parsing database querying and modification parameter mapping tools.
@@ -289,7 +289,7 @@ Major runtime engine evolution focused on production-grade turn control, tool or
   - `McpCalculatorTransformToolExecutor`: For executing deterministic programmatic mathematical transformations.
   - `McpFileToolExecutor`: For OS-level file parsing, reading, generation, and file management tools.
   - `McpNotificationToolExecutor`: For serializing logic aimed at SMS/Email/Push notification gateways.
-- **Early-Exit Execution Guardrails**: `ToolOrchestrationStep` and `McpToolStep` logic matrices were fortified to immediately halt and bypass tool discovery planning on simple conversational greetings (e.g., regex checks against `hi`, `hello`, `good morning`) or explicit internal dialogue acts (`AFFIRM`, `NEGATE`) to drastically curb overhead computational latency and expensive LLM generative token expenditures.
+- **Early-Exit Execution Guardrails**: `ToolOrchestrationStep` and `AgentToolStep` logic matrices were fortified to immediately halt and bypass tool discovery planning on simple conversational greetings (e.g., regex checks against `hi`, `hello`, `good morning`) or explicit internal dialogue acts (`AFFIRM`, `NEGATE`) to drastically curb overhead computational latency and expensive LLM generative token expenditures.
 
 ### 4. Advanced Pipeline Governance: Memory, Guardrails, and Graphs
 - **`GuardrailStep` Framework**: A foundational preventative pipeline step strategically positioned to screen dynamic inputs against hardcoded blocked configuration patterns or sanitize output payload injections before advancing. Generates robust metrics to soft-block or strictly hard-block the `ConvEngineInputParamKey.STATE_GRAPH_VALID` control parameter.

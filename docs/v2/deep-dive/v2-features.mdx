@@ -5,7 +5,7 @@ sidebar_position: 11
 
 # ConvEngine Detailed Features (Current v2 Line)
 
-This page reflects the current v2 codebase, not just the original `2.0.0` launch set. It consolidates the active runtime behavior across the v2 release line through the current repo state (including later additions such as `CorrectionStep`, `ce_mcp_planner`, `ce_verbose`, Database Knowledge Graph (DBKG), extra rule phases, and Thymeleaf-backed prompt rendering).
+This page reflects the current v2 codebase, not just the original `2.0.0` launch set. It consolidates the active runtime behavior across the v2 release line through the current repo state (including later additions such as `CorrectionStep`, `ce_agent_planner`, `ce_verbose`, Database Knowledge Graph (DBKG), extra rule phases, and Thymeleaf-backed prompt rendering).
 
 If you need exact internals for one subsystem, use the linked deep-dive pages. This page is the high-level, top-to-bottom feature inventory.
 
@@ -42,7 +42,7 @@ Core runtime stages include:
 - Tooling and orchestration:
   - `GuardrailStep`
   - `ToolOrchestrationStep`
-  - `McpToolStep`
+  - `AgentToolStep`
   - `RulesStep`
   - `StateGraphStep`
 - Output and closeout:
@@ -195,7 +195,7 @@ Current contract:
 - runtime outputs:
   - `tool_result`
   - `tool_status`
-  - `context.mcp.toolExecution.*`
+  - `context.agent.toolExecution.*`
 
 Current behavior:
 
@@ -241,14 +241,14 @@ Those defaults come from `convengine.mcp.http-api.defaults.*`.
 
 ## 5. MCP Is Now Planner-Scoped, Guarded, and Explicitly Scoped
 
-### `ce_mcp_tool` scope rules (correct current behavior)
+### `ce_agent_tool` scope rules (correct current behavior)
 
 The old statement about optional `intent_code` / `state_code` with `NULL` wildcard is no longer true.
 
 Current behavior:
 
-- `ce_mcp_tool.intent_code` is mandatory
-- `ce_mcp_tool.state_code` is mandatory
+- `ce_agent_tool.intent_code` is mandatory
+- `ce_agent_tool.state_code` is mandatory
 - null/blank scope is not allowed
 - valid scope values are:
   - exact configured `intent_code` / `state_code`
@@ -257,20 +257,20 @@ Current behavior:
 
 Startup integrity validation now fails fast on invalid scope rows to prevent cross-intent tool leakage.
 
-### `ce_mcp_planner` (newer v2 addition)
+### `ce_agent_planner` (newer v2 addition)
 
-MCP prompt selection is now data-driven via `ce_mcp_planner`.
+MCP prompt selection is now data-driven via `ce_agent_planner`.
 
 Current planner prompt resolution order:
 
 1. exact `intent_code + state_code`
 2. exact `intent_code + ANY`
 3. `ANY + ANY`
-4. legacy fallback from `ce_config` `McpPlanner` keys when planner rows are unavailable
+4. legacy fallback from `ce_config` `AgentPlanner` keys when planner rows are unavailable
 
-Like `ce_mcp_tool`, `ce_mcp_planner.intent_code` and `state_code` are mandatory and validated at startup.
+Like `ce_agent_tool`, `ce_agent_planner.intent_code` and `state_code` are mandatory and validated at startup.
 
-### `McpToolStep`
+### `AgentToolStep`
 
 This step is now much more feature-rich than the old page described.
 
@@ -284,18 +284,18 @@ Current behavior includes:
   - dialogue act indicates the turn should not enter MCP
   - the user turn is just a greeting
   - pending clarification exists
-- resolves scoped tools from `McpToolRegistry`
+- resolves scoped tools from `AgentToolRegistry`
 - runs a bounded planner/tool loop (`MAX_LOOPS = 5`)
-- stores observations in `context.mcp.observations`
-- stores final planner answer in `context.mcp.finalAnswer`
+- stores observations in `context.agent.observations`
+- stores final planner answer in `context.agent.finalAnswer`
 - runs `POST_AGENT_MCP` rules after MCP completion/block/fallback
 
 ### MCP runtime metadata (important for `ce_rule` JSON_PATH)
 
 Current rule branching can inspect:
 
-- `context.mcp.lifecycle.*`
-- `context.mcp.toolExecution.*`
+- `context.agent.lifecycle.*`
+- `context.agent.toolExecution.*`
 
 This exposes deterministic rule conditions such as:
 
@@ -376,7 +376,7 @@ Current Database Knowledge Graph (DBKG) runtime guard model:
 
 - planner prompt sequencing is DB-driven
 - `DbkgPlaybookValidator` validates the graph before execute
-- `McpToolStep` hard-blocks `dbkg.investigate.execute` if a successful validation observation is missing
+- `AgentToolStep` hard-blocks `dbkg.investigate.execute` if a successful validation observation is missing
 - the block reason is explicit (`DBKG_VALIDATION_REQUIRED_BEFORE_EXECUTION`)
 
 If you need the full Database Knowledge Graph (DBKG) model, use the dedicated deep dives:
@@ -586,8 +586,8 @@ Control-plane tables are preloaded and cached, including:
 - `ce_output_schema`
 - `ce_prompt_template`
 - `ce_pending_action`
-- `ce_mcp_tool`
-- `ce_mcp_planner`
+- `ce_agent_tool`
+- `ce_agent_planner`
 - `ce_verbose`
 
 ### Startup integrity validation
@@ -595,8 +595,8 @@ Control-plane tables are preloaded and cached, including:
 Startup validation now checks scope correctness and row integrity for critical tables such as:
 
 - `ce_pending_action`
-- `ce_mcp_tool`
-- `ce_mcp_planner`
+- `ce_agent_tool`
+- `ce_agent_planner`
 - `ce_verbose`
 
 This means invalid scope rows or malformed verbose matchers can fail startup instead of producing unpredictable runtime behavior.
@@ -643,10 +643,10 @@ The current repo includes several important changes from the later v2 line that 
 
 ### 2.0.7 line
 
-- MCP became planner-scoped with `ce_mcp_planner`
-- MCP scope validation became strict for `ce_mcp_tool` and `ce_mcp_planner`
+- MCP became planner-scoped with `ce_agent_planner`
+- MCP scope validation became strict for `ce_agent_tool` and `ce_agent_planner`
 - guardrail-blocked next-tool behavior became deterministic
-- richer MCP lifecycle metadata became available in `context.mcp.*`
+- richer MCP lifecycle metadata became available in `context.agent.*`
 - advanced MCP HTTP handler models were added
 
 ### 2.0.8 line
@@ -670,7 +670,7 @@ The old version of this document was incomplete and partially outdated. The main
 - it treated MCP tool scope as nullable/wildcard, but current v2 requires explicit scope with `ANY` / `UNKNOWN`
 - it missed `CorrectionStep`
 - it missed `PendingActionStep`, `AutoAdvanceStep`, `PolicyEnforcementStep`, reset/fallback steps, and the broader DAG
-- it missed `ce_mcp_planner`
+- it missed `ce_agent_planner`
 - it missed Database Knowledge Graph (DBKG) and the DB-backed knowledge graph / playbook model
 - it missed newer rule phases (`POST_DIALOGUE_ACT`, `POST_SCHEMA_EXTRACTION`, `PRE_AGENT_MCP`)
 - it missed `SET_INPUT_PARAM`

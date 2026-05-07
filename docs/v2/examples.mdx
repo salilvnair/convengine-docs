@@ -160,7 +160,7 @@ Step loop invokes each <MethodRef>execute(session)</MethodRef>. If a step return
   <div className="ce-step-badge-item"><span className="ce-step-badge-index">16</span><span className="ce-step-badge-label">AddContainerDataStep</span></div>
   <div className="ce-step-badge-item"><span className="ce-step-badge-index">17</span><span className="ce-step-badge-label">PendingActionStep</span></div>
   <div className="ce-step-badge-item"><span className="ce-step-badge-index">18</span><span className="ce-step-badge-label">ToolOrchestrationStep</span></div>
-  <div className="ce-step-badge-item"><span className="ce-step-badge-index">19</span><span className="ce-step-badge-label">McpToolStep</span></div>
+  <div className="ce-step-badge-item"><span className="ce-step-badge-index">19</span><span className="ce-step-badge-label">AgentToolStep</span></div>
   <div className="ce-step-badge-item"><span className="ce-step-badge-index">20</span><span className="ce-step-badge-label">SchemaExtractionStep</span></div>
   <div className="ce-step-badge-item"><span className="ce-step-badge-index">21</span><span className="ce-step-badge-label">AutoAdvanceStep</span></div>
   <div className="ce-step-badge-item"><span className="ce-step-badge-index">22</span><span className="ce-step-badge-label">RulesStep</span></div>
@@ -358,7 +358,7 @@ VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Use the DERIVED prompt 
 
 <Conversation title="DB Orchestration Flow">
   <User info={["Tool-backed inventory lookup request.", "Expected tool group: DB/INVENTORY."]}>How many running shoes are left in warehouse B?</User>
-  <Assistant intent="DATABASE_QUERY" state="IDLE" tables={["ce_mcp_tool"]} info={["Tool orchestration starts.", "System preparing DB call."]}>Checking the inventory database...</Assistant>
+  <Assistant intent="DATABASE_QUERY" state="IDLE" tables={["ce_agent_tool"]} info={["Tool orchestration starts.", "System preparing DB call."]}>Checking the inventory database...</Assistant>
   <User info={["Represents async tool latency.", "No new user data provided."]}>*[System delay executing Tool]*</User>
   <Assistant intent="DATABASE_QUERY" state="COMPLETED" tables={["ce_audit", "ce_response"]} info={["tool_result injected into response derivation.", "Final value rendered from tool output."]}>We currently have 421 units of running shoes allocated to warehouse B.</Assistant>
 </Conversation>
@@ -374,14 +374,14 @@ VALUES ('CANCEL_ORDER', 'CANCELLED', 'TEXT', 'DERIVED', 'Use the DERIVED prompt 
 INSERT INTO ce_intent (intent_code, description, priority, enabled)
 VALUES ('DATABASE_QUERY', 'Answer database-backed inventory questions.', 100, true);
 
-INSERT INTO ce_mcp_tool (tool_code, tool_group, intent_code, state_code, enabled, description)
+INSERT INTO ce_agent_tool (tool_code, tool_group, intent_code, state_code, enabled, description)
 VALUES ('inventory.lookup', 'DB', 'DATABASE_QUERY', 'IDLE', true, 'Read-only inventory lookup tool.');
 
 INSERT INTO ce_prompt_template (intent_code, state_code, response_type, system_prompt, user_prompt, temperature, enabled)
-VALUES ('DATABASE_QUERY', 'COMPLETED', 'DERIVED', 'You are an inventory assistant.', 'Answer from these database results: {{context.mcp.finalAnswer}}', 0.0, true);
+VALUES ('DATABASE_QUERY', 'COMPLETED', 'DERIVED', 'You are an inventory assistant.', 'Answer from these database results: {{context.agent.finalAnswer}}', 0.0, true);
 
 INSERT INTO ce_response (intent_code, state_code, output_format, response_type, derivation_hint, priority, enabled)
-VALUES ('DATABASE_QUERY', 'COMPLETED', 'TEXT', 'DERIVED', 'Render the final answer from context.mcp.finalAnswer.', 10, true);
+VALUES ('DATABASE_QUERY', 'COMPLETED', 'TEXT', 'DERIVED', 'Render the final answer from context.agent.finalAnswer.', 10, true);
 ```
 
 </CodeBlockToggle>

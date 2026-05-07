@@ -201,7 +201,7 @@ Then add:
 - `ce_output_schema` if the flow collects structured fields
 - `ce_rule` if the flow has transitions
 - `ce_verbose` if you want readable progress feedback
-- `ce_mcp_tool` / `ce_mcp_planner` only when testing MCP
+- `ce_agent_tool` / `ce_agent_planner` only when testing MCP
 
 ## Core local test loop
 
@@ -227,8 +227,8 @@ When you change seeded rows in tables like:
 - `ce_output_schema`
 - `ce_prompt_template`
 - `ce_pending_action`
-- `ce_mcp_tool`
-- `ce_mcp_planner`
+- `ce_agent_tool`
+- `ce_agent_planner`
 - `ce_verbose`
 
 you should refresh the static cache before assuming the runtime sees the new data.
@@ -276,8 +276,8 @@ Modern v2 uses shared prompt rendering, so a prompt-variable issue can affect mu
 
 Check:
 
-- `context.mcp.lifecycle.*`
-- `context.mcp.toolExecution.*`
+- `context.agent.lifecycle.*`
+- `context.agent.toolExecution.*`
 - `MCP_TOOL_CALL`
 - `MCP_TOOL_RESULT`
 - `MCP_TOOL_ERROR`

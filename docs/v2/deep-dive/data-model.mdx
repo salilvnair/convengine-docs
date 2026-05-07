@@ -24,9 +24,9 @@ This page reflects the current v2 line and the active Semantic Query (`db.semant
 - `ce_response`
 - `ce_rule`
 - `ce_policy`
-- `ce_mcp_tool`
-- `ce_mcp_db_tool`
-- `ce_mcp_planner`
+- `ce_agent_tool`
+- `ce_agent_db_tool`
+- `ce_agent_planner`
 - `ce_pending_action`
 - `ce_verbose`
 
@@ -43,7 +43,7 @@ This page reflects the current v2 line and the active Semantic Query (`db.semant
 - `ce_semantic_join_hint`
 - `ce_semantic_value_pattern`
 - `ce_semantic_query_failures`
-- `ce_mcp_sql_guardrail`
+- `ce_agent_sql_guardrail`
 
 ## Runtime tables
 
@@ -61,8 +61,8 @@ This page reflects the current v2 line and the active Semantic Query (`db.semant
 
 ### `2.0.7`
 
-- `ce_mcp_planner` became the scoped planner prompt source
-- MCP scope rules for `ce_mcp_tool` and `ce_mcp_planner` became strict instead of nullable-wildcard
+- `ce_agent_planner` became the scoped planner prompt source
+- MCP scope rules for `ce_agent_tool` and `ce_agent_planner` became strict instead of nullable-wildcard
 
 ### `2.0.8`
 
@@ -77,7 +77,7 @@ This page reflects the current v2 line and the active Semantic Query (`db.semant
 
 - Semantic Query introduced DB-driven semantic metadata and embeddings
 - `ce_semantic_query_failures.question_embedding` enabled failure-memory retrieval for SQL regeneration
-- `ce_mcp_sql_guardrail` remains the shared SQL read-only extension layer for MCP DB tools
+- `ce_agent_sql_guardrail` remains the shared SQL read-only extension layer for MCP DB tools
 
 ## `ce_conversation_history`
 
@@ -247,7 +247,7 @@ Why this matters in current v2:
 
 ## Tool-group compatibility
 
-`ce_mcp_tool.tool_group` normalizes to:
+`ce_agent_tool.tool_group` normalizes to:
 
 - `DB`
 - `HTTP_API`
@@ -259,7 +259,7 @@ Why this matters in current v2:
 
 ## MCP tool scope columns
 
-`ce_mcp_tool` uses mandatory scope columns in the current v2 line:
+`ce_agent_tool` uses mandatory scope columns in the current v2 line:
 
 - `intent_code`
 - `state_code`
@@ -276,7 +276,7 @@ Behavior:
 
 ## MCP planner scope columns
 
-`ce_mcp_planner` supports scoped planner prompts with the same strict scope model:
+`ce_agent_planner` supports scoped planner prompts with the same strict scope model:
 
 - `intent_code`
 - `state_code`

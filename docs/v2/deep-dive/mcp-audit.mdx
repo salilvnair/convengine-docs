@@ -11,33 +11,33 @@ sidebar_position: 10
 - request-driven via `tool_request`
 - executes one tool
 - runs `POST_TOOL_EXECUTION` rules
-- writes `context.mcp.toolExecution.*`
+- writes `context.agent.toolExecution.*`
 
-2. `McpToolStep` (planner loop mode)
+2. `AgentToolStep` (planner loop mode)
 - planner loop (`CALL_TOOL`/`ANSWER`)
-- writes `context.mcp.observations[]` and `context.mcp.finalAnswer`
+- writes `context.agent.observations[]` and `context.agent.finalAnswer`
 - runs `POST_AGENT_MCP` rules
-- writes `context.mcp.lifecycle.*`
+- writes `context.agent.lifecycle.*`
 
 ## Guardrail blocked branch
 
 If planner proposes a blocked next tool:
 
 - `mcp_status=GUARDRAIL_BLOCKED_NEXT_TOOL`
-- fallback final text is written to `context.mcp.finalAnswer`
+- fallback final text is written to `context.agent.finalAnswer`
 - `POST_AGENT_MCP` rules still run
 - response is still finalized by `ce_response` resolution
 
 ## Rule-ready MCP metadata
 
-`context.mcp.lifecycle` includes:
+`context.agent.lifecycle` includes:
 
 - `phase`, `status`, `outcome`, `finished`
 - `blocked`, `error`, `errorMessage`
 - `lastAction`, `lastToolCode`, `lastToolGroup`, `lastToolArgs`
 - `toolExecuted`
 
-`context.mcp.toolExecution` includes:
+`context.agent.toolExecution` includes:
 
 - `phase`, `status`, `outcome`, `finished`
 - `error`, `scopeMismatch`, `toolExecuted`
@@ -46,10 +46,10 @@ If planner proposes a blocked next tool:
 ## JSON_PATH examples for `ce_rule.match_pattern`
 
 ```text
-$[?(@.context.mcp.lifecycle.finished == true && @.context.mcp.lifecycle.outcome == 'BLOCKED')]
-$[?(@.context.mcp.lifecycle.error == true)]
-$[?(@.context.mcp.toolExecution.phase == 'POST_TOOL_EXECUTION' && @.context.mcp.toolExecution.status == 'SUCCESS')]
-$[?(@.context.mcp.toolExecution.scopeMismatch == true)]
+$[?(@.context.agent.lifecycle.finished == true && @.context.agent.lifecycle.outcome == 'BLOCKED')]
+$[?(@.context.agent.lifecycle.error == true)]
+$[?(@.context.agent.toolExecution.phase == 'POST_TOOL_EXECUTION' && @.context.agent.toolExecution.status == 'SUCCESS')]
+$[?(@.context.agent.toolExecution.scopeMismatch == true)]
 ```
 
 ## Audit stages to watch
@@ -71,14 +71,14 @@ Planner MCP path:
 
 Rule phases around these paths:
 
-- `RULE_MATCH (McpToolStep)` / `RULE_NO_MATCH (McpToolStep)`
+- `RULE_MATCH (AgentToolStep)` / `RULE_NO_MATCH (AgentToolStep)`
 - `RULE_MATCH (ToolOrchestrationStep PostTool)` / `RULE_NO_MATCH (ToolOrchestrationStep PostTool)`
 - `RULE_MATCH (AgentIntentResolver)` / `RULE_NO_MATCH (AgentIntentResolver)`
 - `RULE_MATCH (RulesStep)` / `RULE_NO_MATCH (RulesStep)`
 
 ## Scope enforcement
 
-`ce_mcp_tool` and `ce_mcp_planner` are scope-validated at startup:
+`ce_agent_tool` and `ce_agent_planner` are scope-validated at startup:
 
 - null/blank scope rows are rejected
 - `intent_code` must be `ANY`, `UNKNOWN`, or defined in `ce_intent`

@@ -25,7 +25,7 @@ export const v2PipelineSteps = [
   { name: "AddContainerDataStep", description: "Merges configured container data into runtime context." },
   { name: "PendingActionStep", description: "Executes or rejects pending action task via CeTaskExecutor." },
   { name: "ToolOrchestrationStep", description: "Unified tool request->execute->result contract by tool_group." },
-  { name: "McpToolStep", description: "Planner loop for CALL_TOOL/ANSWER with MCP observations." },
+  { name: "AgentToolStep", description: "Planner loop for CALL_TOOL/ANSWER with MCP observations." },
   { name: "SchemaExtractionStep", description: "Parses/extracts structured schema fields." },
   { name: "AutoAdvanceStep", description: "Advances state when schema/task facts satisfy conditions." },
   { name: "RulesStep", description: "Runs phase-scoped rules and actions with cascade passes." },
@@ -101,7 +101,7 @@ public EngineResult process(EngineContext engineContext) {
 <PipelineStepList ariaLabel="Pipeline step-by-step (v2)" steps={v2PipelineSteps} />
 
 <Highlight type="info" title="Core path vs conditional steps">
-`DialogueActStep`, `InteractionPolicyStep`, `CorrectionStep`, `ActionLifecycleStep`, `DisambiguationStep`, `PendingActionStep`, `ToolOrchestrationStep`, `McpToolStep`, `StateGraphStep`, and `MemoryStep` are route-conditional and execute only when their prerequisites are met.
+`DialogueActStep`, `InteractionPolicyStep`, `CorrectionStep`, `ActionLifecycleStep`, `DisambiguationStep`, `PendingActionStep`, `ToolOrchestrationStep`, `AgentToolStep`, `StateGraphStep`, and `MemoryStep` are route-conditional and execute only when their prerequisites are met.
 </Highlight>
 
 <Highlight type="success" title="Audit Trail + Real-world trace">

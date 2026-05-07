@@ -12,21 +12,23 @@ sidebar_position: 2
 - `engine/pipeline/EnginePipeline.java`
 - `engine/session/EngineSession.java`
 
-## New flow config
+## Flow config
 
 - `config/ConvEngineFlowConfig.java`
+- `config/ConvEngineAgentConfig.java` (agent tool + semantic + guardrail config, YAML prefix `convengine.mcp`)
 
-## New steps
+## Pipeline steps
 
 - `engine/steps/DialogueActStep.java`
 - `engine/steps/InteractionPolicyStep.java`
 - `engine/steps/ActionLifecycleStep.java`
 - `engine/steps/DisambiguationStep.java`
 - `engine/steps/GuardrailStep.java`
-- `engine/steps/PendingActionStep.java` (enhanced behavior)
+- `engine/steps/PendingActionStep.java`
 - `engine/steps/ToolOrchestrationStep.java`
 - `engine/steps/StateGraphStep.java`
 - `engine/steps/MemoryStep.java`
+- `engine/steps/AgentToolStep.java` (agent planning loop — was McpToolStep)
 
 ## Intent/schema/rules/response
 
@@ -35,14 +37,62 @@ sidebar_position: 2
 - `engine/steps/RulesStep.java`
 - `engine/steps/ResponseResolutionStep.java`
 
-## MCP + tool execution
+## Agent Tool framework (`engine/agent/`)
 
-- `engine/steps/McpToolStep.java`
-- `engine/mcp/McpPlanner.java`
-- `engine/mcp/McpToolRegistry.java`
-- `engine/mcp/executor/McpToolExecutor.java`
-- `engine/mcp/executor/*` (group-specific executors)
-- `engine/mcp/executor/adapter/*` (consumer adapter contracts)
+ConvEngine's own DB-driven tool capability layer.
+
+- `engine/agent/AgentPlanner.java` — LLM-based planning agent (CALL_TOOL / ANSWER loop)
+- `engine/agent/AgentToolRegistry.java` — DB-backed tool registry (ce_agent_tool)
+- `engine/agent/AgentConstants.java` — tool groups, actions, status constants
+- `engine/agent/AgentDbExecutor.java` — SQL execution with template + guardrail
+- `engine/agent/AgentSqlGuardrail.java` — allowlist-based SQL safety
+- `engine/agent/AgentSqlTemplate.java` — SQL template renderer
+- `engine/agent/model/AgentPlan.java` — planner output (action, tool_code, args, answer)
+- `engine/agent/model/AgentObservation.java` — tool execution result
+- `engine/agent/executor/AgentToolExecutor.java` — executor interface
+- `engine/agent/executor/DbToolExecutor.java`
+- `engine/agent/executor/HttpApiToolExecutor.java`
+- `engine/agent/executor/FileToolExecutor.java`
+- `engine/agent/executor/NotificationToolExecutor.java`
+- `engine/agent/executor/DocumentRetrievalToolExecutor.java`
+- `engine/agent/executor/WorkflowActionToolExecutor.java`
+- `engine/agent/executor/CalculatorTransformToolExecutor.java`
+- `engine/agent/executor/McpServerToolExecutor.java` — routes CALL_TOOL to external MCP servers
+- `engine/agent/executor/adapter/*` — consumer adapter contracts
+- `engine/agent/executor/handler/*` — DB query handler implementations
+- `engine/agent/executor/http/*` — HTTP auth, request spec, response mapping
+- `engine/agent/executor/interceptor/*` — query interceptors
+- `engine/agent/preflight/DbSqlPreflightService.java` — SQL preflight validation + auto-repair
+- `engine/agent/query/semantic/*` — semantic query pipeline (interpret, resolve, embed)
+- `engine/agent/util/AgentSqlAuditHelper.java`
+
+## Real MCP protocol (`engine/mcp/`)
+
+External MCP server connection, discovery, and invocation.
+
+- `engine/mcp/McpRegistry.java` — server lifecycle, tool cache, `discoveredTools()`
+- `engine/mcp/McpClient.java` — JSON-RPC 2.0 client (protocol version `2024-11-05`)
+- `engine/mcp/McpTransport.java` — transport interface
+- `engine/mcp/StdioMcpTransport.java` — subprocess stdin/stdout
+- `engine/mcp/HttpMcpTransport.java` — HTTP POST transport
+- `engine/mcp/SseMcpTransport.java` — Server-Sent Events transport
+- `engine/mcp/McpServerConfig.java` — server config DTO
+- `engine/mcp/McpDiscoveredTool.java` — runtime-discovered tool record
+- `engine/mcp/McpController.java` — REST API for server management
+- `engine/mcp/McpException.java`
+
+## Agent Tool entities + repos
+
+- `entity/CeAgentTool.java` → `ce_agent_tool`
+- `entity/CeAgentPlanner.java` → `ce_agent_planner`
+- `entity/CeAgentDbTool.java` → `ce_agent_db_tool`
+- `entity/CeAgentFeedback.java` → `ce_agent_feedback`
+- `entity/CeAgentQueryKnowledge.java` → `ce_agent_query_knowledge`
+- `repo/AgentToolRepository.java`
+- `repo/AgentPlannerRepository.java`
+- `repo/AgentDbToolRepository.java`
+- `repo/AgentFeedbackRepository.java`
+- `repo/AgentQueryKnowledgeRepository.java`
 
 ## Data + repositories
 
@@ -50,7 +100,7 @@ sidebar_position: 2
 - `repo/PendingActionRepository.java`
 - `entity/CeRule.java`
 - `repo/RuleRepository.java`
-- SQL DDL files in `src/main/resources/sql/*`
+- `src/main/resources/sql/mcp/mcp_cleanup_ddl.sql` — migration: rename ce_mcp_* to ce_agent_*
 
 ## Memory + eval
 

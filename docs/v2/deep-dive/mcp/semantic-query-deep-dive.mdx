@@ -14,7 +14,7 @@ import {
 
 export const nodes = [
   { id: "u", data: { label: "1. User Question" } },
-  { id: "p", data: { label: "2. McpPlanner" } },
+  { id: "p", data: { label: "2. AgentPlanner" } },
   { id: "i", data: { label: "3. db.semantic.interpret" } },
   { id: "q", data: { label: "4. db.semantic.query" } },
   { id: "pg", data: { label: "5. postgres.query" } },
@@ -38,11 +38,11 @@ export const details = {
     tables: ["ce_audit (W)"]
   },
   p: {
-    title: "2. McpPlanner",
+    title: "2. AgentPlanner",
     stage: "MCP_PLAN",
     summary: "Planner chooses semantic tool chain order.",
     session: ["toolOrder", "mcpAction"],
-    tables: ["ce_mcp_planner (R)", "ce_mcp_tool (R)"]
+    tables: ["ce_agent_planner (R)", "ce_agent_tool (R)"]
   },
   i: {
     title: "3. db.semantic.interpret",
@@ -293,7 +293,7 @@ String question = request.getQuestion();
   title="Who did what"
   columns={["Component", "Did", "Concluded"]}
   rows={[
-    ["Java (McpPlanner)", "loaded tool metadata", "semantic chain should run"],
+    ["Java (AgentPlanner)", "loaded tool metadata", "semantic chain should run"],
     ["LLM", "not deciding SQL here", "none"],
     ["DB", "read planner/tool config", "available tools + order"],
   ]}

@@ -71,7 +71,7 @@ public interface EngineStep {
         ResponseResolutionStep,
         MemoryStep,
         AutoAdvanceStep,
-        McpToolStep,
+        AgentToolStep,
         LoadOrCreateConversationStep,
         FallbackIntentStateStep,
         PersistConversationBootstrapStep,
@@ -93,7 +93,7 @@ public interface EngineStep {
 ```java
 public interface McpToolExecutor {
     String toolGroup();
-    String execute(CeMcpTool tool, Map<String, Object> args, EngineSession session);
+    String execute(CeAgentTool tool, Map<String, Object> args, EngineSession session);
 }
 ```
 
