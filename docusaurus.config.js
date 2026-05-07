@@ -8,7 +8,7 @@ const config = {
   future: { v4: true },
   trailingSlash: false,
   url: 'https://salilvnair.com',
-  baseUrl: '/',
+  baseUrl: '/framework/convengine/',
   organizationName: 'salilvnair',
   projectName: 'convengine-docs',
   onBrokenLinks: 'throw',

@@ -12,6 +12,8 @@
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
+    "build:sync": "node scripts/build-all.mjs",
+    "build:all": "node scripts/build-all.mjs",
     "prestart": "node scripts/generate-docs-index.mjs",
     "prebuild": "node scripts/generate-docs-index.mjs",
     "preserve": "node scripts/generate-docs-index.mjs"
